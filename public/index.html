@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDE · Targeted Decomposition Engine</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0a0e13;
+    --surface: #121820;
+    --surface-2: #1a222c;
+    --surface-3: #222c38;
+    --text: #e8ecf2;
+    --text-dim: #a8b2c0;
+    --muted: #6b7685;
+    --border: #2a3542;
+    --accent: #5aa9ff;
+    --green: #3ddc84;
+    --yellow: #ffc757;
+    --red: #ff5a5a;
+    --purple: #b583ff;
+    --orange: #ff9d5a;
+    --pink: #ff67c3;
+    --cyan: #5ad4ff;
+  }
+
+  body {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px 16px 60px;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* HEADER */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 14px; color: #0a0e13;
+  }
+  .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-top: 2px; }
+  .status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-dim);
+    background: var(--surface); padding: 6px 12px;
+    border-radius: 20px; border: 1px solid var(--border);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  /* LIVE DEMO HERO */
+  .live-demo {
+    background: linear-gradient(135deg, var(--surface) 0%, rgba(181,131,255,0.06) 50%, rgba(90,169,255,0.06) 100%);
+    border: 1px solid rgba(181,131,255,0.3);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .live-demo::before {
+    content: 'LIVE';
+    position: absolute;
+    top: 16px;
+    right: 18px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    font-weight: 800;
+    color: var(--green);
+    background: rgba(61,220,132,0.15);
+    padding: 4px 10px;
+    border-radius: 12px;
+  }
+  .live-demo h2 {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .live-demo-sub {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+  }
+  .demo-input-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  @media (max-width: 720px) { .demo-input-grid { grid-template-columns: 1fr; } }
+  .demo-input-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .demo-input-label {
+    font-size: 10px;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 800;
+    padding-left: 2px;
+  }
+  .demo-target-row {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 10px;
+  }
+  @media (max-width: 720px) { .demo-target-row { grid-template-columns: 1fr; } }
+  .target-toggle {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 3px;
+    height: 42px;
+  }
+  .target-toggle button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 7px;
+    padding: 0 8px;
+    transition: all 0.15s;
+  }
+  .target-toggle button.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  /* DEMO-SCALE DISCLAIMER */
+  .demo-scale-note {
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: rgba(255,199,87,0.08);
+    border: 1px solid rgba(255,199,87,0.25);
+    border-radius: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.55;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .demo-scale-note strong { color: var(--yellow); letter-spacing: 0.3px; }
+  .demo-scale-note-icon {
+    font-size: 12px;
+    color: var(--yellow);
+    font-weight: 900;
+    flex-shrink: 0;
+    line-height: 1.3;
+  }
+
+  .demo-input {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .demo-input:focus { border-color: var(--accent); }
+  .demo-input::placeholder { color: var(--muted); }
+  .demo-btn {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .demo-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(90,169,255,0.3); }
+  .demo-btn:disabled { background: var(--surface-3); color: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .demo-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .demo-hint-label { margin-right: 4px; }
+  .demo-hint {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .demo-hint:hover { color: var(--text); border-color: var(--accent); }
+
+  /* PHASE TIMELINE */
+  .phases { margin-top: 20px; display: none; }
+  .phases.active { display: block; }
+  .phase-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .phase-item.running {
+    border-color: var(--accent);
+    background: rgba(90,169,255,0.08);
+  }
+  .phase-item.done {
+    opacity: 0.7;
+  }
+  .phase-item.error {
+    border-color: var(--red);
+    background: rgba(255,90,90,0.08);
+  }
+  .phase-icon {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .phase-item.running .phase-icon {
+    background: var(--accent);
+    color: white;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .phase-item.done .phase-icon {
+    background: var(--green);
+    color: white;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .phase-text { flex: 1; color: var(--text); }
+  .phase-item.done .phase-text { color: var(--text-dim); }
+
+  /* SECTION TITLES */
+  .section-title {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); font-weight: 800;
+    margin: 24px 0 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::before {
+    content: ''; width: 14px; height: 2px; background: var(--accent); border-radius: 2px;
+  }
+
+  /* ANGLES PANEL */
+  .angles-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .angles-panel.active { display: block; }
+  .angles-intro {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: rgba(61,220,132,0.08);
+    border-left: 3px solid var(--green);
+    border-radius: 6px;
+  }
+  .angles-intro strong { color: var(--text); }
+  .angle-cards { display: flex; flex-direction: column; gap: 10px; }
+  .angle {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    position: relative;
+  }
+  .angle.top-pick {
+    border-color: var(--green);
+    background: linear-gradient(135deg, var(--surface-2) 0%, rgba(61,220,132,0.04) 100%);
+  }
+  .angle.top-pick::after {
+    content: 'TOP PICK';
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    font-weight: 800;
+    color: var(--green);
+    background: rgba(61,220,132,0.15);
+    padding: 3px 8px;
+    border-radius: 10px;
+  }
+  .angle-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+    padding-right: 80px;
+  }
+  .angle-thesis {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-bottom: 12px;
+  }
+  .angle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  @media (max-width: 600px) { .angle-grid { grid-template-columns: 1fr; } }
+  .angle-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .angle-cell-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .angle-cell-val { font-size: 12px; color: var(--text); line-height: 1.5; }
+  .angle-cell.wintech .angle-cell-label { color: var(--accent); }
+  .angle-cell.aiaivn .angle-cell-label { color: var(--green); }
+  .angle-cell.pain .angle-cell-label { color: var(--red); }
+  .angle-cell.step .angle-cell-label { color: var(--yellow); }
+
+  /* EMAIL */
+  .email-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .email-panel.active { display: block; }
+  .email-frame {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .email-subject-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 800;
+  }
+  .email-subject-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 4px 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .email-body {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .email-body strong { color: var(--text); font-weight: 700; }
+  .email-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+    gap: 8px;
+  }
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 14px;
+    font-size: 11px;
+    border-radius: 16px;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  /* HANDOFF BUTTON + RESULT */
+  .handoff-btn {
+    background: linear-gradient(135deg, var(--green) 0%, var(--accent) 100%);
+    border: none;
+    color: #0a0e13;
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 800;
+    border-radius: 16px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+  }
+  .handoff-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(61,220,132,0.35); }
+  .handoff-btn:disabled {
+    background: var(--surface-3); color: var(--muted);
+    cursor: not-allowed; transform: none; box-shadow: none;
+  }
+
+  .handoff-result {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    display: none;
+  }
+  .handoff-result.loading {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(90,169,255,0.08);
+    border: 1px solid rgba(90,169,255,0.25);
+    color: var(--text-dim);
+  }
+  .handoff-result.error {
+    display: block;
+    background: rgba(255,90,90,0.1);
+    border: 1px solid rgba(255,90,90,0.3);
+    color: #ff9a9a;
+  }
+  .handoff-result.success {
+    display: block;
+    background: linear-gradient(135deg, rgba(61,220,132,0.08) 0%, rgba(90,169,255,0.05) 100%);
+    border: 1px solid rgba(61,220,132,0.3);
+  }
+
+  .handoff-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .handoff-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .handoff-check {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--green);
+    color: #0a0e13;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+  .handoff-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .handoff-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .handoff-mode {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    background: rgba(255,199,87,0.15);
+    color: var(--yellow);
+    padding: 3px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .handoff-mode.live {
+    background: rgba(61,220,132,0.15);
+    color: var(--green);
+  }
+
+  .handoff-details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+  }
+  .handoff-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 12px;
+    gap: 12px;
+  }
+  .handoff-row code {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--surface-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .handoff-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .handoff-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 11px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+  }
+  .handoff-link:hover { text-decoration: underline; }
+
+  .handoff-next {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-left: 2px solid var(--green);
+    border-radius: 6px;
+  }
+  .handoff-next-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--green);
+    text-transform: uppercase;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .handoff-next ul {
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .handoff-next li {
+    margin-bottom: 2px;
+  }
+
+  /* RICH HYDRATION CARD */
+  .handoff-result.hydration {
+    padding: 18px 20px;
+  }
+  .hydration-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hydration-badge {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .handoff-sub code {
+    background: var(--surface);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+  }
+
+  .mql-score {
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 6px 14px;
+    text-align: center;
+    min-width: 72px;
+    flex-shrink: 0;
+  }
+  .mql-num {
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .mql-tier {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    font-weight: 800;
+    margin-top: 3px;
+  }
+
+  .hyd-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 720px) {
+    .hyd-grid { grid-template-columns: 1fr; }
+  }
+
+  .hyd-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .hyd-cell.solution {
+    border-left: 3px solid var(--green);
+  }
+  .hyd-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .hyd-primary {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .hyd-why {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-style: italic;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .hyd-scope {
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .hyd-scope-label {
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-size: 9px;
+    margin-right: 4px;
+  }
+  .hyd-codes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .code-chip {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 10px;
+    background: rgba(90,169,255,0.08);
+    border: 1px solid rgba(90,169,255,0.25);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 10px;
+  }
+  .code-chip.naics {
+    background: rgba(181,131,255,0.08);
+    border-color: rgba(181,131,255,0.25);
+    color: var(--purple);
+  }
+  .hyd-verticals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .vertical-tag {
+    font-size: 10px;
+    background: var(--surface-2);
+    color: var(--text-dim);
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+
+  .hyd-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+
+  .pain-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .pain-card {
+    background: rgba(255,90,90,0.04);
+    border: 1px solid rgba(255,90,90,0.2);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .pain-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .pain-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .pain-scores {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .pain-score {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 10px;
+    background: rgba(255,90,90,0.15);
+    color: var(--red);
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-weight: 700;
+  }
+  .pain-score.fit {
+    background: rgba(61,220,132,0.15);
+    color: var(--green);
+  }
+  .pain-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+  .pain-atoms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .pain-atom-tag {
+    font-size: 9px;
+    background: var(--surface-2);
+    color: var(--muted);
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 600;
+  }
+
+  .prequal-reason {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .blockers-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--yellow);
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .blockers {
+    padding-left: 18px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .blockers li { margin-bottom: 2px; }
+
+  .hyd-action {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(61,220,132,0.08) 0%, rgba(90,169,255,0.06) 100%);
+    border: 1px solid rgba(61,220,132,0.3);
+    border-radius: 10px;
+  }
+  .hyd-action-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .hyd-action-verb {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--green);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .hyd-action-target {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .hyd-action-opener {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text);
+    line-height: 1.5;
+    padding-left: 10px;
+    border-left: 2px solid var(--green);
+    margin-bottom: 8px;
+  }
+  .hyd-action-outcome {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .hyd-action-outcome .label {
+    color: var(--green);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+
+  .hyd-footer {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ATOMS */
+  .atoms-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: none;
+  }
+  .atoms-panel.active { display: block; }
+  .atoms-header {
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;
+  }
+  .atoms-count { font-size: 11px; color: var(--accent); font-weight: 700; }
+  .atom-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  .filter-chip {
+    font-size: 10px; background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 10px; border-radius: 14px;
+    cursor: pointer; font-weight: 600;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .filter-chip:hover { background: var(--surface-3); color: var(--text); }
+  .filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .atoms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+  }
+  .atom {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    position: relative;
+  }
+  .atom::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--atom-color);
+    border-radius: 10px 0 0 10px;
+  }
+  .atom-top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px; gap: 8px;
+  }
+  .atom-type {
+    font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--atom-color); font-weight: 800;
+  }
+  .atom-conf {
+    font-size: 9px; color: var(--muted); font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .atom-claim {
+    font-size: 12px; color: var(--text); line-height: 1.5;
+    margin-bottom: 6px; font-weight: 500;
+  }
+  .atom-evidence {
+    font-size: 10px; color: var(--muted);
+    font-style: italic; line-height: 1.4; margin-bottom: 6px;
+  }
+  .atom-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+  .atom-tag {
+    font-size: 9px; background: var(--surface-3);
+    color: var(--text-dim); padding: 2px 6px;
+    border-radius: 10px; font-weight: 600;
+  }
+
+  .atom.mission { --atom-color: var(--accent); }
+  .atom.product { --atom-color: var(--green); }
+  .atom.icp { --atom-color: var(--cyan); }
+  .atom.proof_point { --atom-color: var(--green); }
+  .atom.team { --atom-color: var(--purple); }
+  .atom.stack_signal { --atom-color: var(--orange); }
+  .atom.buying_trigger { --atom-color: var(--yellow); }
+  .atom.differentiator { --atom-color: var(--accent); }
+  .atom.partnership { --atom-color: var(--cyan); }
+  .atom.contact { --atom-color: var(--orange); }
+  .atom.weakness { --atom-color: var(--red); }
+  .atom.mission_gap { --atom-color: var(--pink); }
+
+  /* TARGET LIST */
+  .target-list-wrap {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+  .target-list-label {
+    font-size: 11px; color: var(--muted); font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-right: 4px;
+  }
+  .target-chip {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 14px;
+    border-radius: 18px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .target-chip:hover { color: var(--text); border-color: var(--accent); }
+  .target-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .target-chip .count {
+    font-size: 10px; margin-left: 6px; opacity: 0.7;
+  }
+
+  /* ERROR */
+  .error-msg {
+    background: rgba(255,90,90,0.1);
+    border: 1px solid rgba(255,90,90,0.3);
+    color: #ff9a9a;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-top: 10px;
+    display: none;
+  }
+  .error-msg.active { display: block; }
+
+  footer {
+    margin-top: 40px; text-align: center; font-size: 10px;
+    color: var(--border); letter-spacing: 2px; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">TDE</div>
+      <div>
+        <div class="brand-name">Targeted Decomposition Engine</div>
+        <div class="brand-sub">Ingest · Decompose · Reconstruct</div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="status-dot"></span>
+      <span id="status-text">Checking…</span>
+    </div>
+  </header>
+
+  <!-- LIVE DEMO HERO -->
+  <div class="live-demo">
+    <h2>Live: URL → Atoms → Angles → Email</h2>
+    <div class="live-demo-sub">Drop any customer URL. Watch TDE decompose it, generate possible engagement angles, and draft a send-ready outreach email. ~30 seconds.</div>
+
+    <!-- SELLER INPUTS -->
+    <div class="demo-input-grid">
+      <div class="demo-input-wrap">
+        <label class="demo-input-label" for="demo-salesperson">Your name</label>
+        <input type="text" class="demo-input" id="demo-salesperson" placeholder="e.g., Steve Winfield" autocomplete="off" />
+      </div>
+      <div class="demo-input-wrap">
+        <label class="demo-input-label" for="demo-sender-company">Your company / partner URL</label>
+        <input type="text" class="demo-input" id="demo-sender-company" placeholder="yourcompany.com (used to research your side)" autocomplete="off" />
+      </div>
+    </div>
+    <div class="demo-input-grid">
+      <div class="demo-input-wrap">
+        <label class="demo-input-label" for="demo-solution">Solution / product you're selling</label>
+        <input type="text" class="demo-input" id="demo-solution" placeholder="e.g., Real-time multilingual translation for contact centers" autocomplete="off" />
+      </div>
+      <div class="demo-input-wrap">
+        <label class="demo-input-label" for="demo-role">Recipient role (optional)</label>
+        <input type="text" class="demo-input" id="demo-role" placeholder="e.g., CTO, VP Customer Ops" autocomplete="off" value="CTO" />
+      </div>
+    </div>
+
+    <!-- TARGET: URL OR INDUSTRY -->
+    <div class="demo-target-row">
+      <div class="demo-input-wrap">
+        <label class="demo-input-label">Target by</label>
+        <div class="target-toggle" id="target-toggle">
+          <button type="button" class="active" data-mode="url">Company URL</button>
+          <button type="button" data-mode="industry">Industry</button>
+        </div>
+      </div>
+      <div class="demo-input-wrap">
+        <label class="demo-input-label" id="demo-target-label" for="demo-target">Customer company URL</label>
+        <input type="text" class="demo-input" id="demo-target" placeholder="customer.com (we'll research and decompose)" autocomplete="off" />
+      </div>
+      <button class="demo-btn" id="demo-go">Run Full Flow</button>
+    </div>
+
+    <!-- DEMO-SCALE DISCLAIMER -->
+    <div class="demo-scale-note">
+      <span class="demo-scale-note-icon">ⓘ</span>
+      <div>
+        <strong>DEMO SCALE ONLY.</strong> This quick pass typically surfaces 25–50 atoms per target. In production, TDE digs across news, filings, job posts, tech stack signals, exec content, and more — commonly <strong>150–500+ atoms per target</strong>, growing as the system is used. Don't judge the engine by what a 30-second first pass can reach.
+      </div>
+    </div>
+
+    <div class="phases" id="phases"></div>
+    <div class="error-msg" id="demo-error"></div>
+  </div>
+
+  <div class="angles-panel" id="angles-panel"></div>
+  <div class="email-panel" id="email-panel"></div>
+  <div class="atoms-panel" id="atoms-panel"></div>
+
+  <footer>TDE v2 · Live Demo</footer>
+</div>
+
+<script>
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let currentTargetId = null;
+let currentAtomData = null;
+let currentAngles = null;
+let currentEmail = null;
+let activeFilter = 'all';
+let targetMode = 'url'; // 'url' | 'industry'
+
+const TYPE_LABELS = {
+  mission: 'Mission', product: 'Product', icp: 'ICP', proof_point: 'Proof',
+  team: 'Team', stack_signal: 'Stack', buying_trigger: 'Trigger',
+  differentiator: 'Diff', partnership: 'Partnership',
+  contact: 'Contact', weakness: 'Weakness', mission_gap: 'Mission Gap'
+};
+
+async function boot() {
+  await checkHealth();
+  $('demo-go').onclick = runDemoFlow;
+  $('demo-target').addEventListener('keydown', (e) => { if (e.key === 'Enter') runDemoFlow(); });
+  // Wire target-mode toggle
+  document.querySelectorAll('#target-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => setTargetMode(btn.dataset.mode));
+  });
+}
+
+function setTargetMode(mode) {
+  targetMode = mode;
+  document.querySelectorAll('#target-toggle button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  const label = $('demo-target-label');
+  const input = $('demo-target');
+  if (mode === 'url') {
+    label.textContent = 'Customer company URL';
+    input.placeholder = 'customer.com (we\'ll research and decompose)';
+  } else {
+    label.textContent = 'Target industry';
+    input.placeholder = 'e.g., Regional banks in Southeast Asia';
+  }
+  input.value = '';
+  input.focus();
+}
+
+async function checkHealth() {
+  try {
+    const res = await fetch('/healthz');
+    const data = await res.json();
+    $('status-text').textContent = data.model || 'Ready';
+  } catch {
+    $('status-text').textContent = 'Connection issue';
+  }
+}
+
+function renderAtoms(data) {
+  const types = [...new Set(data.atoms.map(a => a.type))];
+  $('atoms-panel').innerHTML = `
+    <div class="atoms-header">
+      <div class="section-title" style="margin:0">Atoms — ${esc(data.target.name)}</div>
+      <div class="atoms-count">${data.atoms.length} atoms</div>
+    </div>
+    <div class="atom-filters">
+      <button class="filter-chip active" onclick="setFilter('all', event)">All</button>
+      ${types.map(t => `<button class="filter-chip" onclick="setFilter('${esc(t)}', event)">${esc(TYPE_LABELS[t] || t)}</button>`).join('')}
+    </div>
+    <div class="atoms-grid" id="atoms-grid">${renderAtomCards(data.atoms)}</div>
+  `;
+  $('atoms-panel').classList.add('active');
+}
+
+function renderAtomCards(atoms) {
+  return atoms.map(a => `
+    <div class="atom ${esc(a.type)}">
+      <div class="atom-top">
+        <span class="atom-type">${esc(a.type).replace(/_/g, ' ')}</span>
+        <span class="atom-conf">${esc(a.confidence || '')}</span>
+      </div>
+      <div class="atom-claim">${esc(a.claim)}</div>
+      <div class="atom-evidence">${esc(a.evidence || '')}</div>
+      <div class="atom-tags">
+        ${(a.tags || []).slice(0, 4).map(t => `<span class="atom-tag">${esc(t)}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function setFilter(type, ev) {
+  activeFilter = type;
+  document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+  if (ev?.target) ev.target.classList.add('active');
+  const filtered = type === 'all' ? currentAtomData.atoms : currentAtomData.atoms.filter(a => a.type === type);
+  $('atoms-grid').innerHTML = renderAtomCards(filtered);
+}
+
+// ============== LIVE DEMO FLOW ==============
+async function runDemoFlow() {
+  const salesperson = $('demo-salesperson').value.trim();
+  const sender_company = $('demo-sender-company').value.trim();
+  const solution = $('demo-solution').value.trim();
+  const role = $('demo-role').value.trim() || 'Senior executive';
+  const targetRaw = $('demo-target').value.trim();
+
+  // Validation
+  if (!salesperson) {
+    showDemoError('Enter your name so the email signs off correctly.');
+    return;
+  }
+  if (!solution) {
+    showDemoError('Enter the solution/product you\'re selling.');
+    return;
+  }
+  if (!targetRaw) {
+    showDemoError(targetMode === 'url' ? 'Paste a customer URL.' : 'Enter a target industry.');
+    return;
+  }
+
+  // Prep URL/industry payload
+  let url = null, industry = null;
+  if (targetMode === 'url') {
+    url = targetRaw;
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url.replace(/^\/+/, '');
+      $('demo-target').value = url;
+    }
+  } else {
+    industry = targetRaw;
+  }
+
+  $('demo-error').classList.remove('active');
+  $('demo-go').disabled = true;
+  $('demo-go').textContent = 'Running…';
+
+  // Reset result panels
+  $('angles-panel').classList.remove('active');
+  $('email-panel').classList.remove('active');
+  $('atoms-panel').classList.remove('active');
+  $('angles-panel').innerHTML = '';
+  $('email-panel').innerHTML = '';
+
+  const phasesEl = $('phases');
+  phasesEl.classList.add('active');
+  const firstPhaseLabel = targetMode === 'url' ? 'Waiting to fetch…' : 'Waiting to synthesize industry profile…';
+  phasesEl.innerHTML = `
+    <div class="phase-item" id="ph-fetch"><span class="phase-icon">1</span><span class="phase-text">${firstPhaseLabel}</span></div>
+    <div class="phase-item" id="ph-ingest"><span class="phase-icon">2</span><span class="phase-text">Waiting to decompose…</span></div>
+    <div class="phase-item" id="ph-angles"><span class="phase-icon">3</span><span class="phase-text">Waiting to generate angles…</span></div>
+    <div class="phase-item" id="ph-email"><span class="phase-icon">4</span><span class="phase-text">Waiting to compose email…</span></div>
+  `;
+
+  try {
+    const response = await fetch('/api/demo-flow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        industry,
+        recipient_role: role,
+        salesperson,
+        sender_company,
+        solution
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Request failed (${response.status})`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE events from buffer
+      const events = buffer.split('\n\n');
+      buffer = events.pop(); // keep incomplete last chunk
+
+      for (const block of events) {
+        if (!block.trim()) continue;
+        const eventMatch = block.match(/^event:\s*(.+)$/m);
+        const dataMatch = block.match(/^data:\s*(.+)$/m);
+        if (!eventMatch || !dataMatch) continue;
+
+        const eventName = eventMatch[1].trim();
+        let eventData;
+        try { eventData = JSON.parse(dataMatch[1]); } catch { continue; }
+
+        handleSSEEvent(eventName, eventData);
+      }
+    }
+  } catch (e) {
+    showDemoError(e.message || 'Flow failed.');
+  } finally {
+    $('demo-go').disabled = false;
+    $('demo-go').textContent = 'Run Full Flow';
+  }
+}
+
+function handleSSEEvent(eventName, data) {
+  switch (eventName) {
+    case 'phase':
+      updatePhase(data);
+      break;
+    case 'atoms':
+      currentTargetId = data.target_id;
+      currentAtomData = data;
+      renderAtoms(data);
+      markPhaseDone('ph-ingest');
+      break;
+    case 'angles':
+      currentAngles = data;
+      renderAngles(data);
+      markPhaseDone('ph-angles');
+      break;
+    case 'email':
+      currentEmail = data;
+      renderEmail(data);
+      markPhaseDone('ph-email');
+      break;
+    case 'done':
+      markPhaseDone('ph-fetch');
+      markPhaseDone('ph-ingest');
+      markPhaseDone('ph-angles');
+      markPhaseDone('ph-email');
+      break;
+    case 'error':
+      showDemoError(data.message);
+      break;
+  }
+}
+
+function updatePhase(data) {
+  const phaseId = 'ph-' + data.phase;
+  const el = $(phaseId);
+  if (!el) return;
+  // Mark prior phases done
+  const order = ['fetch', 'ingest', 'angles', 'email'];
+  const idx = order.indexOf(data.phase);
+  for (let i = 0; i < idx; i++) markPhaseDone('ph-' + order[i]);
+
+  document.querySelectorAll('.phase-item').forEach(el => el.classList.remove('running'));
+  el.classList.add('running');
+  el.querySelector('.phase-text').textContent = data.message;
+}
+
+function markPhaseDone(id) {
+  const el = $(id);
+  if (!el) return;
+  el.classList.remove('running');
+  el.classList.add('done');
+  el.querySelector('.phase-icon').textContent = '✓';
+}
+
+function renderAngles(data) {
+  const topPick = data.top_pick;
+  const sellerLabel = data.seller_label || 'Your side';
+  const solutionLabel = data.solution_label || 'Solution';
+  const html = `
+    <div class="section-title">${esc(sellerLabel)} → ${esc(data.target_name)}</div>
+    <div class="angles-intro">
+      <strong>Top pick:</strong> ${esc(topPick || data.angles[0]?.title || '—')}
+    </div>
+    <div class="angle-cards">
+      ${data.angles.map(a => renderAngle(a, a.title === topPick, sellerLabel, solutionLabel)).join('')}
+    </div>
+  `;
+  $('angles-panel').innerHTML = html;
+  $('angles-panel').classList.add('active');
+}
+
+function renderAngle(a, isTop, sellerLabel, solutionLabel) {
+  // Support both new generic fields and legacy wintech/aiaivn fields for back-compat
+  const sellerContribution = a.seller_contribution || a.wintech_contribution || '';
+  const solutionContribution = a.solution_contribution || a.aiaivn_contribution || '';
+  return `
+    <div class="angle ${isTop ? 'top-pick' : ''}">
+      <div class="angle-title">${esc(a.title)}</div>
+      <div class="angle-thesis">"${esc(a.thesis)}"</div>
+      <div class="angle-grid">
+        <div class="angle-cell wintech">
+          <div class="angle-cell-label">${esc(sellerLabel)} brings</div>
+          <div class="angle-cell-val">${esc(sellerContribution)}</div>
+        </div>
+        <div class="angle-cell aiaivn">
+          <div class="angle-cell-label">${esc(solutionLabel)} brings</div>
+          <div class="angle-cell-val">${esc(solutionContribution)}</div>
+        </div>
+        <div class="angle-cell pain">
+          <div class="angle-cell-label">Addresses</div>
+          <div class="angle-cell-val">${esc(a.target_pain_addressed)}</div>
+        </div>
+        <div class="angle-cell step">
+          <div class="angle-cell-label">First step</div>
+          <div class="angle-cell-val">${esc(a.first_step)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderEmail(data) {
+  const c = data.composed || {};
+  const subject = c.subject || '';
+  const body = c.body || '';
+
+  $('email-panel').innerHTML = `
+    <div class="section-title">Composed Outreach Email</div>
+    <div class="email-frame">
+      ${subject ? `<div class="email-subject-label">Subject</div><div class="email-subject-val">${esc(subject)}</div>` : ''}
+      <div class="email-body" id="email-body">${renderMd(body)}</div>
+      <div class="email-actions">
+        <button class="copy-btn" onclick="copyEmail()">Copy email</button>
+        <button class="handoff-btn" id="handoff-btn" onclick="handoffToLeadHydration()">Send to LeadHydration →</button>
+      </div>
+    </div>
+    <div id="handoff-result" class="handoff-result"></div>
+  `;
+  $('email-panel').classList.add('active');
+  $('email-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderMd(text) {
+  let t = esc(text);
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  t = t.replace(/_([^_]+)_/g, '<em>$1</em>');
+  return t;
+}
+
+function copyEmail() {
+  if (!currentEmail) return;
+  const subject = currentEmail.composed?.subject || '';
+  const body = currentEmail.composed?.body || '';
+  const text = subject ? `Subject: ${subject}\n\n${body}` : body;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy email'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+async function handoffToLeadHydration() {
+  const btn = $('handoff-btn');
+  const resultEl = $('handoff-result');
+  if (!currentTargetId) {
+    resultEl.className = 'handoff-result error';
+    resultEl.innerHTML = 'No target loaded — run a demo flow first.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Hydrating…';
+  resultEl.className = 'handoff-result loading';
+  resultEl.innerHTML = '<div class="handoff-spinner"></div> Running LeadHydration multi-agent enrichment…';
+
+  const topAngleObj = currentAngles?.angles?.find(a => a.title === currentAngles.top_pick) || currentAngles?.angles?.[0] || null;
+
+  try {
+    const res = await fetch('/api/handoff/leadhydration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_id: currentTargetId,
+        angle: topAngleObj,
+        email: currentEmail?.composed,
+        recipient_role: $('demo-role').value.trim() || 'Senior executive',
+        salesperson: $('demo-salesperson').value.trim() || 'Salesperson',
+        sender_company: $('demo-sender-company').value.trim() || '',
+        solution: $('demo-solution').value.trim() || ''
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Failed (${res.status})`);
+    }
+    const data = await res.json();
+    renderHydration(data);
+  } catch (e) {
+    resultEl.className = 'handoff-result error';
+    resultEl.innerHTML = `Hydration failed: ${esc(e.message)}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send to LeadHydration →';
+  }
+}
+
+function renderHydration(data) {
+  const h = data.hydration || {};
+  const resultEl = $('handoff-result');
+
+  const tierColor = {
+    HOT: 'var(--red)',
+    WARM: 'var(--orange)',
+    NURTURE: 'var(--yellow)',
+    DISQUALIFY: 'var(--muted)'
+  }[h.prequalify?.tier] || 'var(--accent)';
+
+  const painCards = (h.pain_points || []).map(p => `
+    <div class="pain-card">
+      <div class="pain-head">
+        <div class="pain-title">${esc(p.title)}</div>
+        <div class="pain-scores">
+          <span class="pain-score" title="Urgency">U:${p.urgency}</span>
+          <span class="pain-score fit" title="Fit">F:${p.fit}</span>
+        </div>
+      </div>
+      <div class="pain-desc">${esc(p.description)}</div>
+      ${p.evidence_atom_types?.length ? `<div class="pain-atoms">${p.evidence_atom_types.map(t => `<span class="pain-atom-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+    </div>
+  `).join('');
+
+  const sicCodes = (h.industry?.sic_codes || []).map(c => `<span class="code-chip">${esc(c)}</span>`).join('');
+  const naicsCodes = (h.industry?.naics_codes || []).map(c => `<span class="code-chip naics">${esc(c)}</span>`).join('');
+  const verticals = (h.industry?.vertical_tags || []).map(v => `<span class="vertical-tag">${esc(v)}</span>`).join('');
+
+  const blockers = (h.prequalify?.blockers || []).map(b => `<li>${esc(b)}</li>`).join('');
+
+  resultEl.className = 'handoff-result success hydration';
+  resultEl.innerHTML = `
+    <div class="hydration-header">
+      <div class="hydration-badge">
+        <span class="handoff-check">✓</span>
+        <div>
+          <div class="handoff-title">LeadHydration Complete</div>
+          <div class="handoff-sub">${esc(h.company_name || data.hydration?.company_name || '')} · Opportunity <code>${esc(h.opportunity_id || '')}</code></div>
+        </div>
+      </div>
+      <div class="mql-score" style="border-color:${tierColor};color:${tierColor}">
+        <div class="mql-num">${h.prequalify?.mql_score ?? '—'}</div>
+        <div class="mql-tier">${esc(h.prequalify?.tier || '')}</div>
+      </div>
+    </div>
+
+    <div class="hyd-grid">
+      <!-- INDUSTRY -->
+      <div class="hyd-cell">
+        <div class="hyd-label">Industry</div>
+        <div class="hyd-primary">${esc(h.industry?.primary || '—')}</div>
+        <div class="hyd-codes">${sicCodes}${naicsCodes}</div>
+        <div class="hyd-verticals">${verticals}</div>
+      </div>
+
+      <!-- RECOMMENDED SOLUTION -->
+      <div class="hyd-cell solution">
+        <div class="hyd-label">Recommended Solution</div>
+        <div class="hyd-primary">${esc(h.recommended_solution?.combination || '—')}</div>
+        <div class="hyd-why">${esc(h.recommended_solution?.why || '')}</div>
+        <div class="hyd-scope">
+          <span class="hyd-scope-label">30-day scope:</span>
+          <span>${esc(h.recommended_solution?.first_deployment_scope || '')}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAIN POINTS -->
+    <div class="hyd-section">
+      <div class="hyd-label">Pain Points (Urgency / Fit)</div>
+      <div class="pain-grid">${painCards}</div>
+    </div>
+
+    <!-- PREQUALIFY REASONING -->
+    <div class="hyd-section">
+      <div class="hyd-label">Prequalification</div>
+      <div class="prequal-reason">${esc(h.prequalify?.reasoning || '')}</div>
+      ${blockers ? `<div class="blockers-label">Watch:</div><ul class="blockers">${blockers}</ul>` : ''}
+    </div>
+
+    <!-- RECOMMENDED ACTION -->
+    <div class="hyd-action">
+      <div class="hyd-action-head">
+        <span class="hyd-action-verb">${esc(h.recommended_action?.action || 'Next action')}</span>
+        <span class="hyd-action-target">${esc(h.recommended_action?.target || '')}</span>
+      </div>
+      <div class="hyd-action-opener">"${esc(h.recommended_action?.opener || '')}"</div>
+      <div class="hyd-action-outcome"><span class="label">Win =</span> ${esc(h.recommended_action?.desired_outcome || '')}</div>
+    </div>
+
+    <div class="hyd-footer">
+      <span>Ingested ${data.atoms_sent} atoms · Portal: <a href="${esc(data.portal_url)}" target="_blank" class="handoff-link">${esc(data.portal_url)}</a></span>
+    </div>
+  `;
+}
+
+function showDemoError(msg) {
+  const el = $('demo-error');
+  el.textContent = msg;
+  el.classList.add('active');
+}
+
+window.setFilter = setFilter;
+window.copyEmail = copyEmail;
+window.handoffToLeadHydration = handoffToLeadHydration;
+
+boot();
+</script>
+</body>
+</html>

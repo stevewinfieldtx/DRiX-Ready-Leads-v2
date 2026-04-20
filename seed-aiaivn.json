@@ -1,0 +1,289 @@
+{
+  "target": {
+    "name": "AIAIVN",
+    "url": "https://www.aiaivn.com"
+  },
+  "summary": "AIAIVN is a 2024-founded Vietnamese AI company whose stated mission is to bring world-class GenAI to Vietnamese enterprise — but whose current product catalog is almost entirely tourism and public-service deployments. The gap between stated mission and shipped offering is the most strategically significant feature of the company and the clearest signal of where partnership leverage exists.",
+  "atoms": [
+    {
+      "atom_id": "mission-global-tech-for-vn",
+      "type": "mission",
+      "claim": "AIAIVN's stated mission is to empower Vietnamese businesses with world-leading AI, combining global expertise with local understanding at competitive cost.",
+      "evidence": "About page tagline and mission section — global technology, solutions for Vietnam.",
+      "tags": ["mission", "vietnam", "enterprise-ai", "localization"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 6, "business_buyer": 9, "investor": 10, "partner": 10, "general": 8 }
+    },
+    {
+      "atom_id": "vision-revolutionize-business",
+      "type": "mission",
+      "claim": "AIAIVN's vision is to be the leading force revolutionizing Vietnamese enterprise through cutting-edge AI technology.",
+      "evidence": "Vision statement on about page — leading force in business revolution through AI.",
+      "tags": ["vision", "enterprise", "ambition"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 8, "investor": 10, "partner": 9, "general": 7 }
+    },
+    {
+      "atom_id": "gap-mission-vs-catalog",
+      "type": "mission_gap",
+      "claim": "AIAIVN's mission statement describes enterprise-wide AI transformation, but their published solution catalog is exclusively tourism and public-service deployments.",
+      "evidence": "Solutions page lists only tourism products; About page describes broad enterprise ambition.",
+      "tags": ["mission-gap", "strategy", "positioning", "expansion-opportunity"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 7, "business_buyer": 10, "investor": 10, "partner": 10, "general": 6 }
+    },
+    {
+      "atom_id": "product-heristep-audio-guides",
+      "type": "product",
+      "claim": "HeriStepAI is their location-triggered multilingual audio guide product, using GPS and beacon technology for heritage sites and museums.",
+      "evidence": "Solutions page description of HeriStepAI with GPS beacon trigger and multilingual output.",
+      "tags": ["product", "audio-guide", "heritage", "gps-beacon", "multilingual"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 7, "business_buyer": 6, "investor": 5, "partner": 7, "general": 8 }
+    },
+    {
+      "atom_id": "product-travist-realtime-translation",
+      "type": "product",
+      "claim": "Travist is their real-time multilingual speech translation product aimed at tourism, hospitality, and sales conversations.",
+      "evidence": "Solutions page shows Travist with live speech translation use cases across industries.",
+      "tags": ["product", "translation", "real-time", "tourism", "multilingual"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 8, "business_buyer": 7, "investor": 6, "partner": 8, "general": 9 }
+    },
+    {
+      "atom_id": "product-virtual-assistant",
+      "type": "product",
+      "claim": "Their AI Virtual Assistant offers 24/7 GenAI-powered customer support across 20+ languages, deployable on web, kiosk, robot, mobile, Messenger, and Zalo.",
+      "evidence": "Solutions page lists AI Virtual Assistant with multi-channel deployment across 20+ languages.",
+      "tags": ["product", "chatbot", "multichannel", "zalo", "genai"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 8, "business_buyer": 9, "investor": 7, "partner": 9, "general": 8 }
+    },
+    {
+      "atom_id": "product-robot-ai",
+      "type": "product",
+      "claim": "Robot AI is their service-robot offering for events, hotels, airports, conference centers, and exhibitions.",
+      "evidence": "Solutions page describes Robot AI for events and public spaces as technology staff.",
+      "tags": ["product", "robotics", "events", "hospitality"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 6, "business_buyer": 5, "investor": 4, "partner": 6, "general": 9 }
+    },
+    {
+      "atom_id": "product-ticketing-kiosk",
+      "type": "product",
+      "claim": "Their multilingual self-service Ticketing Kiosk handles ticket purchase, payment, and invoice printing for tourism destinations and museums.",
+      "evidence": "Solutions page covers Ticketing Kiosk with POS and invoice integration.",
+      "tags": ["product", "kiosk", "payments", "tourism"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 6, "investor": 4, "partner": 7, "general": 6 }
+    },
+    {
+      "atom_id": "team-anthony-phan-ceo",
+      "type": "team",
+      "claim": "Anthony Tuan Phan is Chairman and CEO, with 20+ years of distributed-systems engineering at Amazon, eBay, Techcombank, and Meta before founding AIAIVN.",
+      "evidence": "LinkedIn and About page — CEO with engineering career across FAANG and Vietnamese banking.",
+      "tags": ["leadership", "ceo", "engineering", "banking-experience"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 9, "investor": 10, "partner": 10, "general": 7 }
+    },
+    {
+      "atom_id": "team-anthony-techcombank",
+      "type": "team",
+      "claim": "CEO Anthony Phan spent 2020-2021 as Director and Data Architect at Techcombank, leading their core data platform migration from on-prem to cloud data lake.",
+      "evidence": "LinkedIn work history — Techcombank Director, Data Architect role, cloud migration focus.",
+      "tags": ["leadership", "banking", "techcombank", "data-architecture", "vietnam-enterprise"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 10, "investor": 9, "partner": 10, "general": 6 }
+    },
+    {
+      "atom_id": "team-anthony-security-background",
+      "type": "team",
+      "claim": "CEO Anthony Phan has applied security background — HP Security Lab research intern and Amazon Multipass credential distribution system engineer.",
+      "evidence": "LinkedIn shows HP Security Lab internship and Amazon credentials infrastructure work.",
+      "tags": ["leadership", "security", "credentials", "infrastructure"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 7, "investor": 8, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "team-anthony-educator",
+      "type": "team",
+      "claim": "CEO Anthony Phan taught Internet Technology and Distributed Systems at Vietnam National University and Rutgers University before his industry career.",
+      "evidence": "LinkedIn shows lecturer positions at VNU Ho Chi Minh City and Rutgers.",
+      "tags": ["leadership", "educator", "teaching", "academic"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 6, "business_buyer": 7, "investor": 5, "partner": 8, "general": 6 }
+    },
+    {
+      "atom_id": "team-ken-cto-meta",
+      "type": "team",
+      "claim": "Yasuno Ken is Co-founder and CTO with a Meta engineering background.",
+      "evidence": "About page lists Ken as Co-founder/CTO with Meta credential in advisor bench description.",
+      "tags": ["leadership", "cto", "engineering", "meta"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 6, "investor": 9, "partner": 9, "general": 5 }
+    },
+    {
+      "atom_id": "team-myhuong-cgo",
+      "type": "team",
+      "claim": "My Huong is Co-founder and Chief Growth Officer, the likely primary owner of external partnership conversations.",
+      "evidence": "About page lists My Huong as Co-founder/CGO in strategy and business development section.",
+      "tags": ["leadership", "cgo", "growth", "partnerships"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 4, "business_buyer": 9, "investor": 8, "partner": 10, "general": 6 }
+    },
+    {
+      "atom_id": "team-advisor-bench-faang",
+      "type": "team",
+      "claim": "Their technical advisory bench draws from Microsoft, Meta, Google, Amazon, NVIDIA, and Stripe, including PhDs from Carnegie Mellon, UC, and Rutgers.",
+      "evidence": "About page lists advisory team with named senior roles at FAANG and NVIDIA plus academic credentials.",
+      "tags": ["advisors", "faang", "technical-credibility", "phd"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 9, "business_buyer": 8, "investor": 10, "partner": 9, "general": 7 }
+    },
+    {
+      "atom_id": "stack-genai-first",
+      "type": "stack_signal",
+      "claim": "Their architecture is GenAI-first, combining LLM, speech-to-text, text-to-speech, real-time translation, and face recognition into deployable vertical products.",
+      "evidence": "Solutions pages describe GenAI as the foundation across HeriStepAI, Travist, Virtual Assistant.",
+      "tags": ["stack", "genai", "llm", "speech", "architecture"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 5, "investor": 8, "partner": 9, "general": 5 }
+    },
+    {
+      "atom_id": "stack-multichannel-delivery",
+      "type": "stack_signal",
+      "claim": "They deliver products across web, kiosk hardware, robot platforms, mobile apps, Messenger, and Zalo — indicating substantial integration engineering capacity.",
+      "evidence": "Virtual Assistant page lists all six delivery channels as supported deployment targets.",
+      "tags": ["stack", "integration", "multichannel", "zalo", "hardware"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 9, "business_buyer": 7, "investor": 7, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "proof-danang-museum",
+      "type": "proof_point",
+      "claim": "Da Nang Museum is a live deployment running their automatic multilingual audio narration and AI robot greeter systems.",
+      "evidence": "Projects page shows Da Nang Museum as a live deployment with multiple AIAIVN products.",
+      "tags": ["proof-point", "museum", "danang", "deployment"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 7, "business_buyer": 8, "investor": 8, "partner": 9, "general": 8 }
+    },
+    {
+      "atom_id": "proof-hoian-kiosk",
+      "type": "proof_point",
+      "claim": "Hoi An ancient town has their automated ticketing kiosks deployed for tourist ticketing flows.",
+      "evidence": "Projects page names Hoi An among live kiosk deployments.",
+      "tags": ["proof-point", "hoian", "tourism", "kiosk"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 7, "investor": 7, "partner": 8, "general": 8 }
+    },
+    {
+      "atom_id": "proof-marathon-events",
+      "type": "proof_point",
+      "claim": "Their face-recognition check-in and crowd-management systems have been deployed at Vietnamese marathon events.",
+      "evidence": "Projects page shows marathon deployments using face-recognition check-in flow.",
+      "tags": ["proof-point", "events", "face-recognition", "marathon"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 8, "business_buyer": 7, "investor": 6, "partner": 8, "general": 7 }
+    },
+    {
+      "atom_id": "partnerships-18-logos",
+      "type": "partnership",
+      "claim": "They display 18 partner logos on their about page, though the strategic depth of these relationships is not disclosed publicly.",
+      "evidence": "About page partner section shows 18 partner logos without public detail on relationship depth.",
+      "tags": ["partners", "channel", "ecosystem"],
+      "confidence": "medium",
+      "audience_relevance": { "technical_buyer": 4, "business_buyer": 7, "investor": 8, "partner": 9, "general": 6 }
+    },
+    {
+      "atom_id": "icp-stated-tourism-public",
+      "type": "icp",
+      "claim": "Stated customer verticals are museums, heritage sites, tourism operators, public admin centers, shopping centers, hotels, airports, and event venues.",
+      "evidence": "Solutions pages list target customer types across tourism and public sectors.",
+      "tags": ["icp", "tourism", "public-sector", "hospitality"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 8, "investor": 7, "partner": 9, "general": 6 }
+    },
+    {
+      "atom_id": "icp-implied-enterprise",
+      "type": "icp",
+      "claim": "Mission statement implies a much broader ICP including Vietnamese banks, insurers, hospitals, manufacturers, telcos, and government ministries — even though none are listed in current products.",
+      "evidence": "Mission text covers enterprise broadly while solution catalog covers only tourism subset.",
+      "tags": ["icp", "enterprise", "implied", "banking", "expansion"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 8, "business_buyer": 10, "investor": 10, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "differentiator-price-vs-west",
+      "type": "differentiator",
+      "claim": "Their positioning emphasizes cost-competitive delivery against Western AI vendors, combining FAANG-caliber engineering with Vietnamese operating costs.",
+      "evidence": "About page positions them as world-class technology delivered at Vietnamese cost structure.",
+      "tags": ["differentiator", "price", "cost-structure", "localization"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 7, "business_buyer": 10, "investor": 9, "partner": 10, "general": 7 }
+    },
+    {
+      "atom_id": "differentiator-local-deep",
+      "type": "differentiator",
+      "claim": "Vietnamese-first UX, deep cultural adaptation, and Vietnamese-language product surface are their strongest moat against Western AI entrants.",
+      "evidence": "Website is Vietnamese-first with localized content, UX flows, and cultural framing.",
+      "tags": ["differentiator", "vietnamese", "localization", "ux"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 7, "business_buyer": 9, "investor": 9, "partner": 10, "general": 7 }
+    },
+    {
+      "atom_id": "contact-nhung-ha-kam",
+      "type": "contact",
+      "claim": "Ms. My Nhung is listed as Key Account Manager with email nhung.ha@aiaivn.com and phone 0844-591-010.",
+      "evidence": "About page contact section lists Ms. My Nhung as Key Account Manager with direct contact info.",
+      "tags": ["contact", "key-account", "inbound-path"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 4, "business_buyer": 8, "investor": 5, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "contact-info-email-phone",
+      "type": "contact",
+      "claim": "General contact is info@aiaivn.com and 0856-008-010, with offices in Da Nang ICT Park 2 and HCMC Bay Hien Ward.",
+      "evidence": "Footer contact block lists both offices and general inbound email and phone.",
+      "tags": ["contact", "offices", "inbound"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 3, "business_buyer": 7, "investor": 4, "partner": 9, "general": 6 }
+    },
+    {
+      "atom_id": "buying-trigger-early-stage-growth",
+      "type": "buying_trigger",
+      "claim": "Founded in 2024 with revenue concentrated in tourism pilots, they face structural pressure to expand horizontally to match mission scope and justify investor expectations.",
+      "evidence": "2024 founding date plus tourism-only catalog implies growth-stage horizontal expansion pressure.",
+      "tags": ["buying-trigger", "early-stage", "expansion-pressure"],
+      "confidence": "medium",
+      "audience_relevance": { "technical_buyer": 4, "business_buyer": 8, "investor": 10, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "weakness-no-outbound-motion",
+      "type": "weakness",
+      "claim": "No visible outbound sales motion, channel program, or structured sales enablement — their go-to-market appears to rely on inbound, referral, and direct demos.",
+      "evidence": "No evidence of outbound campaigns or channel programs on website or public content.",
+      "tags": ["weakness", "gap", "gtm", "sales-enablement"],
+      "confidence": "medium",
+      "audience_relevance": { "technical_buyer": 3, "business_buyer": 9, "investor": 7, "partner": 10, "general": 4 }
+    },
+    {
+      "atom_id": "weakness-quote-gated-pricing",
+      "type": "weakness",
+      "claim": "Pricing is entirely quote-gated, which slows sales cycles and limits self-service expansion.",
+      "evidence": "Pricing page routes to inquiry form rather than published pricing tiers.",
+      "tags": ["weakness", "pricing", "sales-cycle"],
+      "confidence": "medium",
+      "audience_relevance": { "technical_buyer": 4, "business_buyer": 7, "investor": 6, "partner": 8, "general": 5 }
+    },
+    {
+      "atom_id": "offices-danang-hcmc",
+      "type": "stack_signal",
+      "claim": "They operate from Da Nang ICT Park 2 and Ho Chi Minh City Bay Hien Ward — the two principal Vietnamese tech corridors.",
+      "evidence": "Footer and contact pages confirm both Da Nang and HCMC office locations.",
+      "tags": ["offices", "danang", "hcmc", "vietnam-tech-corridor"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 6, "investor": 7, "partner": 8, "general": 5 }
+    }
+  ],
+  "ingested_at": "2026-04-18T00:00:00.000Z"
+}

@@ -1,0 +1,42 @@
+# ==== Secrets — NEVER commit ====
+# Your OpenRouter / LeadHydration API keys live in .env. Keep them local.
+# Railway reads its own env vars from its dashboard, not from this file.
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Keep example templates so teammates know what vars are needed
+!.env.example
+!.env.EXAMPLE.example
+
+# ==== Dependencies ====
+# Railway rebuilds node_modules from package.json + package-lock.json.
+# Committing it would bloat the repo and cause platform mismatches.
+node_modules/
+jspm_packages/
+
+# ==== Build / runtime output ====
+dist/
+build/
+.cache/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==== Editor & OS junk ====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==== Misc ====
+*.tmp
+coverage/
+.nyc_output/

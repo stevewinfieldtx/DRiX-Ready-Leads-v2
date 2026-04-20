@@ -1,0 +1,145 @@
+{
+  "target": {
+    "name": "WinTech Partners",
+    "url": "https://wintechpartners.com"
+  },
+  "summary": "WinTech Partners is Steve Winfield's operating group, applying 25 years of enterprise technology sales methodology to AI product development. Its differentiator is the Educator's Advantage — treating sales as real-time reading comprehension — combined with a growing suite of AI products (TDE, CPP, LeadHydration, ClearSignals, Chimera Secured, LifeStages, TalkBridge) that other companies can deploy under joint go-to-market arrangements.",
+  "atoms": [
+    {
+      "atom_id": "wt-tde",
+      "type": "product",
+      "claim": "TDE (Targeted Decomposition Engine) is a solution-intelligence backbone that ingests any company's public and private surface, decomposes it into atomic facts, and reconstructs recipient-specific outputs.",
+      "evidence": "Core platform for WinTech — decomposition plus multi-intent reconstruction.",
+      "tags": ["product", "tde", "research", "knowledge-layer", "vector"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 9, "investor": 9, "partner": 10, "general": 6 }
+    },
+    {
+      "atom_id": "wt-cpp",
+      "type": "product",
+      "claim": "CPP (Communication Personality Profile) is a behavioral impersonation-detection engine that builds per-person communication fingerprints and flags likely Business Email Compromise attempts.",
+      "evidence": "CPP engine generates vector profiles of senders and matches inbound messages to detect impersonation.",
+      "tags": ["product", "cpp", "bec", "security", "behavioral"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 8, "investor": 8, "partner": 9, "general": 6 }
+    },
+    {
+      "atom_id": "wt-chimera",
+      "type": "product",
+      "claim": "Chimera Secured is a packaged behavioral security product wrapping CPP for enterprise deployment, with optional DLP bolt-on, priced at $4/user/month with 30% channel margin.",
+      "evidence": "Chimera Secured is the commercialized security offering built on CPP with channel-ready pricing.",
+      "tags": ["product", "chimera", "security", "channel", "enterprise"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 9, "business_buyer": 10, "investor": 9, "partner": 10, "general": 7 }
+    },
+    {
+      "atom_id": "wt-leadhydration",
+      "type": "product",
+      "claim": "LeadHydration is a locale-aware B2B lead intelligence product covering 9 countries, producing pain-agent-scored opportunity cards with email sequences and ClearSignals-validated threads.",
+      "evidence": "LeadHydration enriches leads with pain scoring across 9 countries and produces ready-to-run email motions.",
+      "tags": ["product", "leadhydration", "sales", "b2b", "enrichment"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 6, "business_buyer": 10, "investor": 8, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "wt-clearsignals",
+      "type": "product",
+      "claim": "ClearSignals AI is a direction-aware sales coaching product that evaluates inbound emails as buyer-analysis opportunities and outbound as graded communications with pre-flight diagnostic gating.",
+      "evidence": "ClearSignals grades outbound and analyzes inbound, with pre-flight diagnostic before each send.",
+      "tags": ["product", "clearsignals", "sales", "coaching", "email"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 7, "business_buyer": 9, "investor": 7, "partner": 9, "general": 5 }
+    },
+    {
+      "atom_id": "wt-talkbridge",
+      "type": "product",
+      "claim": "TalkBridge is a real-time voice translation product with watch-friendly UI, built on Speechmatics STT and ElevenLabs TTS, supporting dual WebSocket sessions for room-mode conversations.",
+      "evidence": "TalkBridge offers bidirectional voice translation on a mobile-first form factor including smartwatches.",
+      "tags": ["product", "talkbridge", "translation", "voice", "wearable"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 8, "business_buyer": 8, "investor": 7, "partner": 9, "general": 8 }
+    },
+    {
+      "atom_id": "wt-lifestages",
+      "type": "product",
+      "claim": "LifeStages is a personalized faith-based AI product with a multi-faith roadmap (Christianity, Islam, Hinduism, Buddhism) positioned as the Global South thesis for Capria-type investment.",
+      "evidence": "LifeStages personalizes scripture engagement across multiple faiths and is core to the Global South pitch.",
+      "tags": ["product", "lifestages", "faith", "global-south", "personalization"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 7, "investor": 10, "partner": 8, "general": 6 }
+    },
+    {
+      "atom_id": "wt-steve-methodology",
+      "type": "differentiator",
+      "claim": "The Educator's Advantage is Steve Winfield's core methodology — treating enterprise sales as real-time reading comprehension and commercial teaching, derived from 9 years as a Texas public school teacher and principal.",
+      "evidence": "Steve's sales methodology reframes selling as applied teaching, drawn from his classroom years.",
+      "tags": ["methodology", "educator-advantage", "sales-training", "differentiator"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 9, "investor": 8, "partner": 10, "general": 7 }
+    },
+    {
+      "atom_id": "wt-steve-experience",
+      "type": "team",
+      "claim": "Steve Winfield has 25 years of enterprise technology experience including 11 years at Microsoft, senior roles at Cybereason / Kroll / Kaspersky / Trustifi, and deployments across 100+ countries with 1,400+ resellers trained.",
+      "evidence": "Steve's career spans Microsoft partner leadership, channel-focused cybersecurity roles, and global reseller enablement.",
+      "tags": ["founder", "experience", "microsoft", "cybersecurity", "channel"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 7, "business_buyer": 10, "investor": 9, "partner": 10, "general": 7 }
+    },
+    {
+      "atom_id": "wt-steve-cissp",
+      "type": "team",
+      "claim": "Steve holds a CISSP certification, giving him credentialed standing in security conversations where many competing founders lack formal security credentials.",
+      "evidence": "Steve's CISSP credential is rare for a commercial-focused founder and strengthens security pitches.",
+      "tags": ["founder", "cissp", "credentials", "security"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 9, "business_buyer": 7, "investor": 7, "partner": 8, "general": 5 }
+    },
+    {
+      "atom_id": "wt-location-danang",
+      "type": "stack_signal",
+      "claim": "Steve is resident in Da Nang, Vietnam — giving WinTech on-the-ground presence in the same city where AIAIVN operates its primary office.",
+      "evidence": "Steve's Da Nang residency provides geographic overlap with AIAIVN for in-person collaboration.",
+      "tags": ["location", "danang", "vietnam", "geographic-fit"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 4, "business_buyer": 8, "investor": 6, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "wt-nyn-impact",
+      "type": "product",
+      "claim": "NYN Impact is WinTech's Vietnam-based web agency delivering Vietnamese-first websites, capable of fast customer-facing deliverables for joint engagements.",
+      "evidence": "NYN Impact builds Vietnamese-first websites with a pipeline for rapid competitive-intel-driven demos.",
+      "tags": ["product", "nyn-impact", "vietnam", "web-agency", "delivery"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 7, "investor": 5, "partner": 9, "general": 6 }
+    },
+    {
+      "atom_id": "wt-honest-no-production",
+      "type": "weakness",
+      "claim": "WinTech has no production TDE or Chimera Secured deployments and no revenue — the value proposition is built on methodology and IP, not installed base.",
+      "evidence": "TDE and Chimera are built but not yet in live customer production with revenue.",
+      "tags": ["weakness", "stage", "early", "no-production"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 8, "business_buyer": 9, "investor": 10, "partner": 9, "general": 4 }
+    },
+    {
+      "atom_id": "wt-honest-cold-network",
+      "type": "weakness",
+      "claim": "WinTech's ~1,000 IT channel reseller contacts are mostly cold relationships — valuable as methodology-proven knowledge but not as an active warm network.",
+      "evidence": "The reseller contact base represents historical reach rather than current warm pipeline.",
+      "tags": ["weakness", "network", "channel", "honest-framing"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 3, "business_buyer": 8, "investor": 9, "partner": 8, "general": 3 }
+    },
+    {
+      "atom_id": "wt-gtm-strength",
+      "type": "differentiator",
+      "claim": "WinTech's strongest asymmetric asset is Western enterprise sales motion — the ability to design, deliver, and train channel programs at scale across countries.",
+      "evidence": "GTM design and channel enablement are WinTech's most differentiated capabilities vs. engineering-led competitors.",
+      "tags": ["differentiator", "gtm", "sales-motion", "channel"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 5, "business_buyer": 10, "investor": 9, "partner": 10, "general": 5 }
+    }
+  ],
+  "ingested_at": "2026-04-18T00:00:00.000Z"
+}
