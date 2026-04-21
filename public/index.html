@@ -525,12 +525,12 @@
         <select class="field" id="f-industry"><option value="">Select…</option></select>
       </div>
       <div class="input-wrap">
-        <label class="input-label" for="f-subindustry">Subindustry<span class="req">*</span></label>
+        <label class="input-label" for="f-subindustry">Subindustry <span style="color:var(--muted);font-weight:600">(optional)</span></label>
         <select class="field" id="f-subindustry" disabled><option value="">Select industry first</option></select>
       </div>
       <div class="input-wrap">
-        <label class="input-label" for="f-region">Region<span class="req">*</span></label>
-        <select class="field" id="f-region"><option value="">Select…</option></select>
+        <label class="input-label" for="f-region">Region <span style="color:var(--muted);font-weight:600">(optional)</span></label>
+        <select class="field" id="f-region"><option value="">Any region</option></select>
       </div>
     </div>
 
@@ -687,13 +687,17 @@ async function runFlow() {
     body.customer_url = cust;
   } else {
     const ind = $('f-industry').value, sub = $('f-subindustry').value, region = $('f-region').value;
-    if (!ind || !sub || !region) return showError('Pick industry, subindustry, and region.');
+    if (!ind) return showError('Pick an industry (subindustry and region are optional).');
     const indName = state.naics.find(s => s.code === ind)?.name || ind;
-    const subName = state.naics.find(s => s.code === ind)?.sub.find(x => x.code === sub)?.name || sub;
-    const regName = state.regions.find(r => r.id === region)?.name || region;
     body.industry = `${indName} (NAICS ${ind})`;
-    body.subindustry = `${subName} (NAICS ${sub})`;
-    body.region = regName;
+    if (sub) {
+      const subName = state.naics.find(s => s.code === ind)?.sub.find(x => x.code === sub)?.name || sub;
+      body.subindustry = `${subName} (NAICS ${sub})`;
+    }
+    if (region) {
+      const regName = state.regions.find(r => r.id === region)?.name || region;
+      body.region = regName;
+    }
   }
 
   // Reset UI

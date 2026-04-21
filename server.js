@@ -104,24 +104,32 @@ DISCIPLINE:
 
 const INDUSTRY_ARCHETYPE_PROMPT = `You are the target-archetype synthesizer of TDE.
 
-INPUT: industry (NAICS sector + subsector), region (one of Anglo, LatAm, Brazil, Northern Europe, Southern Europe, MENA, South Asia, East Asia, Southeast Asia).
+INPUT: industry (required), optional subindustry, optional region.
 
-TASK: synthesize a REPRESENTATIVE target profile for that industry/region combination — the kind of atoms you'd expect from decomposing a real company in the segment. Make it specific, plausible, and regionally nuanced. Label it clearly as a synthetic archetype.
+TASK: synthesize a REPRESENTATIVE target profile for that industry (and, if provided, narrowed by subindustry + region) — the kind of atoms that characterize companies in this segment as a CLASS. Label it clearly as a synthetic archetype.
 
-SAME SCHEMA as INGEST: 12-20 atoms, each tagged with ALL 9 d_* dimensions (see the INGEST instructions for exact field names and valid values). Include d_persona, d_buying_stage, d_emotional_driver, d_evidence_type, d_credibility, d_recency, d_economic_driver, d_status_quo_pressure, and d_industry (with naics + sic sub-fields).
+SAME SCHEMA as INGEST: 12-20 atoms, each tagged with ALL 9 d_* dimensions. Include d_persona, d_buying_stage, d_emotional_driver, d_evidence_type, d_credibility, d_recency, d_economic_driver, d_status_quo_pressure, and d_industry.
 
 OUTPUT (JSON only):
   {
-    "target": { "name": "<e.g. 'Archetype: Discrete Manufacturer — Northern Europe'>", "url": null, "role": "customer", "is_archetype": true, "industry": "<echo>", "subindustry": "<echo>", "region": "<echo>" },
-    "summary": "<2-3 sentence positioning paragraph for the typical company>",
+    "target": { "name": "<e.g. 'Archetype: Discrete Manufacturer (Northern Europe)' — omit region qualifier if none provided>", "url": null, "role": "customer", "is_archetype": true, "industry": "<echo>", "subindustry": "<echo or null>", "region": "<echo or null>" },
+    "summary": "<2-3 sentence positioning paragraph for the typical company in this class>",
     "atoms": [ 12-20 atoms with full 9D tags ]
   }
 
+CRITICAL ANTI-FABRICATION RULES (violate these and the output is a lie):
+- This is an ARCHETYPE, not a real company. No real company exists to have a history. THEREFORE:
+- NEVER reference specific past events. No "failed ERP rollout in 2023", no "last year's 40-hour line outage", no "the Oracle migration that went over budget by $2.3M", no "their acquisition of X in 2021."
+- NEVER invent specific dollar figures, specific percentages, specific dates, specific project names, specific executive names, specific vendor histories, or specific incidents.
+- Atoms MUST be phrased as segment-typical patterns: "companies in this segment commonly operate on aging ERPs", "margin pressure is acute at sub-5% EBIT", "regulatory reporting cycles force quarterly data reconciliation." These are TRUE of the class, without pretending a specific incident happened.
+- Credibility scores reflect how typical the pattern is across the segment, NOT fabricated source authority. d_evidence_type "Statistic/Data" is fine if the statistic describes the segment (e.g. "industry-wide, 60% of firms cite X"), not a made-up fact about a phantom company.
+- Pain atoms describe forces that exist in the segment. Weakness/mission_gap atoms describe patterns, not incidents.
+
 DISCIPLINE:
-- Atoms should reflect what's COMMONLY true for companies in this segment AND region.
+- Atoms reflect what's COMMONLY true for companies in this class.
 - Include weakness / mission_gap / buying_trigger atoms — these drive the sales conversation.
-- Model both economic pull (ROI, speed, cost-out, quality, growth, risk-reduction) AND status-quo pressure (sunk cost, change fatigue, risk aversion, political cost, procedural gravity) — they're common in every real deal.
-- Be industry- and region-specific. Don't emit generic "they want to grow" atoms.`;
+- Model both economic pull (ROI, speed, cost-out, quality, growth, risk-reduction) AND status-quo pressure (sunk cost, change fatigue, risk aversion, political cost, procedural gravity).
+- Be industry- and region-specific in patterns, not in invented specifics.`;
 
 const STRATEGIES_PROMPT = `You are the sales-strategy generator of TDE.
 
@@ -149,6 +157,13 @@ DISCIPLINE:
 - Five DIFFERENT (Persona × Pain) angles. Spread the personas — don't put all 5 at the CTO.
 - No generic "digital transformation" waffle.
 - All strategies are Discovery-stage. Do not write close-the-deal strategies here.
+
+CRITICAL ANTI-FABRICATION RULES (this is where sales tools lose trust):
+- If the customer is an ARCHETYPE (input.customer.is_archetype === true), NO SPECIFIC PAST EVENTS EXIST. You have no real company to reference. Therefore you must NEVER reference a specific historical incident, a specific dollar figure, a specific project name, a specific dated outage, a specific failed implementation, or a specific past vendor. Pain is framed at the segment level: "firms in this segment commonly face X" rather than "you experienced X in 2023." A made-up specific is worse than a real generic — it poisons the whole output.
+- If the customer is a REAL URL (is_archetype is falsy), specifics are allowed ONLY when the exact fact is present in the customer atoms provided. You do not have access to the company's internal history, financials, or unlisted incidents. If it's not in the atoms, you do not know it. Do not invent.
+- Forbidden patterns UNLESS the exact thing is in the provided atoms: "your 2023 [X]", "last quarter's [Y]", "the $[N]M you lost on [Z]", "after your failed [vendor] migration", "the [N] hours of downtime you had". All of these are lies by default. Only use them when the atoms literally contain the fact.
+- When you want to reference pain but don't have a specific grounded fact, use segment-level phrasing: "manufacturers at your scale typically see...", "regional banks in this region commonly...", "the pain point most acute for companies matching your profile is...". Honest genericity beats dishonest specificity every time.
+- customer_pain, explanation, and first_step are the three fields where fabrication is most tempting. Police yourself hardest there.
 
 OUTPUT (JSON only):
 {
@@ -322,8 +337,8 @@ app.post('/api/demo-flow', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Require email (your email)' });
   if (!sender_company_url) return res.status(400).json({ error: 'Require sender_company_url' });
   if (!solution_url) return res.status(400).json({ error: 'Require solution_url' });
-  if (!customer_url && !(industry && subindustry && region)) {
-    return res.status(400).json({ error: 'Require customer_url OR (industry + subindustry + region)' });
+  if (!customer_url && !industry) {
+    return res.status(400).json({ error: 'Require customer_url OR industry (subindustry + region optional)' });
   }
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
 
