@@ -6,47 +6,24 @@
 <title>TDE · Targeted Decomposition Engine</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
   :root {
-    --bg: #0a0e13;
-    --surface: #121820;
-    --surface-2: #1a222c;
-    --surface-3: #222c38;
-    --text: #e8ecf2;
-    --text-dim: #a8b2c0;
-    --muted: #6b7685;
-    --border: #2a3542;
-    --accent: #5aa9ff;
-    --green: #3ddc84;
-    --yellow: #ffc757;
-    --red: #ff5a5a;
-    --purple: #b583ff;
-    --orange: #ff9d5a;
-    --pink: #ff67c3;
-    --cyan: #5ad4ff;
+    --bg: #0a0e13; --surface: #121820; --surface-2: #1a222c; --surface-3: #222c38;
+    --text: #e8ecf2; --text-dim: #a8b2c0; --muted: #6b7685; --border: #2a3542;
+    --accent: #5aa9ff; --green: #3ddc84; --yellow: #ffc757; --red: #ff5a5a;
+    --purple: #b583ff; --orange: #ff9d5a; --pink: #ff67c3; --cyan: #5ad4ff;
   }
-
   body {
     font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 20px 16px 60px;
-    -webkit-font-smoothing: antialiased;
-    line-height: 1.5;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    padding: 20px 16px 60px; -webkit-font-smoothing: antialiased; line-height: 1.5;
   }
   .container { max-width: 1200px; margin: 0 auto; }
 
   /* HEADER */
   header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 18px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-    gap: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 18px; border-bottom: 1px solid var(--border);
+    margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
   }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand-mark {
@@ -58,219 +35,127 @@
   .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
   .brand-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-top: 2px; }
   .status {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 11px; color: var(--text-dim);
-    background: var(--surface); padding: 6px 12px;
-    border-radius: 20px; border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim);
+    background: var(--surface); padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border);
   }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.warn { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
 
-  /* LIVE DEMO HERO */
+  /* HERO */
   .live-demo {
     background: linear-gradient(135deg, var(--surface) 0%, rgba(181,131,255,0.06) 50%, rgba(90,169,255,0.06) 100%);
     border: 1px solid rgba(181,131,255,0.3);
-    border-radius: 16px;
-    padding: 24px;
-    margin-bottom: 24px;
-    position: relative;
-    overflow: hidden;
+    border-radius: 16px; padding: 24px; margin-bottom: 24px; position: relative; overflow: hidden;
   }
   .live-demo::before {
-    content: 'LIVE';
-    position: absolute;
-    top: 16px;
-    right: 18px;
-    font-size: 10px;
-    letter-spacing: 2px;
-    font-weight: 800;
-    color: var(--green);
-    background: rgba(61,220,132,0.15);
-    padding: 4px 10px;
-    border-radius: 12px;
+    content: 'LIVE'; position: absolute; top: 16px; right: 18px;
+    font-size: 10px; letter-spacing: 2px; font-weight: 800; color: var(--green);
+    background: rgba(61,220,132,0.15); padding: 4px 10px; border-radius: 12px;
   }
   .live-demo h2 {
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    margin-bottom: 6px;
+    font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px;
     background: linear-gradient(90deg, var(--accent) 0%, var(--purple) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
-  .live-demo-sub {
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-bottom: 18px;
+  .live-demo-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+
+  /* INPUT GRIDS */
+  .input-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
   }
-  .demo-input-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 10px;
+  @media (max-width: 720px) { .input-grid { grid-template-columns: 1fr; } }
+  .input-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .input-label {
+    font-size: 10px; letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--muted); font-weight: 800; padding-left: 2px;
   }
-  @media (max-width: 720px) { .demo-input-grid { grid-template-columns: 1fr; } }
-  .demo-input-wrap { display: flex; flex-direction: column; gap: 4px; }
-  .demo-input-label {
-    font-size: 10px;
-    letter-spacing: 1.3px;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 800;
-    padding-left: 2px;
-  }
-  .demo-target-row {
-    display: grid;
-    grid-template-columns: 140px 1fr auto;
-    gap: 10px;
-    align-items: end;
-    margin-bottom: 10px;
-  }
-  @media (max-width: 720px) { .demo-target-row { grid-template-columns: 1fr; } }
-  .target-toggle {
-    display: flex;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 3px;
+  .input-label .req { color: var(--red); margin-left: 2px; }
+  .field {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; color: var(--text); font-size: 14px; font-family: inherit; outline: none;
     height: 42px;
   }
+  select.field { cursor: pointer; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+  .field:focus { border-color: var(--accent); }
+  .field::placeholder { color: var(--muted); }
+  .field:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Target mode toggle */
+  .target-toggle {
+    display: flex; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 3px; height: 42px;
+  }
   .target-toggle button {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    font-size: 12px;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    border-radius: 7px;
-    padding: 0 8px;
-    transition: all 0.15s;
+    flex: 1; background: transparent; border: none; color: var(--text-dim);
+    font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+    border-radius: 7px; padding: 0 8px; transition: all 0.15s;
   }
-  .target-toggle button.active {
-    background: var(--accent);
-    color: white;
+  .target-toggle button.active { background: var(--accent); color: white; }
+
+  .target-row {
+    display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px;
+    align-items: end;
   }
+  @media (max-width: 720px) { .target-row { grid-template-columns: 1fr; } }
+
+  .industry-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;
+  }
+  @media (max-width: 720px) { .industry-grid { grid-template-columns: 1fr; } }
+
+  .run-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+    color: white; border: none; border-radius: 10px; padding: 12px 28px;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(90,169,255,0.3); }
+  .btn-primary:disabled { background: var(--surface-3); color: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    padding: 8px 16px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .btn-secondary:hover { color: var(--text); border-color: var(--accent); }
+  .btn-success {
+    background: linear-gradient(135deg, var(--green) 0%, var(--accent) 100%);
+    color: #0a0e13; border: none; border-radius: 10px; padding: 10px 20px;
+    font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+    transition: all 0.15s; letter-spacing: 0.3px;
+  }
+  .btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(61,220,132,0.35); }
+  .btn-success:disabled { background: var(--surface-3); color: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
 
   /* DEMO-SCALE DISCLAIMER */
   .demo-scale-note {
-    margin-top: 14px;
-    padding: 10px 14px;
-    background: rgba(255,199,87,0.08);
-    border: 1px solid rgba(255,199,87,0.25);
-    border-radius: 8px;
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.55;
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
+    margin-top: 14px; padding: 10px 14px;
+    background: rgba(255,199,87,0.08); border: 1px solid rgba(255,199,87,0.25);
+    border-radius: 8px; font-size: 11px; color: var(--text-dim);
+    line-height: 1.55; display: flex; gap: 8px; align-items: flex-start;
   }
   .demo-scale-note strong { color: var(--yellow); letter-spacing: 0.3px; }
-  .demo-scale-note-icon {
-    font-size: 12px;
-    color: var(--yellow);
-    font-weight: 900;
-    flex-shrink: 0;
-    line-height: 1.3;
-  }
-
-  .demo-input {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 14px;
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-  }
-  .demo-input:focus { border-color: var(--accent); }
-  .demo-input::placeholder { color: var(--muted); }
-  .demo-btn {
-    background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    padding: 12px 24px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .demo-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(90,169,255,0.3); }
-  .demo-btn:disabled { background: var(--surface-3); color: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
-
-  .demo-hints {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--muted);
-  }
-  .demo-hint-label { margin-right: 4px; }
-  .demo-hint {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    padding: 4px 10px;
-    border-radius: 14px;
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .demo-hint:hover { color: var(--text); border-color: var(--accent); }
+  .demo-scale-note-icon { font-size: 12px; color: var(--yellow); font-weight: 900; flex-shrink: 0; line-height: 1.3; }
 
   /* PHASE TIMELINE */
   .phases { margin-top: 20px; display: none; }
   .phases.active { display: block; }
   .phase-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 6px;
-    font-size: 13px;
-    transition: all 0.2s;
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 6px; font-size: 13px; transition: all 0.2s;
   }
-  .phase-item.running {
-    border-color: var(--accent);
-    background: rgba(90,169,255,0.08);
-  }
-  .phase-item.done {
-    opacity: 0.7;
-  }
-  .phase-item.error {
-    border-color: var(--red);
-    background: rgba(255,90,90,0.08);
-  }
+  .phase-item.running { border-color: var(--accent); background: rgba(90,169,255,0.08); }
+  .phase-item.done { opacity: 0.7; }
+  .phase-item.error { border-color: var(--red); background: rgba(255,90,90,0.08); }
   .phase-icon {
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    background: var(--surface-3);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-    flex-shrink: 0;
+    width: 22px; height: 22px; border-radius: 50%; background: var(--surface-3);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
   }
-  .phase-item.running .phase-icon {
-    background: var(--accent);
-    color: white;
-    animation: pulse 1.5s ease-in-out infinite;
-  }
-  .phase-item.done .phase-icon {
-    background: var(--green);
-    color: white;
-  }
+  .phase-item.running .phase-icon { background: var(--accent); color: white; animation: pulse 1.5s ease-in-out infinite; }
+  .phase-item.done .phase-icon { background: var(--green); color: white; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .phase-text { flex: 1; color: var(--text); }
   .phase-item.done .phase-text { color: var(--text-dim); }
 
@@ -280,718 +165,294 @@
     color: var(--muted); font-weight: 800;
     margin: 24px 0 12px; display: flex; align-items: center; gap: 8px;
   }
-  .section-title::before {
-    content: ''; width: 14px; height: 2px; background: var(--accent); border-radius: 2px;
-  }
+  .section-title::before { content: ''; width: 14px; height: 2px; background: var(--accent); border-radius: 2px; }
 
-  /* ANGLES PANEL */
-  .angles-panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 20px 22px;
-    margin-bottom: 20px;
-    display: none;
+  /* PANELS */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px; margin-bottom: 20px; display: none;
   }
-  .angles-panel.active { display: block; }
-  .angles-intro {
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-bottom: 16px;
-    padding: 10px 14px;
-    background: rgba(61,220,132,0.08);
-    border-left: 3px solid var(--green);
-    border-radius: 6px;
-  }
-  .angles-intro strong { color: var(--text); }
-  .angle-cards { display: flex; flex-direction: column; gap: 10px; }
-  .angle {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 18px;
-    position: relative;
-  }
-  .angle.top-pick {
-    border-color: var(--green);
-    background: linear-gradient(135deg, var(--surface-2) 0%, rgba(61,220,132,0.04) 100%);
-  }
-  .angle.top-pick::after {
-    content: 'TOP PICK';
-    position: absolute;
-    top: 14px;
-    right: 16px;
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    font-weight: 800;
-    color: var(--green);
-    background: rgba(61,220,132,0.15);
-    padding: 3px 8px;
-    border-radius: 10px;
-  }
-  .angle-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 6px;
-    padding-right: 80px;
-  }
-  .angle-thesis {
-    font-size: 13px;
-    color: var(--text-dim);
-    font-style: italic;
-    margin-bottom: 12px;
-  }
-  .angle-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  @media (max-width: 600px) { .angle-grid { grid-template-columns: 1fr; } }
-  .angle-cell {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 12px;
-  }
-  .angle-cell-label {
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 800;
-    margin-bottom: 4px;
-  }
-  .angle-cell-val { font-size: 12px; color: var(--text); line-height: 1.5; }
-  .angle-cell.wintech .angle-cell-label { color: var(--accent); }
-  .angle-cell.aiaivn .angle-cell-label { color: var(--green); }
-  .angle-cell.pain .angle-cell-label { color: var(--red); }
-  .angle-cell.step .angle-cell-label { color: var(--yellow); }
+  .panel.active { display: block; }
 
-  /* EMAIL */
-  .email-panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 20px 22px;
-    margin-bottom: 20px;
-    display: none;
+  /* ATOMS (three columns for sender/solution/customer) */
+  .atoms-triple {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
   }
-  .email-panel.active { display: block; }
-  .email-frame {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 18px;
+  @media (max-width: 960px) { .atoms-triple { grid-template-columns: 1fr; } }
+  .atom-group { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 14px 10px; }
+  .atom-group-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px; gap: 8px;
   }
-  .email-subject-label {
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    color: var(--muted);
-    text-transform: uppercase;
-    font-weight: 800;
+  .atom-group-title { font-size: 12px; font-weight: 800; letter-spacing: 0.3px; color: var(--text); }
+  .atom-group-role {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;
+    padding: 2px 8px; border-radius: 10px;
   }
-  .email-subject-val {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text);
-    margin: 4px 0 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px dashed var(--border);
-  }
-  .email-body {
-    font-size: 14px;
-    color: var(--text);
-    line-height: 1.7;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-  .email-body strong { color: var(--text); font-weight: 700; }
-  .email-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 12px;
-    gap: 8px;
-  }
-  .copy-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    padding: 6px 14px;
-    font-size: 11px;
-    border-radius: 16px;
-    cursor: pointer;
-    font-weight: 600;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
-  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+  .atom-group-role.sender   { background: rgba(90,169,255,0.15);  color: var(--accent); }
+  .atom-group-role.solution { background: rgba(61,220,132,0.15);  color: var(--green); }
+  .atom-group-role.customer { background: rgba(181,131,255,0.15); color: var(--purple); }
+  .atom-group-summary { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; font-style: italic; line-height: 1.5; }
+  .atom-count-badge { font-size: 10px; color: var(--muted); font-weight: 700; letter-spacing: 1.5px; }
 
-  /* HANDOFF BUTTON + RESULT */
-  .handoff-btn {
-    background: linear-gradient(135deg, var(--green) 0%, var(--accent) 100%);
-    border: none;
-    color: #0a0e13;
-    padding: 7px 16px;
-    font-size: 12px;
-    font-weight: 800;
-    border-radius: 16px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-    letter-spacing: 0.3px;
+  .atoms-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; padding-right: 2px; }
+  .atom-mini {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--atom-color);
+    border-radius: 6px; padding: 8px 10px;
   }
-  .handoff-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(61,220,132,0.35); }
-  .handoff-btn:disabled {
-    background: var(--surface-3); color: var(--muted);
-    cursor: not-allowed; transform: none; box-shadow: none;
-  }
+  .atom-mini-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .atom-mini-type { font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--atom-color); font-weight: 800; }
+  .atom-mini-conf { font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .atom-mini-claim { font-size: 12px; color: var(--text); line-height: 1.4; margin-bottom: 6px; }
 
-  .handoff-result {
-    margin-top: 14px;
-    padding: 14px 16px;
-    border-radius: 10px;
-    font-size: 13px;
-    display: none;
+  /* 9D Heatmap (3x3 grid) */
+  .d9 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    margin-top: 4px;
   }
-  .handoff-result.loading {
-    display: flex; align-items: center; gap: 10px;
-    background: rgba(90,169,255,0.08);
-    border: 1px solid rgba(90,169,255,0.25);
-    color: var(--text-dim);
+  .d9-cell {
+    background: var(--surface-3); border-radius: 3px; padding: 3px 5px;
+    font-size: 8px; line-height: 1.2; text-align: left; position: relative; overflow: hidden;
+    min-height: 32px;
   }
-  .handoff-result.error {
-    display: block;
-    background: rgba(255,90,90,0.1);
-    border: 1px solid rgba(255,90,90,0.3);
-    color: #ff9a9a;
-  }
-  .handoff-result.success {
-    display: block;
-    background: linear-gradient(135deg, rgba(61,220,132,0.08) 0%, rgba(90,169,255,0.05) 100%);
-    border: 1px solid rgba(61,220,132,0.3);
-  }
+  .d9-cell-label { font-size: 7px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; font-weight: 700; }
+  .d9-cell-val { font-size: 9px; color: var(--text); font-weight: 600; margin-top: 1px; }
+  .d9-cell.persona       { border-left: 2px solid var(--accent); }
+  .d9-cell.stage         { border-left: 2px solid var(--cyan); }
+  .d9-cell.driver        { border-left: 2px solid var(--pink); }
+  .d9-cell.evidence      { border-left: 2px solid var(--orange); }
+  .d9-cell.credibility   { border-left: 2px solid var(--green); }
+  .d9-cell.recency       { border-left: 2px solid var(--yellow); }
+  .d9-cell.econ          { border-left: 2px solid var(--green); background: rgba(61,220,132,0.06); }
+  .d9-cell.sqp           { border-left: 2px solid var(--red); background: rgba(255,90,90,0.05); }
+  .d9-cell.industry      { border-left: 2px solid var(--purple); background: rgba(181,131,255,0.06); }
+  .d9-cell.industry .d9-cell-val { font-size: 8px; line-height: 1.25; }
+  .cred-bar { height: 3px; background: var(--surface); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+  .cred-bar-fill { height: 100%; background: var(--green); border-radius: 2px; }
 
-  .handoff-spinner {
-    width: 14px; height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .atom-mini.mission { --atom-color: var(--accent); }
+  .atom-mini.product { --atom-color: var(--green); }
+  .atom-mini.icp { --atom-color: var(--cyan); }
+  .atom-mini.proof_point { --atom-color: var(--green); }
+  .atom-mini.team { --atom-color: var(--purple); }
+  .atom-mini.stack_signal { --atom-color: var(--orange); }
+  .atom-mini.buying_trigger { --atom-color: var(--yellow); }
+  .atom-mini.differentiator { --atom-color: var(--accent); }
+  .atom-mini.partnership { --atom-color: var(--cyan); }
+  .atom-mini.contact { --atom-color: var(--orange); }
+  .atom-mini.weakness { --atom-color: var(--red); }
+  .atom-mini.mission_gap { --atom-color: var(--pink); }
 
-  .handoff-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-  .handoff-check {
-    width: 26px; height: 26px;
-    border-radius: 50%;
-    background: var(--green);
-    color: #0a0e13;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 900;
-    flex-shrink: 0;
-  }
-  .handoff-title {
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--text);
-  }
-  .handoff-sub {
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-top: 2px;
-  }
-  .handoff-mode {
-    margin-left: auto;
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    background: rgba(255,199,87,0.15);
-    color: var(--yellow);
-    padding: 3px 8px;
-    border-radius: 10px;
-    flex-shrink: 0;
-  }
-  .handoff-mode.live {
-    background: rgba(61,220,132,0.15);
-    color: var(--green);
-  }
-
-  .handoff-details {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-top: 10px;
-  }
-  .handoff-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 0;
-    font-size: 12px;
-    gap: 12px;
-  }
-  .handoff-row code {
-    font-family: ui-monospace, 'SF Mono', monospace;
-    font-size: 11px;
-    color: var(--accent);
-    background: var(--surface-2);
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-  .handoff-label {
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    color: var(--muted);
-    text-transform: uppercase;
-    font-weight: 700;
-  }
-  .handoff-link {
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 11px;
-    font-family: ui-monospace, 'SF Mono', monospace;
-  }
-  .handoff-link:hover { text-decoration: underline; }
-
-  .handoff-next {
-    margin-top: 10px;
-    padding: 10px 14px;
-    background: var(--surface);
-    border-left: 2px solid var(--green);
-    border-radius: 6px;
-  }
-  .handoff-next-label {
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    color: var(--green);
-    text-transform: uppercase;
-    font-weight: 800;
-    margin-bottom: 6px;
-  }
-  .handoff-next ul {
-    padding-left: 18px;
-    font-size: 12px;
-    color: var(--text-dim);
-    line-height: 1.6;
-  }
-  .handoff-next li {
-    margin-bottom: 2px;
-  }
-
-  /* RICH HYDRATION CARD */
-  .handoff-result.hydration {
-    padding: 18px 20px;
-  }
-  .hydration-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding-bottom: 14px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .hydration-badge {
-    display: flex; align-items: center; gap: 12px;
-  }
-  .handoff-sub code {
-    background: var(--surface);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-family: ui-monospace, 'SF Mono', monospace;
-    font-size: 10px;
-    color: var(--accent);
-  }
-
-  .mql-score {
-    border: 2px solid var(--accent);
-    border-radius: 10px;
-    padding: 6px 14px;
-    text-align: center;
-    min-width: 72px;
-    flex-shrink: 0;
-  }
-  .mql-num {
-    font-size: 22px;
-    font-weight: 900;
-    line-height: 1;
-  }
-  .mql-tier {
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    font-weight: 800;
-    margin-top: 3px;
-  }
-
-  .hyd-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-  @media (max-width: 720px) {
-    .hyd-grid { grid-template-columns: 1fr; }
-  }
-
-  .hyd-cell {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 14px;
-  }
-  .hyd-cell.solution {
-    border-left: 3px solid var(--green);
-  }
-  .hyd-label {
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 800;
-    margin-bottom: 6px;
-  }
-  .hyd-primary {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 6px;
-  }
-  .hyd-why {
-    font-size: 12px;
-    color: var(--text-dim);
-    font-style: italic;
-    line-height: 1.5;
-    margin-bottom: 8px;
-  }
-  .hyd-scope {
-    font-size: 11px;
-    color: var(--text);
-    line-height: 1.5;
-  }
-  .hyd-scope-label {
-    color: var(--muted);
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    font-size: 9px;
-    margin-right: 4px;
-  }
-  .hyd-codes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 6px;
-  }
-  .code-chip {
-    font-family: ui-monospace, 'SF Mono', monospace;
-    font-size: 10px;
-    background: rgba(90,169,255,0.08);
-    border: 1px solid rgba(90,169,255,0.25);
-    color: var(--accent);
-    padding: 2px 7px;
-    border-radius: 10px;
-  }
-  .code-chip.naics {
-    background: rgba(181,131,255,0.08);
-    border-color: rgba(181,131,255,0.25);
-    color: var(--purple);
-  }
-  .hyd-verticals {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .vertical-tag {
-    font-size: 10px;
-    background: var(--surface-2);
-    color: var(--text-dim);
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-weight: 600;
-  }
-
-  .hyd-section {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px dashed var(--border);
-  }
-
+  /* PAIN POINTS */
   .pain-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 8px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
   }
   .pain-card {
-    background: rgba(255,90,90,0.04);
-    border: 1px solid rgba(255,90,90,0.2);
-    border-radius: 8px;
-    padding: 10px 12px;
+    background: rgba(255,90,90,0.04); border: 1px solid rgba(255,90,90,0.3);
+    border-left: 3px solid var(--red); border-radius: 8px; padding: 12px 14px;
   }
-  .pain-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
+  .pain-card.mission_gap   { border-left-color: var(--pink); background: rgba(255,103,195,0.04); border-color: rgba(255,103,195,0.3); }
+  .pain-card.buying_trigger { border-left-color: var(--yellow); background: rgba(255,199,87,0.04); border-color: rgba(255,199,87,0.3); }
+  .pain-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .pain-desc  { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 6px; }
+  .pain-meta  { display: flex; gap: 6px; flex-wrap: wrap; font-size: 9px; }
+  .pain-chip  { background: var(--surface-2); color: var(--text-dim); padding: 2px 6px; border-radius: 8px; font-weight: 600; letter-spacing: 0.5px; }
+
+  /* STRATEGIES */
+  .strat-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+  .strat-header-info { font-size: 12px; color: var(--text-dim); }
+  .strat-list { display: flex; flex-direction: column; gap: 12px; }
+  .strat-card {
+    background: var(--surface-2); border: 2px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; position: relative; cursor: pointer; transition: all 0.15s;
   }
-  .pain-title {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text);
+  .strat-card:hover { border-color: var(--accent); }
+  .strat-card.selected { border-color: var(--green); background: linear-gradient(135deg, var(--surface-2) 0%, rgba(61,220,132,0.06) 100%); }
+  .strat-card.top-pick::before {
+    content: 'TOP PICK'; position: absolute; top: 12px; right: 14px;
+    font-size: 9px; letter-spacing: 1.5px; font-weight: 800; color: var(--yellow);
+    background: rgba(255,199,87,0.15); padding: 3px 8px; border-radius: 10px;
   }
-  .pain-scores {
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
+  .strat-head { display: flex; gap: 10px; margin-bottom: 10px; padding-right: 80px; align-items: flex-start; }
+  .strat-check {
+    width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: all 0.15s; background: var(--surface); margin-top: 2px;
   }
-  .pain-score {
-    font-family: ui-monospace, 'SF Mono', monospace;
-    font-size: 10px;
-    background: rgba(255,90,90,0.15);
-    color: var(--red);
-    padding: 2px 6px;
-    border-radius: 8px;
-    font-weight: 700;
+  .strat-card.selected .strat-check { border-color: var(--green); background: var(--green); color: #0a0e13; font-weight: 900; }
+  .strat-check::after { content: ''; }
+  .strat-card.selected .strat-check::after { content: '✓'; color: #0a0e13; font-weight: 900; font-size: 14px; }
+  .strat-title { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .strat-explain { font-size: 13px; color: var(--text-dim); line-height: 1.55; margin-bottom: 10px; }
+  .strat-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .strat-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .strat-cell-label { font-size: 8px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); font-weight: 800; margin-bottom: 3px; }
+  .strat-cell-val { font-size: 11px; color: var(--text); line-height: 1.4; }
+  .strat-footer { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .strat-persona {
+    font-size: 10px; background: rgba(90,169,255,0.1); color: var(--accent);
+    padding: 2px 8px; border-radius: 10px; font-weight: 700; letter-spacing: 0.3px;
   }
-  .pain-score.fit {
-    background: rgba(61,220,132,0.15);
-    color: var(--green);
-  }
-  .pain-desc {
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.5;
-    margin-bottom: 6px;
-  }
-  .pain-atoms {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-  }
-  .pain-atom-tag {
-    font-size: 9px;
-    background: var(--surface-2);
-    color: var(--muted);
-    padding: 1px 6px;
-    border-radius: 8px;
-    font-weight: 600;
+  .strat-confidence {
+    font-size: 10px; color: var(--text-dim); font-weight: 700; letter-spacing: 0.5px;
   }
 
-  .prequal-reason {
-    font-size: 12px;
-    color: var(--text);
-    line-height: 1.5;
-    margin-bottom: 8px;
+  /* Persona × Pain anchor chip — the composite key retrieval driver */
+  .strat-anchor {
+    display: inline-flex; align-items: center; gap: 0;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.3px;
+    margin-bottom: 10px; padding: 0;
+    border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; max-width: 100%;
   }
-  .blockers-label {
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--yellow);
-    font-weight: 800;
-    margin-bottom: 4px;
+  .strat-anchor-persona {
+    background: rgba(90,169,255,0.15); color: var(--accent);
+    padding: 4px 10px;
   }
-  .blockers {
-    padding-left: 18px;
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.6;
+  .strat-anchor-x {
+    background: var(--surface-3); color: var(--muted);
+    padding: 4px 6px; font-size: 10px;
   }
-  .blockers li { margin-bottom: 2px; }
+  .strat-anchor-pain {
+    background: rgba(255,90,90,0.12); color: #ff9a9a;
+    padding: 4px 10px;
+  }
+  /* Force chip — economic_pull / counter_inertia / balanced */
+  .strat-force {
+    display: inline-block;
+    font-size: 9px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 10px; margin-left: 6px;
+    vertical-align: middle;
+  }
+  .strat-force.economic_pull { background: rgba(61,220,132,0.12); color: var(--green); }
+  .strat-force.counter_inertia { background: rgba(255,103,195,0.12); color: var(--pink); }
+  .strat-force.balanced { background: rgba(90,169,255,0.12); color: var(--accent); }
+  .strat-conf-bar { display: inline-block; width: 60px; height: 4px; background: var(--surface-3); border-radius: 2px; margin-left: 6px; vertical-align: middle; }
+  .strat-conf-fill { display: block; height: 100%; background: var(--green); border-radius: 2px; }
 
-  .hyd-action {
+  .strat-custom-card {
+    background: var(--surface); border: 2px dashed var(--border); border-radius: 12px;
+    padding: 14px 16px; text-align: center;
+  }
+  .strat-custom-btn {
+    background: transparent; border: none; color: var(--accent);
+    font-weight: 700; cursor: pointer; font-size: 13px; font-family: inherit;
+    padding: 4px 8px;
+  }
+  .strat-custom-btn:hover { text-decoration: underline; }
+  .strat-custom-form { display: none; text-align: left; }
+  .strat-custom-form.active { display: block; }
+  .strat-custom-form input, .strat-custom-form textarea {
+    width: 100%; margin-bottom: 8px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; color: var(--text); font-size: 13px; font-family: inherit;
+  }
+  .strat-custom-form textarea { resize: vertical; min-height: 60px; }
+
+  /* Action row under strategies */
+  .strat-actions {
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .strat-action-info { font-size: 12px; color: var(--text-dim); }
+  .strat-action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* MODAL */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(5, 8, 12, 0.75); z-index: 1000;
+    display: none; align-items: center; justify-content: center; padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-backdrop.active { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 26px 28px; max-width: 540px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .modal h3 {
+    font-size: 18px; font-weight: 800; margin-bottom: 10px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--purple) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .modal p { font-size: 13px; color: var(--text-dim); line-height: 1.6; margin-bottom: 10px; }
+  .modal .note {
+    background: rgba(255,199,87,0.08); border-left: 3px solid var(--yellow);
+    padding: 10px 14px; border-radius: 6px; font-size: 12px; color: var(--text); line-height: 1.55;
     margin-top: 14px;
-    padding: 14px 16px;
-    background: linear-gradient(135deg, rgba(61,220,132,0.08) 0%, rgba(90,169,255,0.06) 100%);
-    border: 1px solid rgba(61,220,132,0.3);
-    border-radius: 10px;
   }
-  .hyd-action-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-  }
-  .hyd-action-verb {
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--green);
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
-  }
-  .hyd-action-target {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .hyd-action-opener {
-    font-size: 13px;
-    font-style: italic;
-    color: var(--text);
-    line-height: 1.5;
-    padding-left: 10px;
-    border-left: 2px solid var(--green);
-    margin-bottom: 8px;
-  }
-  .hyd-action-outcome {
-    font-size: 11px;
-    color: var(--text-dim);
-  }
-  .hyd-action-outcome .label {
-    color: var(--green);
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    margin-right: 4px;
-  }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
-  .hyd-footer {
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px dashed var(--border);
-    font-size: 11px;
-    color: var(--muted);
+  /* HYDRATION */
+  .hyd-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .hyd-who { flex: 1; min-width: 240px; }
+  .hyd-whoisthis { font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+  .hyd-score {
+    border: 2px solid var(--accent); border-radius: 10px; padding: 8px 16px;
+    text-align: center; min-width: 80px;
   }
+  .hyd-score-num { font-size: 24px; font-weight: 900; line-height: 1; }
+  .hyd-score-label { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); font-weight: 800; margin-top: 3px; }
+  .hyd-pains { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .hyd-pain { background: rgba(255,90,90,0.04); border: 1px solid rgba(255,90,90,0.3); border-radius: 8px; padding: 10px 12px; }
+  .hyd-pain-label { font-size: 12px; font-weight: 700; color: var(--red); margin-bottom: 4px; }
+  .hyd-pain-expl { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+  .hyd-primary-lead {
+    background: var(--surface-2); border-left: 3px solid var(--accent);
+    padding: 10px 14px; border-radius: 6px; margin-bottom: 16px;
+  }
+  .hyd-primary-lead-title { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: 800; margin-bottom: 4px; }
+  .hyd-primary-lead-val { font-size: 14px; color: var(--text); font-weight: 700; }
 
-  /* ATOMS */
-  .atoms-panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 20px;
-    display: none;
+  .hyd-questions-title {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+    font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
   }
-  .atoms-panel.active { display: block; }
-  .atoms-header {
-    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;
-  }
-  .atoms-count { font-size: 11px; color: var(--accent); font-weight: 700; }
-  .atom-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-  .filter-chip {
-    font-size: 10px; background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    padding: 4px 10px; border-radius: 14px;
-    cursor: pointer; font-weight: 600;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .filter-chip:hover { background: var(--surface-3); color: var(--text); }
-  .filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .hyd-questions-title::before { content: ''; width: 14px; height: 2px; background: var(--green); border-radius: 2px; }
 
-  .atoms-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 10px;
+  .hyd-q {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 14px;
   }
-  .atom {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 14px;
-    position: relative;
+  .hyd-q-stage {
+    font-size: 10px; letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--accent); font-weight: 800; margin-bottom: 6px;
   }
-  .atom::before {
-    content: '';
-    position: absolute; left: 0; top: 0; bottom: 0;
-    width: 3px; background: var(--atom-color);
-    border-radius: 10px 0 0 10px;
+  .hyd-q-text { font-size: 14px; color: var(--text); line-height: 1.55; margin-bottom: 12px; font-weight: 600; }
+  .hyd-q-block { margin-bottom: 10px; }
+  .hyd-q-block-label { font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); font-weight: 800; margin-bottom: 4px; }
+  .hyd-q-block-val { font-size: 12px; color: var(--text-dim); line-height: 1.55; }
+  .hyd-q-tone {
+    background: rgba(90,169,255,0.06); border-left: 2px solid var(--accent);
+    padding: 8px 12px; border-radius: 4px; font-size: 11px; color: var(--text-dim); line-height: 1.5;
+    margin-top: 4px; font-style: italic;
   }
-  .atom-top {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 6px; gap: 8px;
+  .hyd-responses { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  @media (max-width: 720px) { .hyd-responses { grid-template-columns: 1fr; } }
+  .hyd-response {
+    border-radius: 6px; padding: 10px 12px; border: 1px solid var(--border);
   }
-  .atom-type {
-    font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase;
-    color: var(--atom-color); font-weight: 800;
-  }
-  .atom-conf {
-    font-size: 9px; color: var(--muted); font-weight: 700;
-    letter-spacing: 1px; text-transform: uppercase;
-  }
-  .atom-claim {
-    font-size: 12px; color: var(--text); line-height: 1.5;
-    margin-bottom: 6px; font-weight: 500;
-  }
-  .atom-evidence {
-    font-size: 10px; color: var(--muted);
-    font-style: italic; line-height: 1.4; margin-bottom: 6px;
-  }
-  .atom-tags { display: flex; flex-wrap: wrap; gap: 3px; }
-  .atom-tag {
-    font-size: 9px; background: var(--surface-3);
-    color: var(--text-dim); padding: 2px 6px;
-    border-radius: 10px; font-weight: 600;
-  }
+  .hyd-response.positive { background: rgba(61,220,132,0.05); border-left: 2px solid var(--green); }
+  .hyd-response.negative { background: rgba(255,90,90,0.04); border-left: 2px solid var(--red); }
+  .hyd-response-label { font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase; font-weight: 800; margin-bottom: 4px; }
+  .hyd-response.positive .hyd-response-label { color: var(--green); }
+  .hyd-response.negative .hyd-response-label { color: var(--red); }
+  .hyd-response-quote { font-size: 11px; color: var(--text); font-style: italic; line-height: 1.5; margin-bottom: 6px; }
+  .hyd-response-next { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+  .hyd-response-next strong { color: var(--text); }
 
-  .atom.mission { --atom-color: var(--accent); }
-  .atom.product { --atom-color: var(--green); }
-  .atom.icp { --atom-color: var(--cyan); }
-  .atom.proof_point { --atom-color: var(--green); }
-  .atom.team { --atom-color: var(--purple); }
-  .atom.stack_signal { --atom-color: var(--orange); }
-  .atom.buying_trigger { --atom-color: var(--yellow); }
-  .atom.differentiator { --atom-color: var(--accent); }
-  .atom.partnership { --atom-color: var(--cyan); }
-  .atom.contact { --atom-color: var(--orange); }
-  .atom.weakness { --atom-color: var(--red); }
-  .atom.mission_gap { --atom-color: var(--pink); }
-
-  /* TARGET LIST */
-  .target-list-wrap {
-    display: flex; gap: 8px; flex-wrap: wrap;
-    margin-bottom: 20px;
-    align-items: center;
-  }
-  .target-list-label {
-    font-size: 11px; color: var(--muted); font-weight: 700;
-    letter-spacing: 1.5px; text-transform: uppercase;
-    margin-right: 4px;
-  }
-  .target-chip {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    padding: 6px 14px;
-    border-radius: 18px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .target-chip:hover { color: var(--text); border-color: var(--accent); }
-  .target-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
-  .target-chip .count {
-    font-size: 10px; margin-left: 6px; opacity: 0.7;
-  }
-
-  /* ERROR */
+  /* ERRORS */
   .error-msg {
-    background: rgba(255,90,90,0.1);
-    border: 1px solid rgba(255,90,90,0.3);
-    color: #ff9a9a;
-    padding: 12px 16px;
-    border-radius: 10px;
-    font-size: 13px;
-    margin-top: 10px;
-    display: none;
+    background: rgba(255,90,90,0.1); border: 1px solid rgba(255,90,90,0.3);
+    color: #ff9a9a; padding: 12px 16px; border-radius: 10px; font-size: 13px;
+    margin-top: 10px; display: none;
   }
   .error-msg.active { display: block; }
 
-  footer {
-    margin-top: 40px; text-align: center; font-size: 10px;
-    color: var(--border); letter-spacing: 2px; text-transform: uppercase;
-  }
+  /* SPINNER */
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+
+  footer { margin-top: 40px; text-align: center; font-size: 10px; color: var(--border); letter-spacing: 2px; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -1006,55 +467,77 @@
       </div>
     </div>
     <div class="status">
-      <span class="status-dot"></span>
+      <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Checking…</span>
     </div>
   </header>
 
   <!-- LIVE DEMO HERO -->
   <div class="live-demo">
-    <h2>Live: URL → Atoms → Angles → Email</h2>
+    <h2>Live: Three URLs → 6D Atoms → Pain Points → Sales Strategies → Lead Hydration</h2>
     <div class="live-demo-sub">Drop any customer URL. Watch TDE decompose it, generate possible engagement angles, and draft a send-ready outreach email. ~30 seconds.</div>
 
-    <!-- SELLER INPUTS -->
-    <div class="demo-input-grid">
-      <div class="demo-input-wrap">
-        <label class="demo-input-label" for="demo-salesperson">Your name</label>
-        <input type="text" class="demo-input" id="demo-salesperson" placeholder="e.g., Steve Winfield" autocomplete="off" />
+    <!-- Row 1: email + sender company URL -->
+    <div class="input-grid">
+      <div class="input-wrap">
+        <label class="input-label" for="f-email">Your email<span class="req">*</span></label>
+        <input type="email" class="field" id="f-email" placeholder="you@yourcompany.com" autocomplete="email" />
       </div>
-      <div class="demo-input-wrap">
-        <label class="demo-input-label" for="demo-sender-company">Your company / partner URL</label>
-        <input type="text" class="demo-input" id="demo-sender-company" placeholder="yourcompany.com (used to research your side)" autocomplete="off" />
-      </div>
-    </div>
-    <div class="demo-input-grid">
-      <div class="demo-input-wrap">
-        <label class="demo-input-label" for="demo-solution">Solution / product you're selling</label>
-        <input type="text" class="demo-input" id="demo-solution" placeholder="e.g., Real-time multilingual translation for contact centers" autocomplete="off" />
-      </div>
-      <div class="demo-input-wrap">
-        <label class="demo-input-label" for="demo-role">Recipient role (optional)</label>
-        <input type="text" class="demo-input" id="demo-role" placeholder="e.g., CTO, VP Customer Ops" autocomplete="off" value="CTO" />
+      <div class="input-wrap">
+        <label class="input-label" for="f-sender-url">Your company URL<span class="req">*</span></label>
+        <input type="text" class="field" id="f-sender-url" placeholder="yourcompany.com" autocomplete="off" />
       </div>
     </div>
 
-    <!-- TARGET: URL OR INDUSTRY -->
-    <div class="demo-target-row">
-      <div class="demo-input-wrap">
-        <label class="demo-input-label">Target by</label>
+    <!-- Row 2: solution URL + recipient role -->
+    <div class="input-grid">
+      <div class="input-wrap">
+        <label class="input-label" for="f-solution-url">Solution / product URL<span class="req">*</span></label>
+        <input type="text" class="field" id="f-solution-url" placeholder="e.g., yourcompany.com/products/flagship" autocomplete="off" />
+      </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-role">Recipient role (optional)</label>
+        <input type="text" class="field" id="f-role" placeholder="e.g., CTO, VP Operations" autocomplete="off" value="CTO" />
+      </div>
+    </div>
+
+    <!-- Row 3: Target mode toggle -->
+    <div class="target-row">
+      <div class="input-wrap">
+        <label class="input-label">Target by</label>
         <div class="target-toggle" id="target-toggle">
-          <button type="button" class="active" data-mode="url">Company URL</button>
+          <button type="button" class="active" data-mode="url">Customer URL</button>
           <button type="button" data-mode="industry">Industry</button>
         </div>
       </div>
-      <div class="demo-input-wrap">
-        <label class="demo-input-label" id="demo-target-label" for="demo-target">Customer company URL</label>
-        <input type="text" class="demo-input" id="demo-target" placeholder="customer.com (we'll research and decompose)" autocomplete="off" />
+
+      <!-- URL mode input (customer URL) -->
+      <div class="input-wrap" id="target-url-wrap">
+        <label class="input-label" for="f-customer-url">Customer company URL<span class="req">*</span></label>
+        <input type="text" class="field" id="f-customer-url" placeholder="customer.com" autocomplete="off" />
       </div>
-      <button class="demo-btn" id="demo-go">Run Full Flow</button>
     </div>
 
-    <!-- DEMO-SCALE DISCLAIMER -->
+    <!-- Industry-mode row (hidden by default) -->
+    <div class="industry-grid" id="industry-grid" style="display:none">
+      <div class="input-wrap">
+        <label class="input-label" for="f-industry">NAICS Industry<span class="req">*</span></label>
+        <select class="field" id="f-industry"><option value="">Select…</option></select>
+      </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-subindustry">Subindustry<span class="req">*</span></label>
+        <select class="field" id="f-subindustry" disabled><option value="">Select industry first</option></select>
+      </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-region">Region<span class="req">*</span></label>
+        <select class="field" id="f-region"><option value="">Select…</option></select>
+      </div>
+    </div>
+
+    <div class="run-row">
+      <button class="btn-primary" id="btn-run">Run Full Flow</button>
+    </div>
+
     <div class="demo-scale-note">
       <span class="demo-scale-note-icon">ⓘ</span>
       <div>
@@ -1063,14 +546,30 @@
     </div>
 
     <div class="phases" id="phases"></div>
-    <div class="error-msg" id="demo-error"></div>
+    <div class="error-msg" id="error-msg"></div>
   </div>
 
-  <div class="angles-panel" id="angles-panel"></div>
-  <div class="email-panel" id="email-panel"></div>
-  <div class="atoms-panel" id="atoms-panel"></div>
+  <div class="panel" id="atoms-panel"></div>
+  <div class="panel" id="pain-panel"></div>
+  <div class="panel" id="strategies-panel"></div>
+  <div class="panel" id="hydration-panel"></div>
 
-  <footer>TDE v2 · Live Demo</footer>
+  <footer>TDE v3 · Live Demo</footer>
+</div>
+
+<!-- Sales Advisor Storm modal -->
+<div class="modal-backdrop" id="storm-modal">
+  <div class="modal">
+    <h3>Sales Advisor Storm</h3>
+    <p>You selected <strong id="storm-count">multiple</strong> strategies. In production, TDE runs a <strong>modified Miro Fish</strong> multi-agent deliberation across our Sales Advisor panel — converging on a single top strategy with confidence levels for each alternative.</p>
+    <div class="note">
+      <strong>For this demo</strong>, we'll proceed with your highest-confidence selection. The full Advisor Storm is coming in the next release.
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeStormModal()">Cancel</button>
+      <button class="btn-success" id="storm-proceed">Proceed →</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1079,251 +578,211 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-let currentTargetId = null;
-let currentAtomData = null;
-let currentAngles = null;
-let currentEmail = null;
-let activeFilter = 'all';
-let targetMode = 'url'; // 'url' | 'industry'
-
-const TYPE_LABELS = {
-  mission: 'Mission', product: 'Product', icp: 'ICP', proof_point: 'Proof',
-  team: 'Team', stack_signal: 'Stack', buying_trigger: 'Trigger',
-  differentiator: 'Diff', partnership: 'Partnership',
-  contact: 'Contact', weakness: 'Weakness', mission_gap: 'Mission Gap'
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let state = {
+  targetMode: 'url',         // 'url' | 'industry'
+  naics: null,               // loaded from /api/meta/naics
+  regions: null,             // loaded from /api/meta/regions
+  runId: null,               // server-assigned after demo-flow completes
+  strategies: null,          // from server
+  selected: new Set(),       // strategy ids currently checked
+  customStrategy: null,      // { title, explanation }
+  topPickId: null,
 };
 
+// ─── BOOT ───────────────────────────────────────────────────────────────────
 async function boot() {
   await checkHealth();
-  $('demo-go').onclick = runDemoFlow;
-  $('demo-target').addEventListener('keydown', (e) => { if (e.key === 'Enter') runDemoFlow(); });
-  // Wire target-mode toggle
-  document.querySelectorAll('#target-toggle button').forEach(btn => {
-    btn.addEventListener('click', () => setTargetMode(btn.dataset.mode));
-  });
-}
-
-function setTargetMode(mode) {
-  targetMode = mode;
-  document.querySelectorAll('#target-toggle button').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.mode === mode);
-  });
-  const label = $('demo-target-label');
-  const input = $('demo-target');
-  if (mode === 'url') {
-    label.textContent = 'Customer company URL';
-    input.placeholder = 'customer.com (we\'ll research and decompose)';
-  } else {
-    label.textContent = 'Target industry';
-    input.placeholder = 'e.g., Regional banks in Southeast Asia';
-  }
-  input.value = '';
-  input.focus();
+  await loadMeta();
+  wireUI();
 }
 
 async function checkHealth() {
   try {
-    const res = await fetch('/healthz');
-    const data = await res.json();
-    $('status-text').textContent = data.model || 'Ready';
+    const r = await fetch('/healthz');
+    const d = await r.json();
+    $('status-text').textContent = d.leadhydration_configured
+      ? `${d.model} · LeadHydration connected`
+      : `${d.model} · ⚠ LeadHydration not configured`;
+    if (!d.leadhydration_configured) $('status-dot').classList.add('warn');
   } catch {
     $('status-text').textContent = 'Connection issue';
+    $('status-dot').classList.add('warn');
   }
 }
 
-function renderAtoms(data) {
-  const types = [...new Set(data.atoms.map(a => a.type))];
-  $('atoms-panel').innerHTML = `
-    <div class="atoms-header">
-      <div class="section-title" style="margin:0">Atoms — ${esc(data.target.name)}</div>
-      <div class="atoms-count">${data.atoms.length} atoms</div>
-    </div>
-    <div class="atom-filters">
-      <button class="filter-chip active" onclick="setFilter('all', event)">All</button>
-      ${types.map(t => `<button class="filter-chip" onclick="setFilter('${esc(t)}', event)">${esc(TYPE_LABELS[t] || t)}</button>`).join('')}
-    </div>
-    <div class="atoms-grid" id="atoms-grid">${renderAtomCards(data.atoms)}</div>
-  `;
-  $('atoms-panel').classList.add('active');
+async function loadMeta() {
+  try {
+    const [n, r] = await Promise.all([fetch('/api/meta/naics').then(x => x.json()), fetch('/api/meta/regions').then(x => x.json())]);
+    state.naics = n;
+    state.regions = r;
+    // Populate industry dropdown
+    const indSel = $('f-industry');
+    n.forEach(sec => {
+      const opt = document.createElement('option');
+      opt.value = sec.code; opt.textContent = `${sec.code} — ${sec.name}`;
+      indSel.appendChild(opt);
+    });
+    // Populate region dropdown
+    const regSel = $('f-region');
+    r.forEach(region => {
+      const opt = document.createElement('option');
+      opt.value = region.id; opt.textContent = `${region.name} (${region.countries.slice(0,3).join(', ')}${region.countries.length > 3 ? '…' : ''})`;
+      regSel.appendChild(opt);
+    });
+  } catch (e) { console.error('Failed to load meta:', e); }
 }
 
-function renderAtomCards(atoms) {
-  return atoms.map(a => `
-    <div class="atom ${esc(a.type)}">
-      <div class="atom-top">
-        <span class="atom-type">${esc(a.type).replace(/_/g, ' ')}</span>
-        <span class="atom-conf">${esc(a.confidence || '')}</span>
-      </div>
-      <div class="atom-claim">${esc(a.claim)}</div>
-      <div class="atom-evidence">${esc(a.evidence || '')}</div>
-      <div class="atom-tags">
-        ${(a.tags || []).slice(0, 4).map(t => `<span class="atom-tag">${esc(t)}</span>`).join('')}
-      </div>
-    </div>
-  `).join('');
+function wireUI() {
+  $('btn-run').onclick = runFlow;
+  document.querySelectorAll('#target-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => setTargetMode(btn.dataset.mode));
+  });
+  $('f-industry').addEventListener('change', onIndustryChange);
+  document.querySelectorAll('.field').forEach(f => f.addEventListener('keydown', (e) => { if (e.key === 'Enter') runFlow(); }));
 }
 
-function setFilter(type, ev) {
-  activeFilter = type;
-  document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
-  if (ev?.target) ev.target.classList.add('active');
-  const filtered = type === 'all' ? currentAtomData.atoms : currentAtomData.atoms.filter(a => a.type === type);
-  $('atoms-grid').innerHTML = renderAtomCards(filtered);
-}
-
-// ============== LIVE DEMO FLOW ==============
-async function runDemoFlow() {
-  const salesperson = $('demo-salesperson').value.trim();
-  const sender_company = $('demo-sender-company').value.trim();
-  const solution = $('demo-solution').value.trim();
-  const role = $('demo-role').value.trim() || 'Senior executive';
-  const targetRaw = $('demo-target').value.trim();
-
-  // Validation
-  if (!salesperson) {
-    showDemoError('Enter your name so the email signs off correctly.');
-    return;
-  }
-  if (!solution) {
-    showDemoError('Enter the solution/product you\'re selling.');
-    return;
-  }
-  if (!targetRaw) {
-    showDemoError(targetMode === 'url' ? 'Paste a customer URL.' : 'Enter a target industry.');
-    return;
-  }
-
-  // Prep URL/industry payload
-  let url = null, industry = null;
-  if (targetMode === 'url') {
-    url = targetRaw;
-    if (!/^https?:\/\//i.test(url)) {
-      url = 'https://' + url.replace(/^\/+/, '');
-      $('demo-target').value = url;
-    }
+function setTargetMode(mode) {
+  state.targetMode = mode;
+  document.querySelectorAll('#target-toggle button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+  if (mode === 'url') {
+    $('target-url-wrap').style.display = '';
+    $('industry-grid').style.display = 'none';
   } else {
-    industry = targetRaw;
+    $('target-url-wrap').style.display = 'none';
+    $('industry-grid').style.display = '';
+  }
+}
+
+function onIndustryChange() {
+  const code = $('f-industry').value;
+  const sub = $('f-subindustry');
+  sub.innerHTML = '<option value="">Select…</option>';
+  if (!code) { sub.disabled = true; return; }
+  const sec = state.naics.find(s => s.code === code);
+  if (!sec) return;
+  sec.sub.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.code; opt.textContent = `${s.code} — ${s.name}`;
+    sub.appendChild(opt);
+  });
+  sub.disabled = false;
+}
+
+// ─── RUN FLOW ───────────────────────────────────────────────────────────────
+async function runFlow() {
+  hideError();
+  const email = $('f-email').value.trim();
+  const sender = $('f-sender-url').value.trim();
+  const solution = $('f-solution-url').value.trim();
+  const role = $('f-role').value.trim() || 'Senior executive';
+
+  if (!email || !sender || !solution) return showError('Fill in email, your company URL, and the solution URL.');
+  if (!/^\S+@\S+\.\S+$/.test(email)) return showError('Email looks invalid.');
+
+  let body = { email, sender_company_url: sender, solution_url: solution, recipient_role: role };
+  if (state.targetMode === 'url') {
+    const cust = $('f-customer-url').value.trim();
+    if (!cust) return showError('Paste a customer URL, or switch to Industry mode.');
+    body.customer_url = cust;
+  } else {
+    const ind = $('f-industry').value, sub = $('f-subindustry').value, region = $('f-region').value;
+    if (!ind || !sub || !region) return showError('Pick industry, subindustry, and region.');
+    const indName = state.naics.find(s => s.code === ind)?.name || ind;
+    const subName = state.naics.find(s => s.code === ind)?.sub.find(x => x.code === sub)?.name || sub;
+    const regName = state.regions.find(r => r.id === region)?.name || region;
+    body.industry = `${indName} (NAICS ${ind})`;
+    body.subindustry = `${subName} (NAICS ${sub})`;
+    body.region = regName;
   }
 
-  $('demo-error').classList.remove('active');
-  $('demo-go').disabled = true;
-  $('demo-go').textContent = 'Running…';
-
-  // Reset result panels
-  $('angles-panel').classList.remove('active');
-  $('email-panel').classList.remove('active');
-  $('atoms-panel').classList.remove('active');
-  $('angles-panel').innerHTML = '';
-  $('email-panel').innerHTML = '';
+  // Reset UI
+  $('btn-run').disabled = true;
+  $('btn-run').textContent = 'Running…';
+  ['atoms-panel', 'pain-panel', 'strategies-panel', 'hydration-panel'].forEach(id => { $(id).classList.remove('active'); $(id).innerHTML = ''; });
+  state.runId = null; state.strategies = null; state.selected = new Set(); state.customStrategy = null;
 
   const phasesEl = $('phases');
   phasesEl.classList.add('active');
-  const firstPhaseLabel = targetMode === 'url' ? 'Waiting to fetch…' : 'Waiting to synthesize industry profile…';
   phasesEl.innerHTML = `
-    <div class="phase-item" id="ph-fetch"><span class="phase-icon">1</span><span class="phase-text">${firstPhaseLabel}</span></div>
+    <div class="phase-item running" id="ph-fetch"><span class="phase-icon">1</span><span class="phase-text">Fetching sender, solution, customer in parallel…</span></div>
     <div class="phase-item" id="ph-ingest"><span class="phase-icon">2</span><span class="phase-text">Waiting to decompose…</span></div>
-    <div class="phase-item" id="ph-angles"><span class="phase-icon">3</span><span class="phase-text">Waiting to generate angles…</span></div>
-    <div class="phase-item" id="ph-email"><span class="phase-icon">4</span><span class="phase-text">Waiting to compose email…</span></div>
+    <div class="phase-item" id="ph-pain"><span class="phase-icon">3</span><span class="phase-text">Waiting to extract pain points…</span></div>
+    <div class="phase-item" id="ph-strategies"><span class="phase-icon">4</span><span class="phase-text">Waiting to generate strategies…</span></div>
   `;
 
   try {
-    const response = await fetch('/api/demo-flow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url,
-        industry,
-        recipient_role: role,
-        salesperson,
-        sender_company,
-        solution
-      })
+    const res = await fetch('/api/demo-flow', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || `Request failed (${response.status})`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Request failed (${res.status})`);
     }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      // Parse SSE events from buffer
-      const events = buffer.split('\n\n');
-      buffer = events.pop(); // keep incomplete last chunk
-
-      for (const block of events) {
-        if (!block.trim()) continue;
-        const eventMatch = block.match(/^event:\s*(.+)$/m);
-        const dataMatch = block.match(/^data:\s*(.+)$/m);
-        if (!eventMatch || !dataMatch) continue;
-
-        const eventName = eventMatch[1].trim();
-        let eventData;
-        try { eventData = JSON.parse(dataMatch[1]); } catch { continue; }
-
-        handleSSEEvent(eventName, eventData);
-      }
-    }
+    await readSSE(res, handleSSE);
   } catch (e) {
-    showDemoError(e.message || 'Flow failed.');
+    showError(e.message);
   } finally {
-    $('demo-go').disabled = false;
-    $('demo-go').textContent = 'Run Full Flow';
+    $('btn-run').disabled = false;
+    $('btn-run').textContent = 'Run Full Flow';
   }
 }
 
-function handleSSEEvent(eventName, data) {
-  switch (eventName) {
+async function readSSE(response, handler) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop();
+    for (const block of events) {
+      if (!block.trim()) continue;
+      const em = block.match(/^event:\s*(.+)$/m);
+      const dm = block.match(/^data:\s*(.+)$/m);
+      if (!em || !dm) continue;
+      let data; try { data = JSON.parse(dm[1]); } catch { continue; }
+      handler(em[1].trim(), data);
+    }
+  }
+}
+
+function handleSSE(event, data) {
+  switch (event) {
     case 'phase':
-      updatePhase(data);
+      setPhase(data.phase, data.message);
       break;
     case 'atoms':
-      currentTargetId = data.target_id;
-      currentAtomData = data;
       renderAtoms(data);
-      markPhaseDone('ph-ingest');
+      markPhaseDone('ph-fetch'); markPhaseDone('ph-ingest');
       break;
-    case 'angles':
-      currentAngles = data;
-      renderAngles(data);
-      markPhaseDone('ph-angles');
+    case 'pain':
+      renderPain(data.pain_points);
+      markPhaseDone('ph-pain');
       break;
-    case 'email':
-      currentEmail = data;
-      renderEmail(data);
-      markPhaseDone('ph-email');
+    case 'strategies':
+      state.strategies = data;
+      state.topPickId = data.top_pick_id;
+      renderStrategies(data);
+      markPhaseDone('ph-strategies');
       break;
     case 'done':
-      markPhaseDone('ph-fetch');
-      markPhaseDone('ph-ingest');
-      markPhaseDone('ph-angles');
-      markPhaseDone('ph-email');
+      state.runId = data.run_id;
       break;
     case 'error':
-      showDemoError(data.message);
+      showError(data.message);
       break;
   }
 }
 
-function updatePhase(data) {
-  const phaseId = 'ph-' + data.phase;
-  const el = $(phaseId);
+function setPhase(phase, message) {
+  const el = $('ph-' + phase);
   if (!el) return;
-  // Mark prior phases done
-  const order = ['fetch', 'ingest', 'angles', 'email'];
-  const idx = order.indexOf(data.phase);
-  for (let i = 0; i < idx; i++) markPhaseDone('ph-' + order[i]);
-
-  document.querySelectorAll('.phase-item').forEach(el => el.classList.remove('running'));
+  document.querySelectorAll('.phase-item').forEach(e => e.classList.remove('running'));
   el.classList.add('running');
-  el.querySelector('.phase-text').textContent = data.message;
+  el.querySelector('.phase-text').textContent = message;
 }
 
 function markPhaseDone(id) {
@@ -1334,247 +793,402 @@ function markPhaseDone(id) {
   el.querySelector('.phase-icon').textContent = '✓';
 }
 
-function renderAngles(data) {
-  const topPick = data.top_pick;
-  const sellerLabel = data.seller_label || 'Your side';
-  const solutionLabel = data.solution_label || 'Solution';
+// ─── RENDERERS ─────────────────────────────────────────────────────────────
+function renderAtoms(data) {
+  const groups = [
+    { key: 'sender',   label: 'Sender (you)',     role: 'sender' },
+    { key: 'solution', label: 'Solution / product', role: 'solution' },
+    { key: 'customer', label: 'Customer',         role: 'customer' }
+  ];
   const html = `
-    <div class="section-title">${esc(sellerLabel)} → ${esc(data.target_name)}</div>
-    <div class="angles-intro">
-      <strong>Top pick:</strong> ${esc(topPick || data.angles[0]?.title || '—')}
-    </div>
-    <div class="angle-cards">
-      ${data.angles.map(a => renderAngle(a, a.title === topPick, sellerLabel, solutionLabel)).join('')}
+    <div class="section-title">6D-Tagged Atoms</div>
+    <div class="atoms-triple">
+      ${groups.map(g => renderAtomGroup(data[g.key], g)).join('')}
     </div>
   `;
-  $('angles-panel').innerHTML = html;
-  $('angles-panel').classList.add('active');
+  $('atoms-panel').innerHTML = html;
+  $('atoms-panel').classList.add('active');
 }
 
-function renderAngle(a, isTop, sellerLabel, solutionLabel) {
-  // Support both new generic fields and legacy wintech/aiaivn fields for back-compat
-  const sellerContribution = a.seller_contribution || a.wintech_contribution || '';
-  const solutionContribution = a.solution_contribution || a.aiaivn_contribution || '';
+function renderAtomGroup(entry, g) {
+  if (!entry) return `<div class="atom-group"><div class="atom-group-title">${esc(g.label)}</div><div class="atom-group-summary">No data.</div></div>`;
+  const name = entry.target?.name || g.label;
+  const count = entry.atoms?.length || 0;
   return `
-    <div class="angle ${isTop ? 'top-pick' : ''}">
-      <div class="angle-title">${esc(a.title)}</div>
-      <div class="angle-thesis">"${esc(a.thesis)}"</div>
-      <div class="angle-grid">
-        <div class="angle-cell wintech">
-          <div class="angle-cell-label">${esc(sellerLabel)} brings</div>
-          <div class="angle-cell-val">${esc(sellerContribution)}</div>
+    <div class="atom-group">
+      <div class="atom-group-head">
+        <div>
+          <div class="atom-group-title">${esc(name)}</div>
+          <div class="atom-count-badge">${count} ATOMS</div>
         </div>
-        <div class="angle-cell aiaivn">
-          <div class="angle-cell-label">${esc(solutionLabel)} brings</div>
-          <div class="angle-cell-val">${esc(solutionContribution)}</div>
-        </div>
-        <div class="angle-cell pain">
-          <div class="angle-cell-label">Addresses</div>
-          <div class="angle-cell-val">${esc(a.target_pain_addressed)}</div>
-        </div>
-        <div class="angle-cell step">
-          <div class="angle-cell-label">First step</div>
-          <div class="angle-cell-val">${esc(a.first_step)}</div>
-        </div>
+        <span class="atom-group-role ${g.role}">${esc(g.role)}</span>
+      </div>
+      <div class="atom-group-summary">${esc(entry.summary || '')}</div>
+      <div class="atoms-list">
+        ${(entry.atoms || []).map(renderAtomMini).join('')}
       </div>
     </div>
   `;
 }
 
-function renderEmail(data) {
-  const c = data.composed || {};
-  const subject = c.subject || '';
-  const body = c.body || '';
-
-  $('email-panel').innerHTML = `
-    <div class="section-title">Composed Outreach Email</div>
-    <div class="email-frame">
-      ${subject ? `<div class="email-subject-label">Subject</div><div class="email-subject-val">${esc(subject)}</div>` : ''}
-      <div class="email-body" id="email-body">${renderMd(body)}</div>
-      <div class="email-actions">
-        <button class="copy-btn" onclick="copyEmail()">Copy email</button>
-        <button class="handoff-btn" id="handoff-btn" onclick="handoffToLeadHydration()">Send to LeadHydration →</button>
+function renderAtomMini(a) {
+  const cred = parseInt(a.d_credibility) || 0;
+  const credPct = Math.min(100, cred * 20);
+  const ind = a.d_industry || {};
+  const indValue = (ind.naics || ind.sic)
+    ? `${esc(shortCode(ind.naics))}<br><span style="color:var(--muted)">${esc(shortCode(ind.sic))}</span>`
+    : '—';
+  return `
+    <div class="atom-mini ${esc(a.type)}">
+      <div class="atom-mini-top">
+        <span class="atom-mini-type">${esc((a.type || '').replace(/_/g, ' '))}</span>
+        <span class="atom-mini-conf">${esc(a.confidence || '')}</span>
+      </div>
+      <div class="atom-mini-claim">${esc(a.claim)}</div>
+      <div class="d9" title="9-dimensional tagging">
+        <div class="d9-cell persona"><div class="d9-cell-label">Persona</div><div class="d9-cell-val">${esc(short(a.d_persona))}</div></div>
+        <div class="d9-cell stage"><div class="d9-cell-label">Stage</div><div class="d9-cell-val">${esc(short(a.d_buying_stage))}</div></div>
+        <div class="d9-cell driver"><div class="d9-cell-label">Emotion</div><div class="d9-cell-val">${esc(short(a.d_emotional_driver))}</div></div>
+        <div class="d9-cell evidence"><div class="d9-cell-label">Evidence</div><div class="d9-cell-val">${esc(short(a.d_evidence_type))}</div></div>
+        <div class="d9-cell credibility">
+          <div class="d9-cell-label">Cred</div>
+          <div class="d9-cell-val">${cred || '—'}/5</div>
+          <div class="cred-bar"><div class="cred-bar-fill" style="width:${credPct}%"></div></div>
+        </div>
+        <div class="d9-cell recency"><div class="d9-cell-label">Recency</div><div class="d9-cell-val">${esc(short(a.d_recency))}</div></div>
+        <div class="d9-cell econ"><div class="d9-cell-label">Econ Pull</div><div class="d9-cell-val">${esc(short(a.d_economic_driver))}</div></div>
+        <div class="d9-cell sqp"><div class="d9-cell-label">Inertia</div><div class="d9-cell-val">${esc(short(a.d_status_quo_pressure))}</div></div>
+        <div class="d9-cell industry"><div class="d9-cell-label">Industry</div><div class="d9-cell-val">${indValue}</div></div>
       </div>
     </div>
-    <div id="handoff-result" class="handoff-result"></div>
   `;
-  $('email-panel').classList.add('active');
-  $('email-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderMd(text) {
-  let t = esc(text);
-  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  t = t.replace(/_([^_]+)_/g, '<em>$1</em>');
-  return t;
+// Strip the "52" or "H" code, keep short name; for chips we just use the code
+function shortCode(s) {
+  if (!s) return '—';
+  const m = String(s).match(/^(\d{2}(?:-\d{2})?|[A-J])\s+(.*)$/);
+  return m ? m[1] : String(s).slice(0, 10);
 }
 
-function copyEmail() {
-  if (!currentEmail) return;
-  const subject = currentEmail.composed?.subject || '';
-  const body = currentEmail.composed?.body || '';
-  const text = subject ? `Subject: ${subject}\n\n${body}` : body;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = event.target;
-    btn.textContent = '✓ Copied';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy email'; btn.classList.remove('copied'); }, 2000);
-  });
+function short(s) {
+  if (!s) return '—';
+  // First word, or first token before slash — kept short for the chip
+  return String(s).split(/[\/,]/)[0].split(' ').slice(0, 2).join(' ');
 }
 
-async function handoffToLeadHydration() {
-  const btn = $('handoff-btn');
-  const resultEl = $('handoff-result');
-  if (!currentTargetId) {
-    resultEl.className = 'handoff-result error';
-    resultEl.innerHTML = 'No target loaded — run a demo flow first.';
+function renderPain(painPoints) {
+  if (!painPoints || !painPoints.length) {
+    $('pain-panel').innerHTML = '<div class="section-title">Customer Pain Points</div><div style="color:var(--text-dim);font-size:13px">No pain atoms detected yet. In production with more content, weakness / mission-gap / buying-trigger atoms are surfaced here.</div>';
+    $('pain-panel').classList.add('active');
     return;
   }
+  const html = `
+    <div class="section-title">Customer Pain Points — ${painPoints.length} detected</div>
+    <div class="pain-grid">
+      ${painPoints.map(p => `
+        <div class="pain-card ${esc(p.type)}">
+          <div class="pain-title">${esc(p.title)}</div>
+          <div class="pain-desc">${esc(p.description)}</div>
+          <div class="pain-meta">
+            <span class="pain-chip">${esc((p.type || '').replace(/_/g, ' '))}</span>
+            <span class="pain-chip">${esc(p.confidence || '')} confidence</span>
+            ${p.persona ? `<span class="pain-chip">${esc(p.persona)}</span>` : ''}
+            <span class="pain-chip">urgency: ${esc(p.urgency)}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  $('pain-panel').innerHTML = html;
+  $('pain-panel').classList.add('active');
+}
 
-  btn.disabled = true;
-  btn.textContent = 'Hydrating…';
-  resultEl.className = 'handoff-result loading';
-  resultEl.innerHTML = '<div class="handoff-spinner"></div> Running LeadHydration multi-agent enrichment…';
+function renderStrategies(data) {
+  const strats = data.strategies || [];
+  const topId = data.top_pick_id;
+  const html = `
+    <div class="strat-header-row">
+      <div class="section-title" style="margin:0">Sales Strategies — ${strats.length}</div>
+      <div class="strat-header-info">
+        <strong>${esc(data.sender_label || 'You')}</strong> selling
+        <strong>${esc(data.solution_label || 'your solution')}</strong> to
+        <strong>${esc(data.customer_label || 'the customer')}</strong>
+      </div>
+    </div>
+    <div class="strat-list" id="strat-list">
+      ${strats.map(s => renderStratCard(s, s.id === topId)).join('')}
+      <div class="strat-custom-card">
+        <button class="strat-custom-btn" onclick="toggleCustom()">+ Add your own (6th) strategy</button>
+        <div class="strat-custom-form" id="strat-custom-form">
+          <input type="text" id="custom-title" placeholder="Strategy title (e.g. 'Weekend pilot at their flagship site')" />
+          <textarea id="custom-explain" placeholder="Explain in 2-3 sentences why this wins."></textarea>
+          <button class="btn-secondary" onclick="saveCustom()">Save custom strategy</button>
+        </div>
+      </div>
+    </div>
+    <div class="strat-actions">
+      <div class="strat-action-info" id="strat-action-info">Click a strategy to select it.</div>
+      <div class="strat-action-buttons">
+        <button class="btn-success" id="btn-proceed" disabled onclick="onProceed()">Proceed with selected →</button>
+        <button class="btn-primary" id="btn-storm" disabled onclick="onAdvisorStorm()" style="display:none">Run Sales Advisor Storm</button>
+      </div>
+    </div>
+  `;
+  $('strategies-panel').innerHTML = html;
+  $('strategies-panel').classList.add('active');
+  $('strategies-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-  const topAngleObj = currentAngles?.angles?.find(a => a.title === currentAngles.top_pick) || currentAngles?.angles?.[0] || null;
+function renderStratCard(s, isTop) {
+  const confPct = Math.max(0, Math.min(100, parseInt(s.confidence) || 0));
+  const persona = s.target_persona || 'General';
+  const pain = s.pain_anchor || '—';
+  const force = s.strategy_force || 'balanced';
+  const forceLabel = force === 'economic_pull' ? 'Econ Pull' : force === 'counter_inertia' ? 'Counter Inertia' : 'Balanced';
+  return `
+    <div class="strat-card ${isTop ? 'top-pick' : ''}" data-id="${esc(s.id)}" onclick="toggleStrategy('${esc(s.id)}')">
+      <div class="strat-head">
+        <div class="strat-check"></div>
+        <div class="strat-title">${esc(s.title)}</div>
+      </div>
+      <div>
+        <span class="strat-anchor">
+          <span class="strat-anchor-persona">${esc(persona)}</span>
+          <span class="strat-anchor-x">×</span>
+          <span class="strat-anchor-pain">${esc(pain)}</span>
+        </span>
+        <span class="strat-force ${esc(force)}">${esc(forceLabel)}</span>
+      </div>
+      <div class="strat-explain" style="margin-top:10px">${esc(s.explanation)}</div>
+      <div class="strat-meta">
+        <div class="strat-cell"><div class="strat-cell-label">Customer pain</div><div class="strat-cell-val">${esc(s.customer_pain)}</div></div>
+        <div class="strat-cell"><div class="strat-cell-label">You bring</div><div class="strat-cell-val">${esc(s.sender_contribution)}</div></div>
+        <div class="strat-cell"><div class="strat-cell-label">Solution delivers</div><div class="strat-cell-val">${esc(s.solution_contribution)}</div></div>
+        <div class="strat-cell"><div class="strat-cell-label">First step</div><div class="strat-cell-val">${esc(s.first_step)}</div></div>
+      </div>
+      <div class="strat-footer">
+        <span class="strat-confidence">CONFIDENCE ${confPct}<span class="strat-conf-bar"><span class="strat-conf-fill" style="width:${confPct}%"></span></span></span>
+      </div>
+    </div>
+  `;
+}
+
+// ─── STRATEGY SELECTION ─────────────────────────────────────────────────────
+function toggleStrategy(id) {
+  const card = document.querySelector(`.strat-card[data-id="${id}"]`);
+  if (!card) return;
+  if (state.selected.has(id)) {
+    state.selected.delete(id);
+    card.classList.remove('selected');
+  } else {
+    state.selected.add(id);
+    card.classList.add('selected');
+  }
+  updateStratActions();
+}
+
+function updateStratActions() {
+  const count = state.selected.size;
+  const info = $('strat-action-info');
+  const proceed = $('btn-proceed');
+  const storm = $('btn-storm');
+  if (count === 0) {
+    info.textContent = 'Click a strategy to select it. Multi-select to trigger Sales Advisor Storm.';
+    proceed.disabled = true; proceed.style.display = '';
+    storm.disabled = true; storm.style.display = 'none';
+  } else if (count === 1) {
+    info.innerHTML = `<strong>${count}</strong> strategy selected. Click proceed to hydrate the lead.`;
+    proceed.disabled = false; proceed.style.display = '';
+    storm.disabled = true; storm.style.display = 'none';
+  } else {
+    info.innerHTML = `<strong>${count}</strong> strategies selected. Run Advisor Storm to converge on one.`;
+    proceed.disabled = true; proceed.style.display = 'none';
+    storm.disabled = false; storm.style.display = '';
+  }
+}
+
+function toggleCustom() {
+  $('strat-custom-form').classList.toggle('active');
+}
+
+function saveCustom() {
+  const title = $('custom-title').value.trim();
+  const expl = $('custom-explain').value.trim();
+  if (!title || !expl) return showError('Custom strategy needs a title and an explanation.');
+  state.customStrategy = { title, explanation: expl };
+  // Add a visible card to the list and mark it selected
+  const list = $('strat-list');
+  const customCard = document.createElement('div');
+  customCard.className = 'strat-card selected';
+  customCard.dataset.id = 'custom';
+  customCard.innerHTML = `
+    <div class="strat-head"><div class="strat-check"></div><div class="strat-title">${esc(title)} <span style="font-size:10px;color:var(--muted);margin-left:6px;">(your custom)</span></div></div>
+    <div class="strat-explain">${esc(expl)}</div>
+  `;
+  customCard.onclick = () => toggleStrategy('custom');
+  list.insertBefore(customCard, list.lastElementChild);
+  state.selected.add('custom');
+  $('strat-custom-form').classList.remove('active');
+  $('custom-title').value = ''; $('custom-explain').value = '';
+  updateStratActions();
+}
+
+async function onProceed() {
+  if (state.selected.size !== 1) return;
+  const id = [...state.selected][0];
+  await hydrate(id);
+}
+
+function onAdvisorStorm() {
+  const n = state.selected.size;
+  $('storm-count').textContent = n;
+  $('storm-modal').classList.add('active');
+  $('storm-proceed').onclick = async () => {
+    closeStormModal();
+    // For demo, pick the selected strategy with highest confidence as "the winner"
+    let best = null;
+    for (const id of state.selected) {
+      if (id === 'custom') continue; // can't rank custom by confidence
+      const s = (state.strategies?.strategies || []).find(x => x.id === id);
+      if (s && (!best || (parseInt(s.confidence) || 0) > (parseInt(best.confidence) || 0))) best = s;
+    }
+    const winnerId = best ? best.id : [...state.selected][0];
+    await hydrate(winnerId);
+  };
+}
+
+function closeStormModal() { $('storm-modal').classList.remove('active'); }
+
+// ─── HYDRATION ─────────────────────────────────────────────────────────────
+async function hydrate(strategyId) {
+  if (!state.runId) return showError('No run in memory — rerun the flow.');
+  const panel = $('hydration-panel');
+  panel.classList.add('active');
+  panel.innerHTML = `
+    <div class="section-title">Lead Hydration</div>
+    <div style="color:var(--text-dim);font-size:13px;display:flex;align-items:center;gap:10px"><span class="spinner"></span> Calling LeadHydration — researching solution, mapping pain, generating discovery questions…</div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
-    const res = await fetch('/api/handoff/leadhydration', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        target_id: currentTargetId,
-        angle: topAngleObj,
-        email: currentEmail?.composed,
-        recipient_role: $('demo-role').value.trim() || 'Senior executive',
-        salesperson: $('demo-salesperson').value.trim() || 'Salesperson',
-        sender_company: $('demo-sender-company').value.trim() || '',
-        solution: $('demo-solution').value.trim() || ''
-      })
+    const body = strategyId === 'custom'
+      ? { run_id: state.runId, custom_strategy: state.customStrategy }
+      : { run_id: state.runId, strategy_id: strategyId };
+    const res = await fetch('/api/hydrate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `Failed (${res.status})`);
+      throw new Error(err.detail || err.error || `Hydration failed (${res.status})`);
     }
     const data = await res.json();
     renderHydration(data);
   } catch (e) {
-    resultEl.className = 'handoff-result error';
-    resultEl.innerHTML = `Hydration failed: ${esc(e.message)}`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Send to LeadHydration →';
+    panel.innerHTML = `
+      <div class="section-title">Lead Hydration</div>
+      <div class="error-msg active">${esc(e.message)}</div>
+    `;
   }
 }
 
 function renderHydration(data) {
   const h = data.hydration || {};
-  const resultEl = $('handoff-result');
+  const chosen = data.chosen_strategy || {};
+  const score = h.score || 0;
+  const scoreColor = score >= 80 ? 'var(--red)' : score >= 60 ? 'var(--orange)' : score >= 40 ? 'var(--yellow)' : 'var(--muted)';
 
-  const tierColor = {
-    HOT: 'var(--red)',
-    WARM: 'var(--orange)',
-    NURTURE: 'var(--yellow)',
-    DISQUALIFY: 'var(--muted)'
-  }[h.prequalify?.tier] || 'var(--accent)';
-
-  const painCards = (h.pain_points || []).map(p => `
-    <div class="pain-card">
-      <div class="pain-head">
-        <div class="pain-title">${esc(p.title)}</div>
-        <div class="pain-scores">
-          <span class="pain-score" title="Urgency">U:${p.urgency}</span>
-          <span class="pain-score fit" title="Fit">F:${p.fit}</span>
-        </div>
-      </div>
-      <div class="pain-desc">${esc(p.description)}</div>
-      ${p.evidence_atom_types?.length ? `<div class="pain-atoms">${p.evidence_atom_types.map(t => `<span class="pain-atom-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+  const painsHtml = (h.painIndicators || []).map(p => `
+    <div class="hyd-pain">
+      <div class="hyd-pain-label">${esc(p.label)}</div>
+      <div class="hyd-pain-expl">${esc(p.explanation)}</div>
     </div>
   `).join('');
 
-  const sicCodes = (h.industry?.sic_codes || []).map(c => `<span class="code-chip">${esc(c)}</span>`).join('');
-  const naicsCodes = (h.industry?.naics_codes || []).map(c => `<span class="code-chip naics">${esc(c)}</span>`).join('');
-  const verticals = (h.industry?.vertical_tags || []).map(v => `<span class="vertical-tag">${esc(v)}</span>`).join('');
+  const questionsHtml = (h.questions || []).map(q => `
+    <div class="hyd-q">
+      <div class="hyd-q-stage">${esc(q.stage || 'Question')}</div>
+      <div class="hyd-q-text">${esc(q.question)}</div>
 
-  const blockers = (h.prequalify?.blockers || []).map(b => `<li>${esc(b)}</li>`).join('');
+      <div class="hyd-q-block">
+        <div class="hyd-q-block-label">Purpose — why ask this</div>
+        <div class="hyd-q-block-val">${esc(q.purpose || '')}</div>
+      </div>
 
-  resultEl.className = 'handoff-result success hydration';
-  resultEl.innerHTML = `
-    <div class="hydration-header">
-      <div class="hydration-badge">
-        <span class="handoff-check">✓</span>
+      ${q.pain_it_targets ? `
+      <div class="hyd-q-block">
+        <div class="hyd-q-block-label">Pain it targets</div>
+        <div class="hyd-q-block-val">${esc(q.pain_it_targets)}</div>
+      </div>` : ''}
+
+      ${q.tone_guidance ? `<div class="hyd-q-tone">${esc(q.tone_guidance)}</div>` : ''}
+
+      <div class="hyd-responses">
         <div>
-          <div class="handoff-title">LeadHydration Complete</div>
-          <div class="handoff-sub">${esc(h.company_name || data.hydration?.company_name || '')} · Opportunity <code>${esc(h.opportunity_id || '')}</code></div>
+          ${(q.positive_responses || []).map(r => `
+            <div class="hyd-response positive">
+              <div class="hyd-response-label">If they say (positive)</div>
+              <div class="hyd-response-quote">"${esc(r.response)}"</div>
+              <div class="hyd-response-next"><strong>Next:</strong> ${esc(r.next_step)}</div>
+            </div>
+          `).join('')}
         </div>
-      </div>
-      <div class="mql-score" style="border-color:${tierColor};color:${tierColor}">
-        <div class="mql-num">${h.prequalify?.mql_score ?? '—'}</div>
-        <div class="mql-tier">${esc(h.prequalify?.tier || '')}</div>
-      </div>
-    </div>
-
-    <div class="hyd-grid">
-      <!-- INDUSTRY -->
-      <div class="hyd-cell">
-        <div class="hyd-label">Industry</div>
-        <div class="hyd-primary">${esc(h.industry?.primary || '—')}</div>
-        <div class="hyd-codes">${sicCodes}${naicsCodes}</div>
-        <div class="hyd-verticals">${verticals}</div>
-      </div>
-
-      <!-- RECOMMENDED SOLUTION -->
-      <div class="hyd-cell solution">
-        <div class="hyd-label">Recommended Solution</div>
-        <div class="hyd-primary">${esc(h.recommended_solution?.combination || '—')}</div>
-        <div class="hyd-why">${esc(h.recommended_solution?.why || '')}</div>
-        <div class="hyd-scope">
-          <span class="hyd-scope-label">30-day scope:</span>
-          <span>${esc(h.recommended_solution?.first_deployment_scope || '')}</span>
+        <div>
+          ${(q.negative_responses || []).map(r => `
+            <div class="hyd-response negative">
+              <div class="hyd-response-label">If they say (recover)</div>
+              <div class="hyd-response-quote">"${esc(r.response)}"</div>
+              <div class="hyd-response-next"><strong>Next:</strong> ${esc(r.next_step || r.pivot || '')}</div>
+            </div>
+          `).join('')}
         </div>
       </div>
     </div>
+  `).join('');
 
-    <!-- PAIN POINTS -->
-    <div class="hyd-section">
-      <div class="hyd-label">Pain Points (Urgency / Fit)</div>
-      <div class="pain-grid">${painCards}</div>
-    </div>
+  $('hydration-panel').innerHTML = `
+    <div class="section-title">Lead Hydration — Strategy: ${esc(chosen.title || '')}</div>
 
-    <!-- PREQUALIFY REASONING -->
-    <div class="hyd-section">
-      <div class="hyd-label">Prequalification</div>
-      <div class="prequal-reason">${esc(h.prequalify?.reasoning || '')}</div>
-      ${blockers ? `<div class="blockers-label">Watch:</div><ul class="blockers">${blockers}</ul>` : ''}
-    </div>
-
-    <!-- RECOMMENDED ACTION -->
-    <div class="hyd-action">
-      <div class="hyd-action-head">
-        <span class="hyd-action-verb">${esc(h.recommended_action?.action || 'Next action')}</span>
-        <span class="hyd-action-target">${esc(h.recommended_action?.target || '')}</span>
+    <div class="hyd-head">
+      <div class="hyd-who">
+        <div class="hyd-whoisthis">${esc(h.whoIsThis || '—')}</div>
       </div>
-      <div class="hyd-action-opener">"${esc(h.recommended_action?.opener || '')}"</div>
-      <div class="hyd-action-outcome"><span class="label">Win =</span> ${esc(h.recommended_action?.desired_outcome || '')}</div>
+      <div class="hyd-score" style="border-color:${scoreColor};color:${scoreColor}">
+        <div class="hyd-score-num">${score}</div>
+        <div class="hyd-score-label">FIT SCORE</div>
+      </div>
     </div>
 
-    <div class="hyd-footer">
-      <span>Ingested ${data.atoms_sent} atoms · Portal: <a href="${esc(data.portal_url)}" target="_blank" class="handoff-link">${esc(data.portal_url)}</a></span>
-    </div>
+    ${h.primaryLead ? `
+      <div class="hyd-primary-lead">
+        <div class="hyd-primary-lead-title">Primary lead — who to target</div>
+        <div class="hyd-primary-lead-val">${esc(h.primaryLead.title)} · <span style="color:var(--text-dim);font-weight:500">${esc(h.primaryLead.topic)}</span></div>
+      </div>` : ''}
+
+    ${painsHtml ? `
+      <div class="section-title" style="margin-top:10px">Pain Indicators</div>
+      <div class="hyd-pains">${painsHtml}</div>` : ''}
+
+    ${questionsHtml ? `
+      <div class="hyd-questions-title">Discovery Questions</div>
+      ${questionsHtml}` : ''}
   `;
 }
 
-function showDemoError(msg) {
-  const el = $('demo-error');
+function showError(msg) {
+  const el = $('error-msg');
   el.textContent = msg;
   el.classList.add('active');
 }
+function hideError() { $('error-msg').classList.remove('active'); }
 
-window.setFilter = setFilter;
-window.copyEmail = copyEmail;
-window.handoffToLeadHydration = handoffToLeadHydration;
+// Expose for inline handlers
+window.toggleStrategy = toggleStrategy;
+window.toggleCustom = toggleCustom;
+window.saveCustom = saveCustom;
+window.onProceed = onProceed;
+window.onAdvisorStorm = onAdvisorStorm;
+window.closeStormModal = closeStormModal;
 
 boot();
 </script>
