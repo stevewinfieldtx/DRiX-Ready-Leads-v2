@@ -80,23 +80,49 @@
   .field::placeholder { color: var(--muted); }
   .field:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Target mode toggle */
-  .target-toggle {
-    display: flex; background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: 10px; padding: 3px; height: 42px;
+  /* Section sub-header ("Who are you selling to?") */
+  .section-subheader {
+    font-size: 12px; letter-spacing: 1.8px; text-transform: uppercase;
+    color: var(--text-dim); font-weight: 800;
+    margin: 18px 0 10px; padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    display: flex; align-items: center; gap: 8px;
   }
-  .target-toggle button {
-    flex: 1; background: transparent; border: none; color: var(--text-dim);
-    font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
-    border-radius: 7px; padding: 0 8px; transition: all 0.15s;
-  }
-  .target-toggle button.active { background: var(--accent); color: white; }
+  .section-subheader::before { content: ''; width: 14px; height: 2px; background: var(--purple); border-radius: 2px; }
 
-  .target-row {
-    display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px;
-    align-items: end;
+  /* Target mode picker — two big, obvious cards */
+  .target-picker {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
   }
-  @media (max-width: 720px) { .target-row { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { .target-picker { grid-template-columns: 1fr; } }
+  .target-pick-btn {
+    background: var(--surface-2); border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; cursor: pointer; text-align: left;
+    font-family: inherit; transition: all 0.15s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .target-pick-btn:hover { border-color: var(--accent); }
+  .target-pick-btn.active {
+    border-color: var(--accent); background: linear-gradient(135deg, var(--surface-2) 0%, rgba(90,169,255,0.08) 100%);
+  }
+  .target-pick-radio {
+    width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border);
+    flex-shrink: 0; position: relative; background: var(--surface);
+  }
+  .target-pick-btn.active .target-pick-radio { border-color: var(--accent); }
+  .target-pick-btn.active .target-pick-radio::after {
+    content: ''; position: absolute; inset: 2px; border-radius: 50%; background: var(--accent);
+  }
+  .target-pick-body { flex: 1; min-width: 0; }
+  .target-pick-title { font-size: 13px; font-weight: 800; color: var(--text); letter-spacing: 0.2px; }
+  .target-pick-sub   { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+
+  /* Subtext for inputs (under labels) */
+  .input-help {
+    font-size: 11px; color: var(--text-dim); font-weight: 500;
+    margin-top: -2px; margin-bottom: 2px; padding-left: 2px;
+    letter-spacing: 0; text-transform: none;
+  }
 
   .industry-grid {
     display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;
@@ -477,7 +503,7 @@
     <h2>Live: Three URLs → 6D Atoms → Pain Points → Sales Strategies → Lead Hydration</h2>
     <div class="live-demo-sub">Drop any customer URL. Watch TDE decompose it, generate possible engagement angles, and draft a send-ready outreach email. ~30 seconds.</div>
 
-    <!-- Row 1: email + sender company URL -->
+    <!-- Row 1: email + reseller company URL -->
     <div class="input-grid">
       <div class="input-wrap">
         <label class="input-label" for="f-email">Your email<span class="req">*</span></label>
@@ -485,37 +511,42 @@
       </div>
       <div class="input-wrap">
         <label class="input-label" for="f-sender-url">Your company URL<span class="req">*</span></label>
+        <div class="input-help">The reseller / seller — used to research who you are.</div>
         <input type="text" class="field" id="f-sender-url" placeholder="yourcompany.com" autocomplete="off" />
       </div>
     </div>
 
-    <!-- Row 2: solution URL + recipient role -->
-    <div class="input-grid">
-      <div class="input-wrap">
-        <label class="input-label" for="f-solution-url">Solution / product URL<span class="req">*</span></label>
-        <input type="text" class="field" id="f-solution-url" placeholder="e.g., yourcompany.com/products/flagship" autocomplete="off" />
-      </div>
-      <div class="input-wrap">
-        <label class="input-label" for="f-role">Recipient role (optional)</label>
-        <input type="text" class="field" id="f-role" placeholder="e.g., CTO, VP Operations" autocomplete="off" value="CTO" />
-      </div>
+    <!-- Row 2: solution URL (full width, with clarifying help text) -->
+    <div class="input-wrap" style="margin-bottom:10px">
+      <label class="input-label" for="f-solution-url">Solution URL<span class="req">*</span></label>
+      <div class="input-help">The specific product or solution you're looking to sell into the customer or industry below.</div>
+      <input type="text" class="field" id="f-solution-url" placeholder="e.g., yourcompany.com/products/flagship" autocomplete="off" />
     </div>
 
-    <!-- Row 3: Target mode toggle -->
-    <div class="target-row">
-      <div class="input-wrap">
-        <label class="input-label">Target by</label>
-        <div class="target-toggle" id="target-toggle">
-          <button type="button" class="active" data-mode="url">Customer URL</button>
-          <button type="button" data-mode="industry">Industry</button>
-        </div>
-      </div>
+    <!-- WHO ARE YOU SELLING TO? -->
+    <div class="section-subheader">Who are you selling to?</div>
 
-      <!-- URL mode input (customer URL) -->
-      <div class="input-wrap" id="target-url-wrap">
-        <label class="input-label" for="f-customer-url">Customer company URL<span class="req">*</span></label>
-        <input type="text" class="field" id="f-customer-url" placeholder="customer.com" autocomplete="off" />
-      </div>
+    <div class="target-picker" id="target-picker">
+      <button type="button" class="target-pick-btn active" data-mode="url">
+        <span class="target-pick-radio"></span>
+        <span class="target-pick-body">
+          <span class="target-pick-title">A specific customer</span>
+          <span class="target-pick-sub">Paste their URL. We'll research the actual company.</span>
+        </span>
+      </button>
+      <button type="button" class="target-pick-btn" data-mode="industry">
+        <span class="target-pick-radio"></span>
+        <span class="target-pick-body">
+          <span class="target-pick-title">A generic industry</span>
+          <span class="target-pick-sub">Pick an industry (sub-industry &amp; region optional). We'll use a segment archetype.</span>
+        </span>
+      </button>
+    </div>
+
+    <!-- URL mode input (customer URL) -->
+    <div class="input-wrap" id="target-url-wrap" style="margin-bottom:10px">
+      <label class="input-label" for="f-customer-url">Customer company URL<span class="req">*</span></label>
+      <input type="text" class="field" id="f-customer-url" placeholder="customer.com" autocomplete="off" />
     </div>
 
     <!-- Industry-mode row (hidden by default) -->
@@ -635,7 +666,7 @@ async function loadMeta() {
 
 function wireUI() {
   $('btn-run').onclick = runFlow;
-  document.querySelectorAll('#target-toggle button').forEach(btn => {
+  document.querySelectorAll('#target-picker .target-pick-btn').forEach(btn => {
     btn.addEventListener('click', () => setTargetMode(btn.dataset.mode));
   });
   $('f-industry').addEventListener('change', onIndustryChange);
@@ -644,7 +675,7 @@ function wireUI() {
 
 function setTargetMode(mode) {
   state.targetMode = mode;
-  document.querySelectorAll('#target-toggle button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+  document.querySelectorAll('#target-picker .target-pick-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
   if (mode === 'url') {
     $('target-url-wrap').style.display = '';
     $('industry-grid').style.display = 'none';
@@ -675,12 +706,11 @@ async function runFlow() {
   const email = $('f-email').value.trim();
   const sender = $('f-sender-url').value.trim();
   const solution = $('f-solution-url').value.trim();
-  const role = $('f-role').value.trim() || 'Senior executive';
 
   if (!email || !sender || !solution) return showError('Fill in email, your company URL, and the solution URL.');
   if (!/^\S+@\S+\.\S+$/.test(email)) return showError('Email looks invalid.');
 
-  let body = { email, sender_company_url: sender, solution_url: solution, recipient_role: role };
+  let body = { email, sender_company_url: sender, solution_url: solution };
   if (state.targetMode === 'url') {
     const cust = $('f-customer-url').value.trim();
     if (!cust) return showError('Paste a customer URL, or switch to Industry mode.');
