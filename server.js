@@ -471,8 +471,45 @@ app.post('/api/demo-flow', async (req, res) => {
   }
 });
 
-// Hydration endpoint — called AFTER user picks a strategy
-// Proxies to the real LeadHydration service: solution → company-pain
+// Build a LeadHydration-compatible solution object directly from TDE atoms.
+// This is the "reuse what we already know" shortcut: the demo already ingested
+// the solution URL into 9D-tagged atoms, so there's no need to hit
+// LeadHydration's /api/agent/solution again (which would re-scrape + re-LLM).
+function synthesizeSolutionFromAtoms(solutionEntry, painGroups) {
+  const atoms = solutionEntry?.atoms || [];
+  const byType = (t) => atoms.filter(a => a.type === t).map(a => a.claim).filter(Boolean);
+
+  const capabilities    = [...byType('product'), ...byType('differentiator')].slice(0, 8);
+  const differentiators = byType('differentiator').slice(0, 5);
+  const icpClaims       = byType('icp');
+  const targetMarket    = icpClaims.length ? icpClaims.join(' ') : (solutionEntry?.summary || '');
+
+  // Flatten pain_groups into a single painPointsSolved array so the
+  // LeadHydration LLM sees the specific pains we already surfaced.
+  const pg = painGroups || {};
+  const painPointsSolved = [
+    ...(pg.company_pain     || []),
+    ...(pg.subindustry_pain || []),
+    ...(pg.industry_pain    || [])
+  ].map(p => p.title || p.description).filter(Boolean).slice(0, 10);
+
+  return {
+    name: solutionEntry?.target?.name || 'Solution',
+    type: 'Business Software',
+    description: solutionEntry?.summary || '',
+    capabilities,
+    targetMarket,
+    differentiators,
+    painPointsSolved
+  };
+}
+
+// Hydration endpoint — called AFTER user picks a strategy.
+// Reuses TDE's already-computed solution atoms and pain groups instead of
+// re-running LeadHydration's /api/agent/solution (expensive duplicate work).
+// We still call /api/agent/company-pain to generate the rich discovery intel
+// (questions, email campaign, strategic insight) that TDE doesn't produce
+// on its own — but with tier=2 (LLM-only) so it doesn't redo the deep scrape.
 app.post('/api/hydrate', async (req, res) => {
   const { run_id, strategy_id, custom_strategy } = req.body || {};
   if (!run_id) return res.status(400).json({ error: 'Require run_id' });
@@ -496,29 +533,20 @@ app.post('/api/hydrate', async (req, res) => {
   if (!chosenStrategy) return res.status(400).json({ error: 'Require strategy_id or custom_strategy' });
 
   try {
-    // STEP 1: Call LeadHydration /api/agent/solution with the solution URL.
-    //         Returns { name, type, capabilities[], targetMarket }.
-    const solutionRes = await fetch(`${LEADHYDRATION_URL}/api/agent/solution`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
-      },
-      body: JSON.stringify({ url: run.solution.source_url })
-    });
-    if (!solutionRes.ok) {
-      const txt = await solutionRes.text();
-      throw new Error(`LeadHydration /solution failed (${solutionRes.status}): ${txt.slice(0, 300)}`);
-    }
-    const solutionIntel = await solutionRes.json();
+    const solutionIntel = synthesizeSolutionFromAtoms(run.solution, run.pain_groups);
 
-    // STEP 2: Call LeadHydration /api/agent/company-pain for the rich discovery intel.
-    //         Takes { companyName, website, industry, solution, tier } and returns
-    //         { whoIsThis, painIndicators[], primaryLead, score, questions[] }.
     const customerName = run.customer?.target?.name || 'Target Customer';
     const customerWebsite = run.customer?.source_url || run.customer?.target?.url || '';
     const industryName = run.customer?.industry || run.industry || solutionIntel.targetMarket || 'Unknown';
-    const tier = run.customer?.target?.is_archetype ? 2 : 3; // archetype = LLM-only, real URL = deep
+
+    // Pass the strategy's persona × pain anchor as a hint so questions/emails
+    // align to the chosen angle, not some other persona/pain.
+    const strategyHint = chosenStrategy.target_persona && chosenStrategy.pain_anchor
+      ? `[Chosen angle — anchor on: persona "${chosenStrategy.target_persona}", pain "${chosenStrategy.pain_anchor}"]`
+      : '';
+    const enrichedIndustry = strategyHint
+      ? `${industryName} ${strategyHint}`
+      : industryName;
 
     const painRes = await fetch(`${LEADHYDRATION_URL}/api/agent/company-pain`, {
       method: 'POST',
@@ -529,14 +557,9 @@ app.post('/api/hydrate', async (req, res) => {
       body: JSON.stringify({
         companyName: customerName,
         website: customerWebsite,
-        industry: industryName,
-        solution: {
-          name: solutionIntel.name,
-          type: solutionIntel.type,
-          capabilities: solutionIntel.capabilities,
-          targetMarket: solutionIntel.targetMarket
-        },
-        tier,
+        industry: enrichedIndustry,
+        solution: solutionIntel,
+        tier: 2, // LLM-only — TDE already did the deep research; don't redo it
         lang: 'en'
       })
     });
@@ -550,11 +573,66 @@ app.post('/api/hydrate', async (req, res) => {
       run_id,
       chosen_strategy: chosenStrategy,
       solution_intel: solutionIntel,
+      solution_source: 'tde_atoms', // so the UI can show "reused from TDE"
       hydration
     });
   } catch (err) {
     console.error('[hydrate]', err.message);
     return res.status(502).json({ error: `Hydration failed: ${err.message}` });
+  }
+});
+
+// ClearSignals — analyze a pasted email thread.
+// Proxies to LeadHydration /api/coaching-analyze with run context pre-filled.
+app.post('/api/clearsignals', async (req, res) => {
+  const { run_id, thread_text } = req.body || {};
+  if (!run_id)      return res.status(400).json({ error: 'Require run_id' });
+  if (!thread_text) return res.status(400).json({ error: 'Require thread_text (the email thread to analyze)' });
+  if (thread_text.length < 50) {
+    return res.status(422).json({ error: 'thread_text must be at least 50 characters.' });
+  }
+
+  const run = runStore.get(run_id);
+  if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
+
+  if (!LEADHYDRATION_URL) {
+    return res.status(503).json({
+      error: 'LeadHydration not connected',
+      detail: 'ClearSignals is hosted inside LeadHydration — set LEADHYDRATION_URL to enable.'
+    });
+  }
+
+  try {
+    const customerName = run.customer?.target?.name || 'Target Customer';
+    // Pain context hands our already-discovered pain labels to ClearSignals so
+    // it can align its analysis to the specific pains we surfaced.
+    const painLabels = [
+      ...(run.pain_groups?.company_pain     || []),
+      ...(run.pain_groups?.subindustry_pain || []),
+      ...(run.pain_groups?.industry_pain    || [])
+    ].map(p => p.title).filter(Boolean).slice(0, 8);
+
+    const csRes = await fetch(`${LEADHYDRATION_URL}/api/coaching-analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
+      },
+      body: JSON.stringify({
+        thread_text,
+        companyName: customerName,
+        pain_context: { painLabels }
+      })
+    });
+    if (!csRes.ok) {
+      const txt = await csRes.text();
+      throw new Error(`ClearSignals analyze failed (${csRes.status}): ${txt.slice(0, 300)}`);
+    }
+    const analysis = await csRes.json();
+    return res.json({ run_id, analysis });
+  } catch (err) {
+    console.error('[clearsignals]', err.message);
+    return res.status(502).json({ error: `ClearSignals failed: ${err.message}` });
   }
 });
 
