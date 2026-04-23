@@ -220,6 +220,10 @@
   .atom-group-role.customer { background: rgba(181,131,255,0.15); color: var(--purple); }
   .atom-group-summary { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; font-style: italic; line-height: 1.5; }
   .atom-count-badge { font-size: 10px; color: var(--muted); font-weight: 700; letter-spacing: 1.5px; }
+  .atom-group-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  .atom-source { font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 7px; border-radius: 8px; }
+  .atom-source.src-tde   { background: rgba(181,131,255,0.14); color: var(--purple); border: 1px solid rgba(181,131,255,0.35); }
+  .atom-source.src-fresh { background: rgba(90,212,255,0.10);  color: var(--cyan);   border: 1px solid rgba(90,212,255,0.30); }
 
   .atoms-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; padding-right: 2px; }
   .atom-mini {
@@ -534,6 +538,20 @@
   .cs-thread-msg-body { font-size: 12px; color: var(--text-dim); line-height: 1.55; }
   .cs-next-steps { margin: 0 0 0 20px; font-size: 12px; color: var(--text); line-height: 1.7; }
 
+  /* Email report launcher */
+  .report-launcher {
+    margin-top: 16px; padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(61,220,132,0.08) 0%, rgba(90,169,255,0.05) 100%);
+    border: 1px solid rgba(61,220,132,0.28); border-radius: 10px;
+  }
+  .report-launcher-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .report-launcher-title { font-size: 14px; font-weight: 800; color: var(--green); letter-spacing: -0.01em; }
+  .report-launcher-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; line-height: 1.55; max-width: 640px; }
+  .report-launcher-sub b { color: var(--text); }
+  .report-status { font-size: 12px; color: var(--text-dim); margin-top: 10px; }
+  .report-status-ok  { color: var(--green); }
+  .report-status-err { color: var(--red); }
+
   /* ERRORS */
   .error-msg {
     background: rgba(255,90,90,0.1); border: 1px solid rgba(255,90,90,0.3);
@@ -605,7 +623,7 @@
         <span class="target-pick-radio"></span>
         <span class="target-pick-body">
           <span class="target-pick-title">A generic industry</span>
-          <span class="target-pick-sub">Pick an industry (sub-industry &amp; region optional). We'll use a segment archetype.</span>
+          <span class="target-pick-sub">Pick an industry (sub-industry optional). We'll use a segment archetype.</span>
         </span>
       </button>
     </div>
@@ -625,10 +643,6 @@
       <div class="input-wrap">
         <label class="input-label" for="f-subindustry">Subindustry <span style="color:var(--muted);font-weight:600">(optional)</span></label>
         <select class="field" id="f-subindustry" disabled><option value="">Select industry first</option></select>
-      </div>
-      <div class="input-wrap">
-        <label class="input-label" for="f-region">Region <span style="color:var(--muted);font-weight:600">(optional)</span></label>
-        <select class="field" id="f-region"><option value="">Any region</option></select>
       </div>
     </div>
 
@@ -680,7 +694,6 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&a
 let state = {
   targetMode: 'url',         // 'url' | 'industry'
   naics: null,               // loaded from /api/meta/naics
-  regions: null,             // loaded from /api/meta/regions
   runId: null,               // server-assigned after demo-flow completes
   strategies: null,          // from server
   selected: new Set(),       // strategy ids currently checked
@@ -711,22 +724,14 @@ async function checkHealth() {
 
 async function loadMeta() {
   try {
-    const [n, r] = await Promise.all([fetch('/api/meta/naics').then(x => x.json()), fetch('/api/meta/regions').then(x => x.json())]);
+    const n = await fetch('/api/meta/naics').then(x => x.json());
     state.naics = n;
-    state.regions = r;
     // Populate industry dropdown
     const indSel = $('f-industry');
     n.forEach(sec => {
       const opt = document.createElement('option');
       opt.value = sec.code; opt.textContent = `${sec.code} — ${sec.name}`;
       indSel.appendChild(opt);
-    });
-    // Populate region dropdown
-    const regSel = $('f-region');
-    r.forEach(region => {
-      const opt = document.createElement('option');
-      opt.value = region.id; opt.textContent = `${region.name} (${region.countries.slice(0,3).join(', ')}${region.countries.length > 3 ? '…' : ''})`;
-      regSel.appendChild(opt);
     });
   } catch (e) { console.error('Failed to load meta:', e); }
 }
@@ -783,17 +788,13 @@ async function runFlow() {
     if (!cust) return showError('Paste a customer URL, or switch to Industry mode.');
     body.customer_url = cust;
   } else {
-    const ind = $('f-industry').value, sub = $('f-subindustry').value, region = $('f-region').value;
-    if (!ind) return showError('Pick an industry (subindustry and region are optional).');
+    const ind = $('f-industry').value, sub = $('f-subindustry').value;
+    if (!ind) return showError('Pick an industry (subindustry is optional).');
     const indName = state.naics.find(s => s.code === ind)?.name || ind;
     body.industry = `${indName} (NAICS ${ind})`;
     if (sub) {
       const subName = state.naics.find(s => s.code === ind)?.sub.find(x => x.code === sub)?.name || sub;
       body.subindustry = `${subName} (NAICS ${sub})`;
-    }
-    if (region) {
-      const regName = state.regions.find(r => r.id === region)?.name || region;
-      body.region = regName;
     }
   }
 
@@ -915,12 +916,22 @@ function renderAtomGroup(entry, g) {
   if (!entry) return `<div class="atom-group"><div class="atom-group-title">${esc(g.label)}</div><div class="atom-group-summary">No data.</div></div>`;
   const name = entry.target?.name || g.label;
   const count = entry.atoms?.length || 0;
+  // Source badge: "tde_cache" = reused from TDE; "fresh" = new scrape (+ TDE warmed in background).
+  let sourceBadge = '';
+  if (entry.source === 'tde_cache') {
+    sourceBadge = `<span class="atom-source src-tde" title="Reused from TDE collection ${esc(entry.tde_collection || '')} (${esc(String(entry.tde_atom_count || ''))} atoms)">◈ TDE cache</span>`;
+  } else if (entry.source === 'fresh') {
+    sourceBadge = `<span class="atom-source src-fresh" title="Fresh demo ingest — TDE warmup fired in background for next time">⌁ Fresh (warming TDE)</span>`;
+  }
   return `
     <div class="atom-group">
       <div class="atom-group-head">
         <div>
           <div class="atom-group-title">${esc(name)}</div>
-          <div class="atom-count-badge">${count} ATOMS</div>
+          <div class="atom-group-meta">
+            <span class="atom-count-badge">${count} ATOMS</span>
+            ${sourceBadge}
+          </div>
         </div>
         <span class="atom-group-role ${g.role}">${esc(g.role)}</span>
       </div>
@@ -1326,7 +1337,43 @@ function renderHydration(data) {
         <button class="btn-primary" onclick="openClearSignals()">Analyze a thread</button>
       </div>
     </div>
+
+    <div class="report-launcher">
+      <div class="report-launcher-head">
+        <div>
+          <div class="report-launcher-title">Email me the full report</div>
+          <div class="report-launcher-sub">Self-contained HTML file — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run). Expect the email <b>from info@NYNImpact.com</b> — check spam if you don't see it.</div>
+        </div>
+        <button class="btn-success" onclick="sendReportEmail()" id="report-btn">Email the report</button>
+      </div>
+      <div id="report-status" class="report-status"></div>
+    </div>
   `;
+}
+
+// ─── EMAIL REPORT ─────────────────────────────────────────────────────────
+async function sendReportEmail() {
+  const btn = $('report-btn');
+  const status = $('report-status');
+  if (!state.runId) { status.textContent = 'No run to email yet — complete the demo first.'; return; }
+  btn.disabled = true;
+  status.textContent = 'Sending…';
+  status.className = 'report-status';
+  try {
+    const res = await fetch('/api/send-report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || (data.detail ? data.error + ' — ' + data.detail : 'Request failed'));
+    status.textContent = `✓ Sent to ${data.to} from ${data.from}. Check your inbox (and spam).`;
+    status.className = 'report-status report-status-ok';
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+    status.className = 'report-status report-status-err';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ─── CLEARSIGNALS MODAL ────────────────────────────────────────────────────
