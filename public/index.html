@@ -280,10 +280,28 @@
   }
   .pain-card.mission_gap   { border-left-color: var(--pink); background: rgba(255,103,195,0.04); border-color: rgba(255,103,195,0.3); }
   .pain-card.buying_trigger { border-left-color: var(--yellow); background: rgba(255,199,87,0.04); border-color: rgba(255,199,87,0.3); }
+  .pain-card-company     { border-left-color: var(--red);    background: rgba(255,90,90,0.05);  border-color: rgba(255,90,90,0.3); }
+  .pain-card-subindustry { border-left-color: var(--orange); background: rgba(255,157,90,0.05); border-color: rgba(255,157,90,0.3); }
+  .pain-card-industry    { border-left-color: var(--cyan);   background: rgba(90,212,255,0.04); border-color: rgba(90,212,255,0.3); }
   .pain-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
   .pain-desc  { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 6px; }
+  .pain-evidence { font-size: 10px; color: var(--muted); font-style: italic; margin-bottom: 6px; line-height: 1.4; border-left: 2px solid var(--border); padding-left: 6px; }
   .pain-meta  { display: flex; gap: 6px; flex-wrap: wrap; font-size: 9px; }
   .pain-chip  { background: var(--surface-2); color: var(--text-dim); padding: 2px 6px; border-radius: 8px; font-weight: 600; letter-spacing: 0.5px; }
+  .pain-chip.urgency-high   { background: rgba(255,90,90,0.15);  color: var(--red); }
+  .pain-chip.urgency-medium { background: rgba(255,199,87,0.15); color: var(--yellow); }
+  .pain-chip.urgency-low    { background: rgba(61,220,132,0.12); color: var(--green); }
+  .pain-section { margin-bottom: 16px; }
+  .pain-section:last-child { margin-bottom: 0; }
+  .pain-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .pain-section-label { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; }
+  .pain-section-count {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    background: var(--surface-2); color: var(--text-dim);
+  }
+  .pain-section-company     .pain-section-label { color: var(--red); }
+  .pain-section-subindustry .pain-section-label { color: var(--orange); }
+  .pain-section-industry    .pain-section-label { color: var(--cyan); }
 
   /* STRATEGIES */
   .strat-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
@@ -466,6 +484,19 @@
   .hyd-response-quote { font-size: 11px; color: var(--text); font-style: italic; line-height: 1.5; margin-bottom: 6px; }
   .hyd-response-next { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
   .hyd-response-next strong { color: var(--text); }
+
+  /* Email drip campaign */
+  .hyd-emails { display: flex; flex-direction: column; gap: 10px; }
+  .hyd-email {
+    background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--cyan);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .hyd-email-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .hyd-email-step { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--cyan); }
+  .hyd-email-day  { font-size: 10px; color: var(--muted); background: var(--surface-3); padding: 2px 8px; border-radius: 8px; }
+  .hyd-email-subject { font-size: 13px; color: var(--text); margin-bottom: 8px; line-height: 1.5; }
+  .hyd-email-subject strong { color: var(--text-dim); font-weight: 700; }
+  .hyd-email-body { font-size: 12px; color: var(--text-dim); line-height: 1.65; white-space: normal; }
 
   /* ERRORS */
   .error-msg {
@@ -793,7 +824,7 @@ function handleSSE(event, data) {
       markPhaseDone('ph-fetch'); markPhaseDone('ph-ingest');
       break;
     case 'pain':
-      renderPain(data.pain_points);
+      renderPain(data.pain_groups, data.pain_points);
       markPhaseDone('ph-pain');
       break;
     case 'strategies':
@@ -911,31 +942,52 @@ function short(s) {
   return String(s).split(/[\/,]/)[0].split(' ').slice(0, 2).join(' ');
 }
 
-function renderPain(painPoints) {
-  if (!painPoints || !painPoints.length) {
-    $('pain-panel').innerHTML = '<div class="section-title">Customer Pain Points</div><div style="color:var(--text-dim);font-size:13px">No pain atoms detected yet. In production with more content, weakness / mission-gap / buying-trigger atoms are surfaced here.</div>';
+function renderPain(painGroups, painPointsFlat) {
+  // painGroups = { company_pain, subindustry_pain, industry_pain }. painPointsFlat is a fallback.
+  const groups = painGroups || { company_pain: [], subindustry_pain: [], industry_pain: painPointsFlat || [] };
+  const total = (groups.company_pain?.length || 0) + (groups.subindustry_pain?.length || 0) + (groups.industry_pain?.length || 0);
+  if (total === 0) {
+    $('pain-panel').innerHTML = '<div class="section-title">Customer Pain Points</div><div style="color:var(--text-dim);font-size:13px">Pain surfacing returned nothing — try a richer customer URL, or add industry/sub-industry.</div>';
     $('pain-panel').classList.add('active');
     return;
   }
-  const html = `
-    <div class="section-title">Customer Pain Points — ${painPoints.length} detected</div>
-    <div class="pain-grid">
-      ${painPoints.map(p => `
-        <div class="pain-card ${esc(p.type)}">
-          <div class="pain-title">${esc(p.title)}</div>
-          <div class="pain-desc">${esc(p.description)}</div>
-          <div class="pain-meta">
-            <span class="pain-chip">${esc((p.type || '').replace(/_/g, ' '))}</span>
-            <span class="pain-chip">${esc(p.confidence || '')} confidence</span>
-            ${p.persona ? `<span class="pain-chip">${esc(p.persona)}</span>` : ''}
-            <span class="pain-chip">urgency: ${esc(p.urgency)}</span>
-          </div>
+  const section = (label, items, tone) => {
+    if (!items || !items.length) return '';
+    return `
+      <div class="pain-section pain-section-${tone}">
+        <div class="pain-section-head">
+          <span class="pain-section-label">${esc(label)}</span>
+          <span class="pain-section-count">${items.length}</span>
         </div>
-      `).join('')}
+        <div class="pain-grid">
+          ${items.map(p => renderPainCard(p, tone)).join('')}
+        </div>
+      </div>
+    `;
+  };
+  $('pain-panel').innerHTML = `
+    <div class="section-title">Pain Points — ${total} across company, sub-industry, industry</div>
+    ${section('Company-specific',   groups.company_pain,     'company')}
+    ${section('Sub-industry',       groups.subindustry_pain, 'subindustry')}
+    ${section('Industry-wide',      groups.industry_pain,    'industry')}
+  `;
+  $('pain-panel').classList.add('active');
+}
+
+function renderPainCard(p, tone) {
+  return `
+    <div class="pain-card pain-card-${esc(tone)}">
+      <div class="pain-title">${esc(p.title || '')}</div>
+      <div class="pain-desc">${esc(p.description || '')}</div>
+      ${p.evidence ? `<div class="pain-evidence">${esc(p.evidence)}</div>` : ''}
+      <div class="pain-meta">
+        ${p.persona ? `<span class="pain-chip">${esc(p.persona)}</span>` : ''}
+        ${p.urgency ? `<span class="pain-chip urgency-${esc(p.urgency)}">urgency: ${esc(p.urgency)}</span>` : ''}
+        ${p.economic_lever && p.economic_lever !== 'None' ? `<span class="pain-chip">pull: ${esc(p.economic_lever)}</span>` : ''}
+        ${p.inertia_force && p.inertia_force !== 'None' ? `<span class="pain-chip">inertia: ${esc(p.inertia_force)}</span>` : ''}
+      </div>
     </div>
   `;
-  $('pain-panel').innerHTML = html;
-  $('pain-panel').classList.add('active');
 }
 
 function renderStrategies(data) {
@@ -1168,15 +1220,33 @@ function renderHydration(data) {
           `).join('')}
         </div>
         <div>
-          ${(q.negative_responses || []).map(r => `
+          ${(q.neutral_negative_responses || q.negative_responses || []).map(r => `
             <div class="hyd-response negative">
-              <div class="hyd-response-label">If they say (recover)</div>
+              <div class="hyd-response-label">If they say (pivot to recover)</div>
               <div class="hyd-response-quote">"${esc(r.response)}"</div>
-              <div class="hyd-response-next"><strong>Next:</strong> ${esc(r.next_step || r.pivot || '')}</div>
+              <div class="hyd-response-next"><strong>Pivot:</strong> ${esc(r.pivot || r.next_step || '')}</div>
             </div>
           `).join('')}
+          ${q.expected_answer_unexpected ? `
+            <div class="hyd-response negative" style="border-color:rgba(255,199,87,0.35);background:rgba(255,199,87,0.06)">
+              <div class="hyd-response-label" style="color:var(--yellow)">If they say something unexpected</div>
+              <div class="hyd-response-quote">${esc(q.expected_answer_unexpected)}</div>
+            </div>` : ''}
         </div>
       </div>
+    </div>
+  `).join('');
+
+  // Email drip campaign (5-step sequence) returned by /api/agent/company-pain.
+  const emails = h.emailCampaign || h.emailSequence || [];
+  const emailsHtml = emails.map((em, i) => `
+    <div class="hyd-email">
+      <div class="hyd-email-head">
+        <span class="hyd-email-step">${esc(em.label || ('Email ' + (em.step || i+1)))}</span>
+        ${em.sendDay ? `<span class="hyd-email-day">${esc(em.sendDay)}</span>` : ''}
+      </div>
+      <div class="hyd-email-subject"><strong>Subject:</strong> ${esc(em.subject || em.subject_line || '')}</div>
+      <div class="hyd-email-body">${esc(em.body || em.content || '').replace(/\n/g, '<br>')}</div>
     </div>
   `).join('');
 
@@ -1206,6 +1276,10 @@ function renderHydration(data) {
     ${questionsHtml ? `
       <div class="hyd-questions-title">Discovery Questions</div>
       ${questionsHtml}` : ''}
+
+    ${emailsHtml ? `
+      <div class="hyd-questions-title" style="margin-top:24px">Email Drip Campaign (${emails.length}-step sequence)</div>
+      <div class="hyd-emails">${emailsHtml}</div>` : ''}
   `;
 }
 

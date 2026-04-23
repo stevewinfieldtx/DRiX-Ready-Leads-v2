@@ -5,7 +5,8 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
+const PORT = process.env.PORT || 3001;
 
 app.use(express.json({ limit: '500kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -190,6 +191,42 @@ OUTPUT (JSON only):
   "top_pick_reasoning": "<one sentence>"
 }`;
 
+const PAIN_PROMPT = `You are the pain-surfacing phase of TDE.
+
+INPUT: customer atoms (9D-tagged), optional industry, optional sub-industry, optional region, and a flag is_archetype.
+
+TASK: produce a RICH set of pain points at THREE levels so a seller sees exactly where to press:
+  1) company_pain     — specific to THIS customer. Omit or leave empty if is_archetype is true (there is no real company to know).
+  2) subindustry_pain — patterns typical of the sub-industry (if provided) or of the narrow segment the customer belongs to.
+  3) industry_pain    — broader forces affecting the whole industry.
+
+EVERY level must produce 3-6 pain points unless there is genuinely no signal. Do NOT return empty arrays for subindustry_pain or industry_pain — those are always knowable from the segment.
+
+EACH pain point schema:
+  {
+    "id": "<kebab id>",
+    "level": "company" | "subindustry" | "industry",
+    "title": "<3-6 word chip label, e.g. 'Rising Warranty Claims'>",
+    "description": "<1-2 sentence plain-English pain description>",
+    "evidence": "<one sentence — cite a customer atom when level=company, else segment-level observation>",
+    "persona": "<one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General>",
+    "urgency": "high" | "medium" | "low",
+    "inertia_force": "<one of: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | None>",
+    "economic_lever": "<one of: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction | None>"
+  }
+
+CRITICAL ANTI-FABRICATION RULES:
+- For LEVEL=company: only cite facts that appear in the provided customer atoms. If you cannot ground a company pain in an atom, skip it — do NOT invent incidents, dollar figures, past projects, named vendors, or dates.
+- For LEVEL=subindustry and LEVEL=industry: phrase as segment-typical patterns ("firms in this segment commonly…", "the industry is currently under pressure from…"). You may cite broad macro trends, regulatory shifts, and operational norms that are true of the class. Do NOT invent specific incidents involving real named companies.
+- If the customer is an archetype (is_archetype=true), company_pain MUST be empty — pour everything into subindustry_pain and industry_pain instead.
+
+OUTPUT (JSON only, no markdown fences):
+{
+  "company_pain":      [ ... ],
+  "subindustry_pain":  [ ... ],
+  "industry_pain":     [ ... ]
+}`;
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperature = 0.3 } = {}) {
   if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not configured');
@@ -292,21 +329,28 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region }) {
   };
 }
 
-function extractPainPoints(customerEntry) {
-  // Pain atoms are weakness / mission_gap / buying_trigger with medium+ confidence
-  const painTypes = new Set(['weakness', 'mission_gap', 'buying_trigger']);
-  return (customerEntry.atoms || [])
-    .filter(a => painTypes.has(a.type))
-    .map(a => ({
-      atom_id: a.atom_id,
-      type: a.type,
-      title: (a.claim || '').split('.')[0].slice(0, 80),
-      description: a.claim,
-      evidence: a.evidence,
-      confidence: a.confidence,
-      persona: a.d_persona,
-      urgency: a.d_emotional_driver === 'Urgency' || a.d_emotional_driver === 'Fear/Risk' ? 'high' : 'medium'
-    }));
+async function extractPainPoints(customerEntry, { industry, subindustry, region } = {}) {
+  // Dedicated LLM call: surface company + sub-industry + industry pain points.
+  // This replaces the old atom-type filter, which silently produced empty sets
+  // whenever the ingest LLM didn't emit weakness/mission_gap/buying_trigger atoms.
+  const isArchetype = !!customerEntry.target?.is_archetype;
+  const userContent = JSON.stringify({
+    is_archetype: isArchetype,
+    industry: industry || customerEntry.industry || null,
+    subindustry: subindustry || customerEntry.subindustry || null,
+    region: region || customerEntry.region || null,
+    customer: {
+      name: customerEntry.target?.name,
+      summary: customerEntry.summary,
+      atoms: customerEntry.atoms
+    }
+  });
+  const parsed = await callLLM(PAIN_PROMPT, userContent, { maxTokens: 3000 });
+  return {
+    company_pain:     Array.isArray(parsed.company_pain)     ? parsed.company_pain     : [],
+    subindustry_pain: Array.isArray(parsed.subindustry_pain) ? parsed.subindustry_pain : [],
+    industry_pain:    Array.isArray(parsed.industry_pain)    ? parsed.industry_pain    : []
+  };
 }
 
 // ─── ENDPOINTS ───────────────────────────────────────────────────────────────
@@ -381,9 +425,16 @@ app.post('/api/demo-flow', async (req, res) => {
       customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms }
     });
 
-    // ── PHASE 3: Pain points (from customer atoms — instant, no LLM) ─────
-    const pain_points = extractPainPoints(customer);
-    send('pain', { pain_points });
+    // ── PHASE 3: Pain points — dedicated LLM pass that always returns company,
+    //    sub-industry, and industry pain groups (not just an atom-type filter).
+    send('phase', { phase: 'pain', message: 'Surfacing company, sub-industry, industry pain…' });
+    const pain_groups = await extractPainPoints(customer, { industry, subindustry, region });
+    const pain_points = [
+      ...pain_groups.company_pain,
+      ...pain_groups.subindustry_pain,
+      ...pain_groups.industry_pain
+    ];
+    send('pain', { pain_groups, pain_points });
 
     // ── PHASE 4: 5 strategies ────────────────────────────────────────────
     send('phase', { phase: 'strategies', message: 'Generating 5 sales strategies…' });
@@ -400,7 +451,7 @@ app.post('/api/demo-flow', async (req, res) => {
     // ── Persist the run so /api/hydrate can retrieve it by run_id ────────
     runStore.set(run_id, {
       email, sender, solution, customer,
-      pain_points, strategies,
+      pain_points, pain_groups, strategies,
       industry, subindustry, region,
       recipient_role,
       created_at: new Date().toISOString()
