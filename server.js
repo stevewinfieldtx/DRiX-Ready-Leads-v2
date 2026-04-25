@@ -16,9 +16,18 @@ const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID || 'anthropic/claude-sonnet-4.5';
 const LEADHYDRATION_URL   = (process.env.LEADHYDRATION_URL || '').replace(/\/+$/, '');
 const LEADHYDRATION_API_KEY = process.env.LEADHYDRATION_API_KEY || '';
+const RESEND_API_KEY      = process.env.RESEND_API_KEY || '';
+const REPORT_FROM_EMAIL   = process.env.REPORT_FROM_EMAIL || 'info@NYNImpact.com';
+const TDE_BASE_URL        = (process.env.TDE_BASE_URL || 'https://targeteddecomposition-production.up.railway.app').replace(/\/+$/, '');
+const TDE_API_KEY         = process.env.TDE_API_KEY || '';
+// Minimum atoms in a TDE collection to treat it as a real cache hit. Below this
+// we'd rather do a fresh demo-lightweight ingest than reconstruct from thin air.
+const TDE_MIN_ATOMS       = parseInt(process.env.TDE_MIN_ATOMS || '15', 10);
 
 if (!OPENROUTER_API_KEY) console.warn('⚠️  OPENROUTER_API_KEY not set.');
 if (!LEADHYDRATION_URL)  console.warn('⚠️  LEADHYDRATION_URL not set — hydration step will fail loud.');
+if (!RESEND_API_KEY)     console.warn('⚠️  RESEND_API_KEY not set — email report step will fail loud.');
+if (!TDE_API_KEY)        console.warn('⚠️  TDE_API_KEY not set — TDE cache lookups will be skipped (fresh ingest every time).');
 
 // ─── 9D TAXONOMY ─────────────────────────────────────────────────────────────
 // Dimensions 1-6 mirror TargetedDecomposition/src/config.js canonical taxonomy.
@@ -292,7 +301,146 @@ async function fetchAndStrip(url) {
   }
 }
 
+// ─── TDE SERVICE INTEGRATION ─────────────────────────────────────────────────
+// TDE-Demo uses the real TDE service as a knowledge cache: every URL we ingest
+// is mapped to a TDE collection ID. When the user runs the demo:
+//   1. We check TDE for that collection.
+//   2. If it has enough atoms already (TDE_MIN_ATOMS), we reconstruct a rich
+//      digest from TDE and feed that to our 9D-atom LLM pass. This is cheaper
+//      and more accurate than scraping one page.
+//   3. On a miss, we fall back to the lightweight scrape+LLM and fire off
+//      POST /research/{id} in the background so the collection warms up for
+//      next time (fire-and-forget, the user's demo doesn't wait on it).
+function tdeAvailable() { return !!TDE_API_KEY && !!TDE_BASE_URL; }
+
+async function tdeRequest(method, path, body) {
+  const res = await fetch(`${TDE_BASE_URL}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'X-API-KEY': TDE_API_KEY },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(method === 'GET' ? 15000 : 90000) // swarm writes can be slow
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`TDE ${method} ${path} → ${res.status}: ${txt.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+function urlToCollectionId(url) {
+  return (url || '')
+    .replace(/^https?:\/\//, '').replace(/^www\./, '')
+    .replace(/[^a-zA-Z0-9.-]/g, '_').replace(/_{2,}/g, '_').replace(/_$/, '')
+    .substring(0, 60);
+}
+
+// Fire-and-forget: push the URL into TDE so the atoms exist on the NEXT run.
+// We use POST /ingest (lightweight: fetch + decompose into TDE's atom schema),
+// NOT POST /research (which kicks off the full multi-agent swarm — too slow /
+// expensive for demo warming). Ingest is async on TDE's side too; it returns
+// {ok:true, status:'ingestion_started'} immediately.
+function warmTdeCacheAsync(collectionId, url, role, hint_name) {
+  if (!tdeAvailable()) return;
+
+  // Ensure the collection exists before /ingest. Create is idempotent — TDE
+  // returns an error if it already exists, which we swallow.
+  (async () => {
+    try {
+      await tdeRequest('POST', `/collections`, {
+        id: collectionId,
+        name: hint_name || collectionId,
+        description: `Auto-created by TDE-Demo (role: ${role})`,
+        templateId: 'business'
+      });
+    } catch (e) { /* already exists or no perms — fine */ }
+
+    try {
+      await tdeRequest('POST', `/ingest`, {
+        collectionId,
+        type: 'web',
+        input: url,
+        opts: { title: hint_name || '' }
+      });
+      console.log(`[TDE] Warmup ingest queued for ${collectionId} (${role})`);
+    } catch (e) {
+      console.log(`[TDE] Warmup skipped for ${collectionId}: ${e.message}`);
+    }
+  })();
+}
+
+// Try to build our 9D atoms from a TDE collection. Returns null on cache miss
+// (or if TDE is unreachable/collection thin); caller falls back to fresh scrape.
+async function ingestFromTdeCache({ url, role, hint_name }) {
+  if (!tdeAvailable()) return null;
+  const collectionId = urlToCollectionId(url);
+  let col = null;
+  try {
+    col = await tdeRequest('GET', `/collections/${collectionId}`);
+  } catch (e) {
+    // 404 or otherwise — not in cache.
+    return null;
+  }
+  const atomCount = col?.stats?.atomCount || 0;
+  if (atomCount < TDE_MIN_ATOMS) {
+    console.log(`[TDE] MISS ${collectionId}: only ${atomCount} atoms (< ${TDE_MIN_ATOMS}).`);
+    return null;
+  }
+
+  // Pull a rich digest from TDE — that's our LLM input instead of a raw scrape.
+  let digest = '';
+  try {
+    const reconstruct = await tdeRequest('POST', `/reconstruct/${collectionId}`, {
+      intent: 'enrichment',
+      query: `Complete profile of ${hint_name || url}: mission, products, ICP, differentiators, proof points, team, stack signals, buying triggers, partnerships, weaknesses, gaps. Aggregate everything useful for decomposing into retrievable atoms.`,
+      format: 'text',
+      max_atoms: 30,
+      max_words: 1500
+    });
+    digest = typeof reconstruct.output === 'string'
+      ? reconstruct.output
+      : JSON.stringify(reconstruct.output || {});
+  } catch (e) {
+    console.log(`[TDE] Reconstruct failed for ${collectionId}: ${e.message} — falling back to fresh.`);
+    return null;
+  }
+  if (!digest || digest.length < 200) {
+    console.log(`[TDE] Reconstruct returned too little for ${collectionId} (${digest.length} chars) — falling back.`);
+    return null;
+  }
+
+  console.log(`[TDE] HIT ${collectionId}: ${atomCount} atoms, reconstructed ${digest.length} chars.`);
+
+  // Re-decompose the TDE digest through our 9D-tagged INGEST_PROMPT so the
+  // atoms match TDE-Demo's schema (persona, buying_stage, ..., industry).
+  const userContent = JSON.stringify({
+    role,
+    target_name: hint_name || col.name || url,
+    target_url: url,
+    content: `SOURCE: TDE cache (collection "${collectionId}", ${atomCount} atoms)\n\n${digest}`
+  });
+  const parsed = await callLLM(INGEST_PROMPT, userContent, { maxTokens: 6000 });
+  if (!parsed?.atoms?.length) return null;
+  return {
+    target: { ...parsed.target, role, url },
+    summary: parsed.summary,
+    atoms: parsed.atoms,
+    source_url: url,
+    source: 'tde_cache',
+    tde_collection: collectionId,
+    tde_atom_count: atomCount,
+    ingested_at: new Date().toISOString()
+  };
+}
+
 async function ingestOne({ url, role, hint_name }) {
+  // Step 1 — prefer TDE cache.
+  const cached = await ingestFromTdeCache({ url, role, hint_name }).catch(e => {
+    console.log(`[TDE] Cache lookup error: ${e.message}`);
+    return null;
+  });
+  if (cached) return cached;
+
+  // Step 2 — fresh demo-lightweight ingest (scrape the URL, run our INGEST_PROMPT).
   const fetched = await fetchAndStrip(url);
   if (!fetched.text || fetched.text.length < 200) {
     throw new Error(`Fetched ${url} had too little text (${fetched.text.length} chars). Try a richer page.`);
@@ -305,28 +453,96 @@ async function ingestOne({ url, role, hint_name }) {
   });
   const parsed = await callLLM(INGEST_PROMPT, userContent, { maxTokens: 6000 });
   if (!parsed?.atoms?.length) throw new Error(`Ingest for ${url} returned no atoms`);
+
+  // Step 3 — fire TDE warmup in the background so next time this URL is a cache hit.
+  const collectionId = urlToCollectionId(url);
+  warmTdeCacheAsync(collectionId, url, role, parsed.target?.name || hint_name);
+
   return {
     target: { ...parsed.target, role, url },
     summary: parsed.summary,
     atoms: parsed.atoms,
     source_url: url,
+    source: 'fresh',
+    tde_collection: collectionId,
     ingested_at: new Date().toISOString()
   };
 }
 
+function industryCacheKey(industry, subindustry, region) {
+  return [industry, subindustry, region].filter(Boolean).join('-')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120);
+}
+
 async function synthesizeCustomerArchetype({ industry, subindustry, region }) {
+  const industryKey = industryCacheKey(industry, subindustry, region);
+  const tdeKey = 'tde_demo_archetype';
+
+  // Step 1 — check TDE's industry intel cache. If a fresh archetype exists,
+  // reuse it. TDE's /intel/industry/:key is purpose-built for industry-level
+  // knowledge with a 30-day TTL.
+  if (tdeAvailable() && industryKey) {
+    try {
+      const cached = await tdeRequest('GET', `/intel/industry/${encodeURIComponent(industryKey)}?solution_key=${tdeKey}`);
+      if (cached?.found) {
+        const bundle = cached.solution_pain_cache;
+        if (bundle?.found && bundle?.fresh && bundle?.archetype?.atoms?.length) {
+          console.log(`[TDE] Archetype HIT ${industryKey} (${bundle.archetype.atoms.length} atoms).`);
+          return {
+            ...bundle.archetype,
+            target: { ...bundle.archetype.target, role: 'customer', is_archetype: true },
+            industry, subindustry, region,
+            source: 'tde_cache',
+            tde_industry_key: industryKey,
+            ingested_at: new Date().toISOString()
+          };
+        }
+      }
+    } catch (e) {
+      console.log(`[TDE] Archetype cache lookup failed: ${e.message}`);
+    }
+  }
+
+  // Step 2 — synthesize fresh via LLM (the demo-lightweight path).
   const userContent = JSON.stringify({ industry, subindustry, region });
   const parsed = await callLLM(INDUSTRY_ARCHETYPE_PROMPT, userContent, { maxTokens: 5000 });
   if (!parsed?.atoms?.length) throw new Error('Archetype synthesis returned no atoms');
-  return {
+
+  const archetype = {
     target: { ...parsed.target, role: 'customer', is_archetype: true },
     summary: parsed.summary,
     atoms: parsed.atoms,
-    industry,
-    subindustry,
-    region,
+    industry, subindustry, region,
+    source: 'fresh',
+    tde_industry_key: industryKey,
     ingested_at: new Date().toISOString()
   };
+
+  // Step 3 — save to TDE so NEXT run hits the cache (fire-and-forget).
+  if (tdeAvailable() && industryKey) {
+    const painPoints = (parsed.atoms || [])
+      .filter(a => ['weakness', 'mission_gap', 'buying_trigger'].includes(a.type))
+      .map(a => ({ title: (a.claim || '').slice(0, 80), description: a.claim, evidence: a.evidence, type: a.type, persona: a.d_persona }));
+    tdeRequest('PUT', `/intel/industry/${encodeURIComponent(industryKey)}`, {
+      industry_name: industry,
+      sub_industries: subindustry ? [subindustry] : [],
+      pain_points: painPoints,
+      observations: [{ at: new Date().toISOString(), source: 'tde_demo', summary: parsed.summary }],
+      // solution_pains lets us stash the FULL archetype keyed by consumer.
+      // Here we key it to 'tde_demo_archetype' so TDE-Demo can pull it back
+      // whole on the next run without needing custom schema.
+      solution_pains: {
+        [tdeKey]: { archetype: { target: archetype.target, summary: archetype.summary, atoms: archetype.atoms } }
+      },
+      tags: ['tde_demo', region || 'global'].filter(Boolean)
+    }).then(() => {
+      console.log(`[TDE] Archetype SAVED to /intel/industry/${industryKey}`);
+    }).catch((e) => {
+      console.log(`[TDE] Archetype save failed: ${e.message}`);
+    });
+  }
+
+  return archetype;
 }
 
 async function extractPainPoints(customerEntry, { industry, subindustry, region } = {}) {
@@ -361,6 +577,11 @@ app.get('/healthz', (_req, res) => {
     ok: true,
     model: OPENROUTER_MODEL_ID,
     leadhydration_configured: Boolean(LEADHYDRATION_URL),
+    email_configured: Boolean(RESEND_API_KEY),
+    email_from: REPORT_FROM_EMAIL,
+    tde_configured: tdeAvailable(),
+    tde_url: TDE_BASE_URL,
+    tde_min_atoms: TDE_MIN_ATOMS,
     runs_in_memory: runStore.size
   });
 });
@@ -418,11 +639,11 @@ app.post('/api/demo-flow', async (req, res) => {
     const solution = solutionRes.value;
     const customer = customerRes.value;
 
-    send('phase', { phase: 'ingest', message: 'All three decomposed into 6D-tagged atoms.' });
+    send('phase', { phase: 'ingest', message: 'All three decomposed into 9D-tagged atoms.' });
     send('atoms', {
-      sender:   { target: sender.target,   summary: sender.summary,   atoms: sender.atoms },
-      solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms },
-      customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms }
+      sender:   { target: sender.target,   summary: sender.summary,   atoms: sender.atoms,   source: sender.source,   tde_collection: sender.tde_collection,   tde_atom_count: sender.tde_atom_count },
+      solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source, tde_collection: solution.tde_collection, tde_atom_count: solution.tde_atom_count },
+      customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms, source: customer.source, tde_collection: customer.tde_collection, tde_atom_count: customer.tde_atom_count }
     });
 
     // ── PHASE 3: Pain points — dedicated LLM pass that always returns company,
@@ -569,6 +790,11 @@ app.post('/api/hydrate', async (req, res) => {
     }
     const hydration = await painRes.json();
 
+    // Persist so the email report can include the hydration result.
+    run.chosen_strategy = chosenStrategy;
+    run.solution_intel  = solutionIntel;
+    run.hydration       = hydration;
+
     return res.json({
       run_id,
       chosen_strategy: chosenStrategy,
@@ -629,11 +855,325 @@ app.post('/api/clearsignals', async (req, res) => {
       throw new Error(`ClearSignals analyze failed (${csRes.status}): ${txt.slice(0, 300)}`);
     }
     const analysis = await csRes.json();
+    // Keep the latest ClearSignals run attached to the run for the email report.
+    run.clearsignals_analysis = analysis;
     return res.json({ run_id, analysis });
   } catch (err) {
     console.error('[clearsignals]', err.message);
     return res.status(502).json({ error: `ClearSignals failed: ${err.message}` });
   }
+});
+
+// ─── HTML REPORT GENERATOR ───────────────────────────────────────────────────
+// Produces a self-contained HTML file summarizing a run — atoms, pain groups,
+// strategies, chosen strategy, hydration (questions + email drip), and
+// ClearSignals analysis if it was run. Inline CSS, no external assets.
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function buildReportHtml(run) {
+  const esc = escHtml;
+  const d = new Date(run.created_at || Date.now());
+  const title = `TDE report — ${esc(run.customer?.target?.name || run.industry || 'Customer')}`;
+
+  const atomMini = (a) => `
+    <div class="atom">
+      <div class="atom-head"><span class="atom-type">${esc((a.type || '').replace(/_/g, ' '))}</span>
+        <span class="atom-conf">${esc(a.confidence || '')}</span></div>
+      <div class="atom-claim">${esc(a.claim || '')}</div>
+      ${a.evidence ? `<div class="atom-evi">${esc(a.evidence)}</div>` : ''}
+    </div>`;
+
+  const atomGroup = (label, entry) => {
+    if (!entry) return '';
+    return `
+      <div class="group">
+        <div class="group-title">${esc(label)} — ${esc(entry.target?.name || '')}</div>
+        <div class="group-sum">${esc(entry.summary || '')}</div>
+        <div class="atoms">${(entry.atoms || []).map(atomMini).join('')}</div>
+      </div>`;
+  };
+
+  const painSection = (label, items, tone) => {
+    if (!items || !items.length) return '';
+    return `
+      <div class="pain-block pain-${tone}">
+        <div class="pain-block-label">${esc(label)} (${items.length})</div>
+        ${items.map(p => `
+          <div class="pain-item">
+            <div class="pain-title">${esc(p.title || '')}</div>
+            <div class="pain-desc">${esc(p.description || '')}</div>
+            ${p.evidence ? `<div class="pain-evi">${esc(p.evidence)}</div>` : ''}
+            <div class="pain-chips">
+              ${p.persona ? `<span>Persona: ${esc(p.persona)}</span>` : ''}
+              ${p.urgency ? `<span>Urgency: ${esc(p.urgency)}</span>` : ''}
+              ${p.economic_lever && p.economic_lever !== 'None' ? `<span>Pull: ${esc(p.economic_lever)}</span>` : ''}
+              ${p.inertia_force && p.inertia_force !== 'None' ? `<span>Inertia: ${esc(p.inertia_force)}</span>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+  };
+
+  const stratCard = (s) => {
+    const chosen = run.chosen_strategy && run.chosen_strategy.id === s.id;
+    return `
+      <div class="strat ${chosen ? 'strat-chosen' : ''}">
+        <div class="strat-head">
+          <span class="strat-id">${esc(s.id || '')}</span>
+          <span class="strat-title">${esc(s.title || '')}</span>
+          ${chosen ? '<span class="strat-chosen-badge">SELECTED</span>' : ''}
+        </div>
+        <div class="strat-chips">
+          ${s.target_persona ? `<span>👤 ${esc(s.target_persona)}</span>` : ''}
+          ${s.pain_anchor    ? `<span>⚡ ${esc(s.pain_anchor)}</span>` : ''}
+          ${s.strategy_force ? `<span>${esc(s.strategy_force)}</span>` : ''}
+          ${s.confidence != null ? `<span>${esc(s.confidence)}% confidence</span>` : ''}
+        </div>
+        <div class="strat-section"><b>Explanation</b><div>${esc(s.explanation || '')}</div></div>
+        <div class="strat-section"><b>Customer pain</b><div>${esc(s.customer_pain || '')}</div></div>
+        <div class="strat-section"><b>Sender contribution</b><div>${esc(s.sender_contribution || '')}</div></div>
+        <div class="strat-section"><b>Solution contribution</b><div>${esc(s.solution_contribution || '')}</div></div>
+        <div class="strat-section"><b>First step</b><div>${esc(s.first_step || '')}</div></div>
+      </div>`;
+  };
+
+  const h = run.hydration || {};
+  const questions = Array.isArray(h.questions) ? h.questions : [];
+  const emails    = h.emailCampaign || h.emailSequence || [];
+  const cs        = run.clearsignals_analysis || null;
+
+  const qCard = (q) => {
+    const pos = Array.isArray(q.positive_responses) ? q.positive_responses : [];
+    const neg = Array.isArray(q.neutral_negative_responses) ? q.neutral_negative_responses : (q.negative_responses || []);
+    return `
+      <div class="q">
+        <div class="q-stage">${esc(q.stage || 'Question')}</div>
+        <div class="q-text">${esc(q.question || '')}</div>
+        ${q.purpose ? `<div class="q-block"><b>Why we ask this</b><div>${esc(q.purpose)}</div></div>` : ''}
+        ${q.pain_it_targets || q.pain_point ? `<div class="q-block"><b>Pain it targets</b><div>${esc(q.pain_it_targets || q.pain_point)}</div></div>` : ''}
+        ${q.tone_guidance ? `<div class="q-block"><b>How to deliver</b><div>${esc(q.tone_guidance)}</div></div>` : ''}
+        ${pos.length ? `<div class="q-resp q-pos"><b>Expected positive responses</b>${pos.map(r => `
+          <div class="q-resp-item">
+            <div class="q-resp-quote">"${esc(r.response || '')}"</div>
+            ${r.next_step ? `<div class="q-resp-next"><b>Next:</b> ${esc(r.next_step)}</div>` : ''}
+          </div>`).join('')}</div>` : ''}
+        ${neg.length ? `<div class="q-resp q-neg"><b>Possible negative responses — how to pivot</b>${neg.map(r => `
+          <div class="q-resp-item">
+            <div class="q-resp-quote">"${esc(r.response || '')}"</div>
+            ${r.pivot ? `<div class="q-resp-next"><b>Pivot:</b> ${esc(r.pivot)}</div>` : ''}
+          </div>`).join('')}</div>` : ''}
+        ${q.expected_answer_unexpected ? `<div class="q-unexp"><b>If they say something unexpected:</b> ${esc(q.expected_answer_unexpected)}</div>` : ''}
+      </div>`;
+  };
+
+  const emailCard = (em, i) => `
+    <div class="email">
+      <div class="email-head">
+        <b>${esc(em.label || ('Email ' + (em.step || i+1)))}</b>
+        ${em.sendDay ? `<span class="email-day">${esc(em.sendDay)}</span>` : ''}
+      </div>
+      <div class="email-subject"><b>Subject:</b> ${esc(em.subject || em.subject_line || '')}</div>
+      <div class="email-body">${esc(em.body || em.content || '').replace(/\n/g, '<br>')}</div>
+    </div>`;
+
+  const csSection = cs ? (() => {
+    const health = cs.deal_health || {};
+    const threadAn = Array.isArray(cs.thread_analysis) ? cs.thread_analysis : [];
+    const nextSteps = Array.isArray(cs.next_steps) ? cs.next_steps : [];
+    return `
+      <div class="section">
+        <h2>ClearSignals — Email Thread Analysis</h2>
+        <div class="cs-health"><b>Deal Health:</b> ${esc(health.score ?? '?')}/100 — ${esc(health.label || '')}<div>${esc(health.summary || health.explanation || '')}</div></div>
+        ${threadAn.length ? `<h3>Thread analysis</h3>${threadAn.map(t => `
+          <div class="cs-msg"><b>${esc(t.from || t.author || 'Message')}</b> — ${esc(t.assessment || t.sentiment || '')}<div>${esc(t.insight || t.analysis || t.summary || '')}</div></div>
+        `).join('')}` : ''}
+        ${nextSteps.length ? `<h3>Next steps</h3><ol>${nextSteps.map(s => `<li>${esc(typeof s === 'string' ? s : (s.action || s.step || JSON.stringify(s)))}</li>`).join('')}</ol>` : ''}
+      </div>`;
+  })() : '';
+
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0e13; color: #e8ecf2; max-width: 960px; margin: 0 auto; padding: 32px 24px; line-height: 1.55; }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  h2 { font-size: 16px; color: #5aa9ff; margin: 28px 0 10px; border-bottom: 1px solid #2a3542; padding-bottom: 6px; }
+  h3 { font-size: 13px; color: #a8b2c0; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .meta { color: #a8b2c0; font-size: 12px; margin-bottom: 20px; }
+  .section { margin-bottom: 28px; }
+  .group { background: #121820; border: 1px solid #2a3542; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+  .group-title { font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+  .group-sum { font-size: 12px; color: #a8b2c0; margin-bottom: 10px; }
+  .atoms { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 8px; }
+  .atom { background: #1a222c; border: 1px solid #2a3542; border-radius: 6px; padding: 8px 10px; font-size: 11px; }
+  .atom-head { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .atom-type { color: #5aa9ff; font-weight: 700; }
+  .atom-conf { color: #6b7685; }
+  .atom-claim { color: #e8ecf2; line-height: 1.4; margin-bottom: 4px; }
+  .atom-evi { color: #6b7685; font-style: italic; font-size: 10px; }
+  .pain-block { border-left: 3px solid #ff5a5a; background: #1a222c; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+  .pain-subindustry { border-left-color: #ff9d5a; }
+  .pain-industry    { border-left-color: #5ad4ff; }
+  .pain-block-label { font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .pain-company .pain-block-label     { color: #ff5a5a; }
+  .pain-subindustry .pain-block-label { color: #ff9d5a; }
+  .pain-industry .pain-block-label    { color: #5ad4ff; }
+  .pain-item { margin-bottom: 10px; }
+  .pain-title { font-weight: 700; font-size: 13px; }
+  .pain-desc { font-size: 12px; color: #a8b2c0; }
+  .pain-evi { font-size: 11px; color: #6b7685; font-style: italic; margin: 4px 0; }
+  .pain-chips span { display: inline-block; background: #222c38; color: #a8b2c0; font-size: 10px; padding: 2px 6px; border-radius: 8px; margin-right: 4px; }
+  .strat { background: #121820; border: 1px solid #2a3542; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .strat-chosen { border-color: #3ddc84; }
+  .strat-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .strat-id { background: #5aa9ff; color: #0a0e13; font-weight: 800; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .strat-title { font-weight: 800; font-size: 14px; flex: 1; }
+  .strat-chosen-badge { background: #3ddc84; color: #0a0e13; font-weight: 800; padding: 2px 8px; border-radius: 10px; font-size: 10px; }
+  .strat-chips span { display: inline-block; background: #222c38; color: #a8b2c0; font-size: 11px; padding: 3px 8px; border-radius: 10px; margin-right: 6px; }
+  .strat-section { font-size: 12px; margin-top: 8px; }
+  .strat-section b { color: #5aa9ff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 2px; }
+  .q { background: #121820; border: 1px solid #2a3542; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .q-stage { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #b583ff; margin-bottom: 4px; }
+  .q-text { font-weight: 700; font-size: 14px; margin-bottom: 10px; }
+  .q-block { font-size: 12px; margin-bottom: 8px; }
+  .q-block b { color: #5aa9ff; text-transform: uppercase; letter-spacing: 0.8px; font-size: 10px; display: block; margin-bottom: 2px; }
+  .q-resp { background: #1a222c; border-radius: 6px; padding: 10px; margin-top: 8px; font-size: 12px; }
+  .q-pos { border-left: 3px solid #3ddc84; }
+  .q-neg { border-left: 3px solid #ff5a5a; }
+  .q-resp b { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px; }
+  .q-pos > b { color: #3ddc84; }
+  .q-neg > b { color: #ff5a5a; }
+  .q-resp-item { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #2a3542; }
+  .q-resp-item:last-child { border-bottom: none; }
+  .q-resp-quote { font-style: italic; color: #e8ecf2; margin-bottom: 4px; }
+  .q-resp-next { color: #a8b2c0; font-size: 11px; }
+  .q-resp-next b { display: inline; color: inherit; text-transform: none; letter-spacing: normal; font-size: 11px; }
+  .q-unexp { margin-top: 8px; padding: 8px 10px; background: rgba(255,199,87,0.08); border-left: 3px solid #ffc757; font-size: 11px; color: #ffc757; }
+  .q-unexp b { color: #ffc757; }
+  .email { background: #121820; border: 1px solid #2a3542; border-left: 3px solid #5ad4ff; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+  .email-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .email-day { color: #6b7685; font-size: 10px; background: #222c38; padding: 2px 8px; border-radius: 8px; }
+  .email-subject { font-size: 13px; margin-bottom: 6px; }
+  .email-body { font-size: 12px; color: #a8b2c0; line-height: 1.7; }
+  .cs-health { background: #1a222c; border-left: 3px solid #b583ff; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
+  .cs-msg { background: #1a222c; border-left: 3px solid #b583ff; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; }
+</style></head>
+<body>
+  <h1>${esc(title)}</h1>
+  <div class="meta">Run ${esc(run.run_id || '')} · Generated ${esc(d.toISOString())}${run.email ? ' · For ' + esc(run.email) : ''}</div>
+
+  <div class="section">
+    <h2>Positioning Context</h2>
+    ${atomGroup('Sender',   run.sender)}
+    ${atomGroup('Solution', run.solution)}
+    ${atomGroup('Customer', run.customer)}
+  </div>
+
+  <div class="section">
+    <h2>Pain Points</h2>
+    ${painSection('Company-specific', run.pain_groups?.company_pain,     'company')}
+    ${painSection('Sub-industry',     run.pain_groups?.subindustry_pain, 'subindustry')}
+    ${painSection('Industry-wide',    run.pain_groups?.industry_pain,    'industry')}
+  </div>
+
+  ${run.strategies?.strategies?.length ? `
+  <div class="section">
+    <h2>Sales Strategies (${run.strategies.strategies.length})</h2>
+    ${run.strategies.strategies.map(stratCard).join('')}
+  </div>` : ''}
+
+  ${run.hydration ? `
+  <div class="section">
+    <h2>Lead Hydration${run.chosen_strategy ? ' — Strategy: ' + esc(run.chosen_strategy.title || '') : ''}</h2>
+    ${h.whoIsThis     ? `<p><b>Who is this:</b> ${esc(h.whoIsThis)}</p>` : ''}
+    ${h.primaryLead   ? `<p><b>Primary lead:</b> ${esc(h.primaryLead.title || '')} — ${esc(h.primaryLead.topic || '')}</p>` : ''}
+    ${questions.length ? `<h3>Discovery Questions (${questions.length})</h3>${questions.map(qCard).join('')}` : ''}
+    ${emails.length    ? `<h3>Email Drip Campaign (${emails.length} steps)</h3>${emails.map(emailCard).join('')}` : ''}
+  </div>` : ''}
+
+  ${csSection}
+
+</body></html>`;
+}
+
+// POST /api/send-report — email the self-contained HTML report via Resend.
+// Requires RESEND_API_KEY and a verified REPORT_FROM_EMAIL on the Resend account.
+app.post('/api/send-report', async (req, res) => {
+  const { run_id, to } = req.body || {};
+  if (!run_id) return res.status(400).json({ error: 'Require run_id' });
+
+  const run = runStore.get(run_id);
+  if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
+
+  if (!RESEND_API_KEY) {
+    return res.status(503).json({
+      error: 'Email not configured',
+      detail: 'Set RESEND_API_KEY in Railway env vars to enable the email report.'
+    });
+  }
+
+  const recipient = (to || run.email || '').trim();
+  if (!recipient || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) {
+    return res.status(400).json({ error: 'Valid recipient email required (form email or `to` field)' });
+  }
+
+  try {
+    const html = buildReportHtml({ ...run, run_id });
+    const attachment = Buffer.from(html, 'utf8').toString('base64');
+    const customerLabel = run.customer?.target?.name || run.industry || 'customer';
+    const filename = `TDE-report-${String(customerLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}-${run_id}.html`;
+
+    const emailBody = `
+      <p>Your TDE analysis for <b>${escHtml(customerLabel)}</b> is attached as an HTML file you can open in any browser.</p>
+      <p>The report includes: positioning atoms, pain points (company / sub-industry / industry), the 5 sales strategies generated, and — if you ran it — the lead hydration output (discovery questions, email drip) and ClearSignals thread analysis.</p>
+      <p>— TDE Demo</p>
+    `;
+
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: REPORT_FROM_EMAIL,
+        to: [recipient],
+        subject: `TDE report — ${customerLabel}`,
+        html: emailBody,
+        attachments: [{ filename, content: attachment }]
+      })
+    });
+
+    const data = await resendRes.json().catch(() => ({}));
+    if (!resendRes.ok) {
+      throw new Error(`Resend ${resendRes.status}: ${data.message || JSON.stringify(data).slice(0, 300)}`);
+    }
+
+    console.log(`[report] Emailed ${filename} to ${recipient} (resend id: ${data.id || '?'})`);
+    return res.json({
+      ok: true,
+      to: recipient,
+      from: REPORT_FROM_EMAIL,
+      filename,
+      resend_id: data.id || null,
+      note: `Email sent from ${REPORT_FROM_EMAIL}. If you don't see it, check spam.`
+    });
+  } catch (err) {
+    console.error('[send-report]', err.message);
+    return res.status(502).json({ error: `Email failed: ${err.message}` });
+  }
+});
+
+// GET /api/report/:run_id — same HTML report, served inline (as a backup
+// if the email doesn't arrive, or for local preview). Not linked from the
+// UI, but handy for debugging.
+app.get('/api/report/:run_id', (req, res) => {
+  const run = runStore.get(req.params.run_id);
+  if (!run) return res.status(404).send('<h2 style="font-family:sans-serif;padding:40px">Run not found or expired</h2>');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(buildReportHtml({ ...run, run_id: req.params.run_id }));
 });
 
 function normUrl(u) {
