@@ -209,11 +209,20 @@ EACH pain point schema:
     "title": "<3-6 word chip label, e.g. 'Rising Warranty Claims'>",
     "description": "<1-2 sentence plain-English pain description>",
     "evidence": "<one sentence — cite a customer atom when level=company, else segment-level observation>",
-    "persona": "<one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General>",
+    "persona_primary": {
+      "title": "<primary owner — the person who feels this pain most acutely and owns fixing it. Use one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General>",
+      "perspective": "<1 sentence — why this pain matters to THEM specifically, in their language>"
+    },
+    "persona_secondary": {
+      "title": "<second-most affected person — different role, different angle on the same pain. Use one of the same persona list>",
+      "perspective": "<1 sentence — how this pain impacts THEM differently>"
+    },
     "urgency": "high" | "medium" | "low",
     "inertia_force": "<one of: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | None>",
     "economic_lever": "<one of: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction | None>"
   }
+
+DUAL-PERSONA RULE: Every pain point MUST have two distinct personas. The primary owner is the person whose job description makes them responsible for this pain. The secondary is someone in a different role who is materially affected by the same pain — perhaps downstream, upstream, or cross-functionally. A sales rep can approach EITHER persona about this pain.
 
 CRITICAL ANTI-FABRICATION RULES:
 - For LEVEL=company: only cite facts that appear in the provided customer atoms. If you cannot ground a company pain in an atom, skip it — do NOT invent incidents, dollar figures, past projects, named vendors, or dates.

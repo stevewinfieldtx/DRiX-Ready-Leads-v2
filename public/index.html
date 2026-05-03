@@ -295,6 +295,12 @@
   .pain-chip.urgency-high   { background: rgba(255,90,90,0.15);  color: var(--red); }
   .pain-chip.urgency-medium { background: rgba(255,199,87,0.15); color: var(--yellow); }
   .pain-chip.urgency-low    { background: rgba(61,220,132,0.12); color: var(--green); }
+  .pain-personas { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .pain-persona-card { flex: 1; min-width: 140px; background: var(--surface-2); border-radius: 6px; padding: 6px 8px; border-left: 2px solid var(--accent); }
+  .pain-persona-card.secondary { border-left-color: var(--muted); }
+  .pain-persona-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; margin-bottom: 2px; }
+  .pain-persona-title { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .pain-persona-perspective { font-size: 10px; color: var(--text-dim); line-height: 1.4; }
   .pain-section { margin-bottom: 16px; }
   .pain-section:last-child { margin-bottom: 0; }
   .pain-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -1022,13 +1028,31 @@ function renderPain(painGroups, painPointsFlat) {
 }
 
 function renderPainCard(p, tone) {
+  // Build persona section — support dual personas (new) or legacy single persona
+  let personaHtml = '';
+  if (p.persona_primary && p.persona_secondary) {
+    personaHtml = `<div class="pain-personas">
+      <div class="pain-persona-card">
+        <div class="pain-persona-label">Primary Owner</div>
+        <div class="pain-persona-title">${esc(p.persona_primary.title || '')}</div>
+        <div class="pain-persona-perspective">${esc(p.persona_primary.perspective || '')}</div>
+      </div>
+      <div class="pain-persona-card secondary">
+        <div class="pain-persona-label">Also Affected</div>
+        <div class="pain-persona-title">${esc(p.persona_secondary.title || '')}</div>
+        <div class="pain-persona-perspective">${esc(p.persona_secondary.perspective || '')}</div>
+      </div>
+    </div>`;
+  } else if (p.persona) {
+    personaHtml = `<div class="pain-meta" style="margin-bottom:6px"><span class="pain-chip">${esc(p.persona)}</span></div>`;
+  }
   return `
     <div class="pain-card pain-card-${esc(tone)}">
       <div class="pain-title">${esc(p.title || '')}</div>
       <div class="pain-desc">${esc(p.description || '')}</div>
       ${p.evidence ? `<div class="pain-evidence">${esc(p.evidence)}</div>` : ''}
+      ${personaHtml}
       <div class="pain-meta">
-        ${p.persona ? `<span class="pain-chip">${esc(p.persona)}</span>` : ''}
         ${p.urgency ? `<span class="pain-chip urgency-${esc(p.urgency)}">urgency: ${esc(p.urgency)}</span>` : ''}
         ${p.economic_lever && p.economic_lever !== 'None' ? `<span class="pain-chip">pull: ${esc(p.economic_lever)}</span>` : ''}
         ${p.inertia_force && p.inertia_force !== 'None' ? `<span class="pain-chip">inertia: ${esc(p.inertia_force)}</span>` : ''}
@@ -1274,11 +1298,22 @@ function renderHydration(data) {
               <div class="hyd-response-next"><strong>Pivot:</strong> ${esc(r.pivot || r.next_step || '')}</div>
             </div>
           `).join('')}
-          ${q.expected_answer_unexpected ? `
-            <div class="hyd-response negative" style="border-color:rgba(255,199,87,0.35);background:rgba(255,199,87,0.06)">
-              <div class="hyd-response-label" style="color:var(--yellow)">If they say something unexpected</div>
-              <div class="hyd-response-quote">${esc(q.expected_answer_unexpected)}</div>
-            </div>` : ''}
+          ${(() => {
+            const ur = q.unexpected_response;
+            if (ur && ur.response) {
+              return `<div class="hyd-response negative" style="border-color:rgba(255,199,87,0.35);background:rgba(255,199,87,0.06)">
+                <div class="hyd-response-label" style="color:var(--yellow)">If they say something unexpected</div>
+                <div class="hyd-response-quote">"${esc(ur.response)}"</div>
+                <div class="hyd-response-next"><strong>Pivot:</strong> ${esc(ur.pivot || '')}</div>
+              </div>`;
+            } else if (q.expected_answer_unexpected) {
+              return `<div class="hyd-response negative" style="border-color:rgba(255,199,87,0.35);background:rgba(255,199,87,0.06)">
+                <div class="hyd-response-label" style="color:var(--yellow)">If they say something unexpected</div>
+                <div class="hyd-response-quote">"${esc(q.expected_answer_unexpected)}"</div>
+              </div>`;
+            }
+            return '';
+          })()}
         </div>
       </div>
     </div>
