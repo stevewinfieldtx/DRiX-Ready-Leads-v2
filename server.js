@@ -604,7 +604,8 @@ app.post('/api/demo-flow', async (req, res) => {
     solution_url,
     customer_url,
     industry, subindustry, region,
-    recipient_role
+    recipient_role,
+    individual_name
   } = req.body || {};
 
   // Validation
@@ -617,11 +618,14 @@ app.post('/api/demo-flow', async (req, res) => {
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none');
+  // Keep-alive ping to prevent Railway/HTTP2 proxy timeout
   res.flushHeaders?.();
-  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  const keepAlive = setInterval(() => { try { res.write(':keepalive\n\n'); } catch {} }, 15000);
+  const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {} };
 
   const run_id = `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -693,10 +697,12 @@ app.post('/api/demo-flow', async (req, res) => {
     }
 
     send('done', { run_id });
+    clearInterval(keepAlive);
     res.end();
   } catch (err) {
     console.error('[demo-flow]', err.message);
     send('error', { message: err.message });
+    clearInterval(keepAlive);
     res.end();
   }
 });
