@@ -4,6 +4,8 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 
+const db = require('./db');
+
 const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
 const PORT = process.env.PORT || 3001;
@@ -592,7 +594,8 @@ app.get('/healthz', (_req, res) => {
     tde_configured: tdeAvailable(),
     tde_url: TDE_BASE_URL,
     tde_min_atoms: TDE_MIN_ATOMS,
-    runs_in_memory: runStore.size
+    runs_in_memory: runStore.size,
+    database_configured: db.isConfigured()
   });
 });
 
@@ -700,6 +703,16 @@ app.post('/api/demo-flow', async (req, res) => {
     send('done', { run_id });
     clearInterval(keepAlive);
     res.end();
+
+    // ── Persist to Postgres (fire-and-forget — never blocks the SSE response) ─
+    db.saveRun(run_id, {
+      email, sender_company_url, solution_url, customer_url,
+      industry, subindustry, region, recipient_role, individual_name
+    }, {
+      sender, solution, customer,
+      pain_groups, pain_points, strategies
+    }).catch(err => console.error('[db] async saveRun:', err.message));
+
   } catch (err) {
     console.error('[demo-flow]', err.message);
     send('error', { message: err.message });
@@ -811,6 +824,10 @@ app.post('/api/hydrate', async (req, res) => {
     run.solution_intel  = solutionIntel;
     run.hydration       = hydration;
 
+    // Persist hydration to Postgres (fire-and-forget)
+    db.saveHydration(run_id, chosenStrategy.id || strategy_id, chosenStrategy.title || '', hydration)
+      .catch(err => console.error('[db] async saveHydration:', err.message));
+
     return res.json({
       run_id,
       chosen_strategy: chosenStrategy,
@@ -873,6 +890,11 @@ app.post('/api/clearsignals', async (req, res) => {
     const analysis = await csRes.json();
     // Keep the latest ClearSignals run attached to the run for the email report.
     run.clearsignals_analysis = analysis;
+
+    // Persist coaching analysis to Postgres (fire-and-forget)
+    db.saveCoaching(run_id, thread_text, analysis?.result || analysis)
+      .catch(err => console.error('[db] async saveCoaching:', err.message));
+
     return res.json({ run_id, analysis });
   } catch (err) {
     console.error('[clearsignals]', err.message);
@@ -1301,8 +1323,10 @@ const REGIONS = [
 ];
 
 // ─── BOOT ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`✅ TDE Demo v3 listening on port ${PORT}`);
   console.log(`   model: ${OPENROUTER_MODEL_ID}`);
   console.log(`   leadhydration: ${LEADHYDRATION_URL || '(not configured)'}`);
+  console.log(`   database: ${db.isConfigured() ? 'connected' : '(not configured — set DATABASE_URL)'}`);
+  if (db.isConfigured()) await db.initSchema();
 });
