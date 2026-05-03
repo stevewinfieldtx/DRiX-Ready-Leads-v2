@@ -552,9 +552,45 @@
   .cs-health-summary { font-size: 12px; color: var(--text-dim); line-height: 1.55; }
   .cs-section-title { font-size: 12px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: var(--purple); margin: 14px 0 8px; }
   .cs-thread-msg { background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
-  .cs-thread-msg-head { font-size: 11px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
-  .cs-thread-msg-body { font-size: 12px; color: var(--text-dim); line-height: 1.55; }
-  .cs-next-steps { margin: 0 0 0 20px; font-size: 12px; color: var(--text); line-height: 1.7; }
+  .cs-thread-msg-head { font-size: 11px; font-weight: 800; color: var(--text); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+  .cs-thread-msg-signal { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 8px; border-radius: 10px; }
+  .cs-signal-positive, .cs-signal-buying_signal { background: rgba(72,199,142,0.15); color: var(--green); }
+  .cs-signal-negative, .cs-signal-objection { background: rgba(255,99,99,0.15); color: var(--red); }
+  .cs-signal-neutral, .cs-signal-indecision { background: rgba(255,199,87,0.15); color: var(--yellow); }
+  .cs-signal-missed_opportunity { background: rgba(168,85,247,0.15); color: var(--purple); }
+  .cs-thread-msg-summary { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 6px; }
+  .cs-thread-msg-decode { font-size: 12px; color: var(--text); line-height: 1.55; margin-bottom: 6px; font-style: italic; }
+  .cs-thread-msg-quote { font-size: 11px; color: var(--accent); padding: 4px 8px; border-left: 2px solid var(--accent); margin: 6px 0; line-height: 1.4; }
+  .cs-thread-msg-coaching { font-size: 12px; color: var(--green); line-height: 1.55; padding: 8px 10px; background: rgba(72,199,142,0.06); border: 1px solid rgba(72,199,142,0.2); border-radius: 6px; margin-top: 6px; }
+  .cs-thread-msg-coaching::before { content: 'COACH:'; font-size: 9px; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 3px; opacity: 0.7; }
+  .cs-gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .cs-gap { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .cs-gap-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .cs-gap-letter { font-size: 18px; font-weight: 900; color: var(--purple); }
+  .cs-gap-element { font-size: 10px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .cs-gap-status { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .cs-gap-status.confirmed { background: rgba(72,199,142,0.15); color: var(--green); }
+  .cs-gap-status.partially { background: rgba(255,199,87,0.15); color: var(--yellow); }
+  .cs-gap-status.missing, .cs-gap-status.unknown { background: rgba(255,99,99,0.15); color: var(--red); }
+  .cs-gap-evidence { font-size: 11px; color: var(--text-dim); line-height: 1.4; margin-top: 4px; font-style: italic; }
+  .cs-gap-coaching { font-size: 11px; color: var(--text); line-height: 1.4; margin-top: 4px; }
+  .cs-scorecard { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+  .cs-grade { font-size: 36px; font-weight: 900; display: inline-block; margin-right: 12px; }
+  .cs-grade-A { color: var(--green); } .cs-grade-B { color: #48c78e; } .cs-grade-C { color: var(--yellow); } .cs-grade-D { color: #ff8c42; } .cs-grade-F { color: var(--red); }
+  .cs-strength { font-size: 12px; color: var(--green); line-height: 1.5; margin: 4px 0; }
+  .cs-improvement { background: rgba(255,99,99,0.05); border: 1px solid rgba(255,99,99,0.15); border-radius: 6px; padding: 8px 10px; margin: 6px 0; }
+  .cs-improvement-issue { font-size: 12px; color: var(--red); font-weight: 600; margin-bottom: 3px; }
+  .cs-improvement-quote { font-size: 11px; color: var(--text-dim); font-style: italic; padding: 2px 8px; border-left: 2px solid var(--red); margin: 4px 0; }
+  .cs-improvement-better { font-size: 12px; color: var(--green); line-height: 1.5; }
+  .cs-improvement-better::before { content: 'BETTER:'; font-size: 9px; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 2px; opacity: 0.7; }
+  .cs-next-step { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .cs-next-step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .cs-next-step-action { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; }
+  .cs-next-step-timing { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(168,85,247,0.15); color: var(--purple); text-transform: uppercase; letter-spacing: 0.5px; }
+  .cs-next-step-method { font-size: 9px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .cs-next-step-script { font-size: 12px; color: var(--text-dim); line-height: 1.55; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; white-space: pre-wrap; cursor: pointer; position: relative; }
+  .cs-next-step-script:hover::after { content: 'Click to copy'; position: absolute; top: 4px; right: 8px; font-size: 9px; color: var(--purple); font-weight: 700; }
+  .cs-next-steps-old { margin: 0 0 0 20px; font-size: 12px; color: var(--text); line-height: 1.7; }
 
   /* Email report launcher */
   .report-launcher {
@@ -1738,34 +1774,93 @@ async function submitClearSignals() {
   }
 }
 function renderClearSignals(a) {
-  const health = a.deal_health || {};
-  const threadAn = Array.isArray(a.thread_analysis) ? a.thread_analysis : [];
-  const nextSteps = Array.isArray(a.next_steps) ? a.next_steps : [];
+  // Unwrap: LeadHydration may return { result: {...} } or the object directly
+  const d = a.result || a;
+  const health = d.deal_health || {};
+  const threadAn = Array.isArray(d.thread_analysis) ? d.thread_analysis : [];
+  const nextSteps = Array.isArray(d.next_steps) ? d.next_steps : [];
+  const gaps = d.qualification_gaps?.gaps || [];
+  const scorecard = d.rep_scorecard || {};
   const scoreColor = health.score >= 70 ? 'var(--green)' : health.score >= 40 ? 'var(--yellow)' : 'var(--red)';
+  const gradeClass = 'cs-grade-' + (scorecard.overall_grade || 'C').charAt(0);
+
   $('cs-output').innerHTML = `
+    <!-- Deal Health -->
     <div class="cs-health">
       <div class="cs-health-score" style="border-color:${scoreColor};color:${scoreColor}">
         <div class="cs-health-num">${esc(health.score ?? '?')}</div>
         <div class="cs-health-label">DEAL HEALTH</div>
       </div>
       <div class="cs-health-body">
-        <div class="cs-health-verdict">${esc(health.label || '')}</div>
-        <div class="cs-health-summary">${esc(health.summary || health.explanation || '')}</div>
+        <div class="cs-health-verdict">${esc(health.label || '')} ${health.win_probability != null ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px">Win: ${health.win_probability}%</span>` : ''} ${health.sentiment_trend ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px">${esc(health.sentiment_trend)}</span>` : ''}</div>
+        <div class="cs-health-summary">${esc(health.status_summary || health.summary || health.explanation || '')}</div>
       </div>
     </div>
+
+    <!-- MEDDPICC Qualification Gaps -->
+    ${gaps.length ? `
+      <div class="cs-section-title">MEDDPICC Qualification ${d.qualification_gaps?.meddpicc_score ? `<span style="font-weight:500;color:var(--text-dim);font-size:11px;margin-left:8px">${esc(d.qualification_gaps.meddpicc_score)}</span>` : ''}</div>
+      <div class="cs-gaps">
+        ${gaps.map(g => `
+          <div class="cs-gap">
+            <div class="cs-gap-head">
+              <div><span class="cs-gap-letter">${esc(g.letter || '')}</span> <span class="cs-gap-element">${esc(g.element || '')}</span></div>
+              <span class="cs-gap-status ${(g.status || 'unknown').toLowerCase()}">${esc(g.status || 'unknown')}</span>
+            </div>
+            ${g.evidence ? `<div class="cs-gap-evidence">"${esc(g.evidence)}"</div>` : ''}
+            ${g.coaching ? `<div class="cs-gap-coaching">${esc(g.coaching)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>` : ''}
+
+    <!-- Thread Analysis -->
     ${threadAn.length ? `
       <div class="cs-section-title">Thread analysis</div>
-      ${threadAn.map(t => `
+      ${threadAn.map(t => {
+        const sig = (t.signal || 'neutral').toLowerCase();
+        return `
         <div class="cs-thread-msg">
-          <div class="cs-thread-msg-head">${esc(t.from || t.author || 'Message')} — <span style="color:var(--text-dim);font-weight:500">${esc(t.assessment || t.sentiment || '')}</span></div>
-          <div class="cs-thread-msg-body">${esc(t.insight || t.analysis || t.summary || '')}</div>
-        </div>
-      `).join('')}` : ''}
+          <div class="cs-thread-msg-head">
+            <span>${esc(t.message_from || t.from || t.author || 'Message')}</span>
+            <span class="cs-thread-msg-signal cs-signal-${sig}">${esc(sig.replace('_', ' '))}</span>
+          </div>
+          <div class="cs-thread-msg-summary">${esc(t.message_summary || t.what_they_said || '')}</div>
+          <div class="cs-thread-msg-decode">${esc(t.signal_reading || t.what_it_means || '')}</div>
+          ${t.key_quote ? `<div class="cs-thread-msg-quote">"${esc(t.key_quote)}"</div>` : ''}
+          ${t.coaching_note ? `<div class="cs-thread-msg-coaching">${esc(t.coaching_note)}</div>` : ''}
+        </div>`;
+      }).join('')}` : ''}
+
+    <!-- Rep Scorecard -->
+    ${scorecard.overall_grade ? `
+      <div class="cs-section-title">Rep scorecard</div>
+      <div class="cs-scorecard">
+        <span class="cs-grade ${gradeClass}">${esc(scorecard.overall_grade)}</span>
+        ${(scorecard.strengths || []).map(s => `<div class="cs-strength">+ ${esc(s)}</div>`).join('')}
+        ${(scorecard.improvements || []).map(imp => `
+          <div class="cs-improvement">
+            <div class="cs-improvement-issue">${esc(imp.issue || '')}</div>
+            ${imp.quote ? `<div class="cs-improvement-quote">"${esc(imp.quote)}"</div>` : ''}
+            ${imp.better_version ? `<div class="cs-improvement-better">${esc(imp.better_version)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>` : ''}
+
+    <!-- Next Steps with Scripts -->
     ${nextSteps.length ? `
       <div class="cs-section-title">Next steps</div>
-      <ol class="cs-next-steps">
-        ${nextSteps.map(s => `<li>${esc(typeof s === 'string' ? s : (s.action || s.step || JSON.stringify(s)))}</li>`).join('')}
-      </ol>` : ''}
+      ${nextSteps.map(s => {
+        if (typeof s === 'string') return `<div class="cs-next-step"><div class="cs-next-step-action">${esc(s)}</div></div>`;
+        return `
+        <div class="cs-next-step">
+          <div class="cs-next-step-head">
+            <div class="cs-next-step-action">${esc(s.action || '')}</div>
+            ${s.timing ? `<span class="cs-next-step-timing">${esc(s.timing)}</span>` : ''}
+          </div>
+          ${s.methodology ? `<div class="cs-next-step-method">${esc(s.methodology)}</div>` : ''}
+          ${s.script ? `<div class="cs-next-step-script" onclick="navigator.clipboard.writeText(this.innerText).then(()=>{this.style.outline='2px solid var(--green)';setTimeout(()=>this.style.outline='',800)})">${esc(s.script)}</div>` : (s.detail ? `<div style="font-size:12px;color:var(--text-dim);line-height:1.55">${esc(s.detail)}</div>` : '')}
+        </div>`;
+      }).join('')}` : ''}
   `;
 }
 
