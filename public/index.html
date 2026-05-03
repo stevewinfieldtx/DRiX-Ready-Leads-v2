@@ -222,6 +222,21 @@
   .atom-source.src-fresh { background: rgba(90,212,255,0.10);  color: var(--cyan);   border: 1px solid rgba(90,212,255,0.30); }
 
   .atoms-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; padding-right: 2px; }
+  .atoms-accordion { display: flex; flex-direction: column; gap: 4px; }
+  .atom-type-group { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .atom-type-header {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer;
+    background: var(--surface-3); transition: background 0.15s; user-select: none;
+  }
+  .atom-type-header:hover { background: rgba(90,169,255,0.08); }
+  .atom-type-arrow { font-size: 9px; color: var(--muted); transition: transform 0.15s; width: 12px; }
+  .atom-type-arrow.open { color: var(--accent); }
+  .atom-type-label { font-size: 11px; font-weight: 800; text-transform: capitalize; color: var(--text); letter-spacing: 0.3px; flex: 1; }
+  .atom-type-count {
+    font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 10px;
+    background: rgba(90,169,255,0.12); color: var(--accent); letter-spacing: 0.5px;
+  }
+  .atom-type-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; max-height: 500px; overflow-y: auto; }
   .atom-mini {
     background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--atom-color);
     border-radius: 6px; padding: 8px 10px;
@@ -296,7 +311,8 @@
   .pain-persona-card.secondary { border-left-color: var(--muted); }
   .pain-persona-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; margin-bottom: 2px; }
   .pain-persona-title { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-  .pain-persona-perspective { font-size: 10px; color: var(--text-dim); line-height: 1.4; }
+  .pain-persona-rationale { font-size: 10px; color: var(--accent); font-weight: 600; line-height: 1.4; margin-bottom: 2px; }
+  .pain-persona-perspective { font-size: 10px; color: var(--text-dim); line-height: 1.4; font-style: italic; }
   .pain-section { margin-bottom: 16px; }
   .pain-section:last-child { margin-bottom: 0; }
   .pain-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -677,6 +693,13 @@
   }
   .req-badge { background: rgba(90,169,255,0.15); color: var(--accent); }
   .opt-badge { background: rgba(181,131,255,0.12); color: var(--purple); }
+  .field-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%; font-size: 9px; font-weight: 900;
+    background: var(--accent); color: #0a0e13; margin-right: 4px; flex-shrink: 0;
+    letter-spacing: 0; text-transform: none; vertical-align: middle; line-height: 1;
+  }
+  .field-num.sub { background: rgba(90,169,255,0.25); color: var(--accent); font-size: 8px; }
 
   /* Depth indicator */
   .cascade-depth-indicator {
@@ -739,7 +762,7 @@
         <span class="cascade-arrow">at</span>
         <span class="cascade-var optional"><span class="cascade-label">COMPANY</span><span class="cascade-eg">specific target</span></span>
         <span class="cascade-arrow">who is</span>
-        <span class="cascade-var optional"><span class="cascade-label">INDIVIDUAL</span><span class="cascade-eg">the person</span></span>
+        <span class="cascade-var optional"><span class="cascade-label">INDIVIDUAL</span><span class="cascade-eg">their LinkedIn</span></span>
       </div>
       <div class="cascade-note">Required variables are highlighted. Each optional variable you add deepens the intelligence — skip any you don't have.</div>
     </div>
@@ -788,15 +811,17 @@
         <label class="input-label" for="f-email">Your email<span class="req">*</span></label>
         <input type="email" class="field" id="f-email" placeholder="you@yourcompany.com" autocomplete="email" />
       </div>
+    </div>
+    <div class="input-grid">
       <div class="input-wrap">
-        <label class="input-label" for="f-sender-url">Reseller / your company URL<span class="req">*</span></label>
+        <label class="input-label" for="f-sender-url"><span class="field-num">1</span> Reseller / your company URL<span class="req">*</span></label>
         <input type="text" class="field" id="f-sender-url" placeholder="yourcompany.com" autocomplete="off" />
       </div>
-    </div>
-    <div class="input-wrap" style="margin-bottom:16px">
-      <label class="input-label" for="f-solution-url">Solution URL<span class="req">*</span></label>
-      <div class="input-help">The product or solution page you're selling.</div>
-      <input type="text" class="field" id="f-solution-url" placeholder="yourcompany.com/products/flagship" autocomplete="off" />
+      <div class="input-wrap">
+        <label class="input-label" for="f-solution-url"><span class="field-num">2</span> Solution URL<span class="req">*</span></label>
+        <div class="input-help">The product or solution page you're selling.</div>
+        <input type="text" class="field" id="f-solution-url" placeholder="yourcompany.com/products/flagship" autocomplete="off" />
+      </div>
     </div>
 
     <!-- OPTIONAL CASCADE: Industry → Title → Company → Individual -->
@@ -804,23 +829,23 @@
 
     <div class="input-grid">
       <div class="input-wrap">
-        <label class="input-label" for="f-industry">Industry</label>
+        <label class="input-label" for="f-industry"><span class="field-num">3</span> Industry</label>
         <select class="field" id="f-industry"><option value="">Select…</option></select>
       </div>
       <div class="input-wrap">
-        <label class="input-label" for="f-subindustry">Subindustry</label>
+        <label class="input-label" for="f-subindustry"><span class="field-num sub">3b</span> Subindustry</label>
         <select class="field" id="f-subindustry" disabled><option value="">Select industry first</option></select>
       </div>
     </div>
 
     <div class="input-grid">
       <div class="input-wrap">
-        <label class="input-label" for="f-title">Buyer Title / Persona</label>
+        <label class="input-label" for="f-title"><span class="field-num">4</span> Buyer Title / Persona</label>
         <div class="input-help">The role you're targeting (e.g., CTO, VP Sales, CISO).</div>
         <input type="text" class="field" id="f-title" placeholder="e.g. VP of IT, CISO, CFO" autocomplete="off" />
       </div>
       <div class="input-wrap">
-        <label class="input-label" for="f-customer-url">Company URL</label>
+        <label class="input-label" for="f-customer-url"><span class="field-num">5</span> Company URL</label>
         <div class="input-help">A specific company you're targeting.</div>
         <input type="text" class="field" id="f-customer-url" placeholder="customer.com" autocomplete="off" />
       </div>
@@ -828,9 +853,9 @@
 
     <div class="input-grid">
       <div class="input-wrap">
-        <label class="input-label" for="f-individual">Individual Name</label>
+        <label class="input-label" for="f-individual"><span class="field-num">6</span> Individual LinkedIn URL</label>
         <div class="input-help">The specific person you're reaching out to.</div>
-        <input type="text" class="field" id="f-individual" placeholder="e.g. Jane Doe" autocomplete="off" />
+        <input type="text" class="field" id="f-individual" placeholder="linkedin.com/in/janedoe" autocomplete="off" />
       </div>
       <div class="input-wrap" style="display:flex;align-items:flex-end">
         <button class="btn-primary" id="btn-run" style="width:100%">Build Intelligence →</button>
@@ -997,7 +1022,7 @@ async function runFlow() {
   if (title) body.recipient_role = title;
 
   const individual = $('f-individual')?.value.trim();
-  if (individual) body.individual_name = individual;
+  if (individual) body.individual_name = individual;  // LinkedIn URL
 
   // Must have at least a customer URL OR an industry
   if (!body.customer_url && !body.industry) {
@@ -1121,14 +1146,44 @@ function renderAtoms(data) {
 function renderAtomGroup(entry, g) {
   if (!entry) return `<div class="atom-group"><div class="atom-group-title">${esc(g.label)}</div><div class="atom-group-summary">No data.</div></div>`;
   const name = entry.target?.name || g.label;
-  const count = entry.atoms?.length || 0;
-  // Source badge: "tde_cache" = reused from TDE; "fresh" = new scrape (+ TDE warmed in background).
+  const atoms = entry.atoms || [];
+  const count = atoms.length;
   let sourceBadge = '';
   if (entry.source === 'tde_cache') {
     sourceBadge = `<span class="atom-source src-tde" title="Reused from TDE collection ${esc(entry.tde_collection || '')} (${esc(String(entry.tde_atom_count || ''))} atoms)">◈ TDE cache</span>`;
   } else if (entry.source === 'fresh') {
-    sourceBadge = `<span class="atom-source src-fresh" title="Fresh demo ingest — TDE warmup fired in background for next time">⌁ Fresh (warming TDE)</span>`;
+    sourceBadge = `<span class="atom-source src-fresh" title="Fresh ingest — TDE warmup fired in background for next time">⌁ Fresh (warming TDE)</span>`;
   }
+  // Group atoms by type for accordion
+  const byType = {};
+  atoms.forEach(a => {
+    const t = a.type || 'unknown';
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(a);
+  });
+  const typeOrder = ['mission','product','icp','proof_point','team','stack_signal','buying_trigger','differentiator','partnership','contact','weakness','mission_gap'];
+  const sortedTypes = Object.keys(byType).sort((a, b) => {
+    const ai = typeOrder.indexOf(a), bi = typeOrder.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  const uid = g.key + '_' + Date.now();
+  const accordionHtml = sortedTypes.map(type => {
+    const items = byType[type];
+    const typeLabel = type.replace(/_/g, ' ');
+    return `
+      <div class="atom-type-group">
+        <div class="atom-type-header" onclick="toggleAtomType(this)">
+          <span class="atom-type-arrow">▶</span>
+          <span class="atom-type-label">${esc(typeLabel)}</span>
+          <span class="atom-type-count">${items.length}</span>
+        </div>
+        <div class="atom-type-body" style="display:none">
+          ${items.map(renderAtomMini).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
   return `
     <div class="atom-group">
       <div class="atom-group-head">
@@ -1136,17 +1191,34 @@ function renderAtomGroup(entry, g) {
           <div class="atom-group-title">${esc(name)}</div>
           <div class="atom-group-meta">
             <span class="atom-count-badge">${count} ATOMS</span>
+            <span class="atom-count-badge" style="background:rgba(181,131,255,0.12);color:var(--purple)">${sortedTypes.length} TYPES</span>
             ${sourceBadge}
           </div>
         </div>
         <span class="atom-group-role ${g.role}">${esc(g.role)}</span>
       </div>
       <div class="atom-group-summary">${esc(entry.summary || '')}</div>
-      <div class="atoms-list">
-        ${(entry.atoms || []).map(renderAtomMini).join('')}
+      <div class="atoms-accordion">
+        ${accordionHtml}
       </div>
     </div>
   `;
+}
+
+function toggleAtomType(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.atom-type-arrow');
+  const isOpen = body.style.display !== 'none';
+  // Close all siblings first
+  const parent = header.closest('.atoms-accordion');
+  parent.querySelectorAll('.atom-type-body').forEach(b => { b.style.display = 'none'; });
+  parent.querySelectorAll('.atom-type-arrow').forEach(a => { a.textContent = '▶'; a.classList.remove('open'); });
+  // Toggle this one
+  if (!isOpen) {
+    body.style.display = '';
+    arrow.textContent = '▼';
+    arrow.classList.add('open');
+  }
 }
 
 function renderAtomMini(a) {
@@ -1235,6 +1307,7 @@ function renderPainCard(p, tone) {
       <div class="pain-persona-card">
         <div class="pain-persona-label">Primary Owner</div>
         <div class="pain-persona-title">${esc(p.persona_primary.title || '')}</div>
+        ${p.persona_primary.rationale ? `<div class="pain-persona-rationale">${esc(p.persona_primary.rationale)}</div>` : ''}
         <div class="pain-persona-perspective">${esc(p.persona_primary.perspective || '')}</div>
       </div>
       <div class="pain-persona-card secondary">
@@ -1705,6 +1778,7 @@ function hideError() { $('error-msg').classList.remove('active'); }
 
 // Expose for inline handlers
 window.toggleStrategy = toggleStrategy;
+window.toggleAtomType = toggleAtomType;
 window.toggleCustom = toggleCustom;
 window.saveCustom = saveCustom;
 window.onProceed = onProceed;

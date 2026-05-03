@@ -102,11 +102,11 @@ OUTPUT (JSON only, no markdown fences):
   {
     "target": { "name": "<entity name>", "url": "<url>", "role": "<sender|solution|customer>" },
     "summary": "<2-3 sentence positioning paragraph>",
-    "atoms": [ 12-25 atoms ]
+    "atoms": [ 50-150 atoms ]
   }
 
 DISCIPLINE:
-- 12-25 atoms. Each stands alone. Don't invent facts.
+- 50-150 atoms. Each stands alone. Don't invent facts. MORE IS BETTER — extract every distinct fact.
 - Pick the SINGLE best match for each dimension — no arrays, no hedges.
 - "mission_gap" atoms — flag when stated mission is broader than current offering.
 - Evidence = paraphrase, NOT a direct quote.
@@ -118,13 +118,13 @@ INPUT: industry (required), optional subindustry, optional region.
 
 TASK: synthesize a REPRESENTATIVE target profile for that industry (and, if provided, narrowed by subindustry + region) — the kind of atoms that characterize companies in this segment as a CLASS. Label it clearly as a synthetic archetype.
 
-SAME SCHEMA as INGEST: 12-20 atoms, each tagged with ALL 9 d_* dimensions. Include d_persona, d_buying_stage, d_emotional_driver, d_evidence_type, d_credibility, d_recency, d_economic_driver, d_status_quo_pressure, and d_industry.
+SAME SCHEMA as INGEST: 50-150 atoms, each tagged with ALL 9 d_* dimensions. Include d_persona, d_buying_stage, d_emotional_driver, d_evidence_type, d_credibility, d_recency, d_economic_driver, d_status_quo_pressure, and d_industry.
 
 OUTPUT (JSON only):
   {
     "target": { "name": "<e.g. 'Archetype: Discrete Manufacturer (Northern Europe)' — omit region qualifier if none provided>", "url": null, "role": "customer", "is_archetype": true, "industry": "<echo>", "subindustry": "<echo or null>", "region": "<echo or null>" },
     "summary": "<2-3 sentence positioning paragraph for the typical company in this class>",
-    "atoms": [ 12-20 atoms with full 9D tags ]
+    "atoms": [ 50-150 atoms with full 9D tags ]
   }
 
 CRITICAL ANTI-FABRICATION RULES (violate these and the output is a lie):
@@ -220,7 +220,8 @@ EACH pain point schema:
     "evidence": "<one sentence — cite a customer atom when level=company, else segment-level observation>",
     "persona_primary": {
       "title": "<primary owner — the person who feels this pain most acutely and owns fixing it. Use one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General>",
-      "perspective": "<1 sentence — why this pain matters to THEM specifically, in their language>"
+      "rationale": "<1 sentence — WHY this person owns this pain: what about their role, KPIs, or responsibilities makes this land on their desk>",
+      "perspective": "<1 sentence — how they FEEL about it, in their own language>"
     },
     "persona_secondary": {
       "title": "<second-most affected person — different role, different angle on the same pain. Use one of the same persona list>",
@@ -427,7 +428,7 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
     target_url: url,
     content: `SOURCE: TDE cache (collection "${collectionId}", ${atomCount} atoms)\n\n${digest}`
   });
-  const parsed = await callLLM(INGEST_PROMPT, userContent, { maxTokens: 6000 });
+  const parsed = await callLLM(INGEST_PROMPT, userContent, { maxTokens: 32000 });
   if (!parsed?.atoms?.length) return null;
   return {
     target: { ...parsed.target, role, url },
@@ -460,7 +461,7 @@ async function ingestOne({ url, role, hint_name }) {
     target_url: url,
     content: `PAGE TITLE: ${fetched.title || ''}\nMETA DESCRIPTION: ${fetched.description || ''}\n\n${fetched.text}`
   });
-  const parsed = await callLLM(INGEST_PROMPT, userContent, { maxTokens: 6000 });
+  const parsed = await callLLM(INGEST_PROMPT, userContent, { maxTokens: 32000 });
   if (!parsed?.atoms?.length) throw new Error(`Ingest for ${url} returned no atoms`);
 
   // Step 3 — fire TDE warmup in the background so next time this URL is a cache hit.
@@ -514,7 +515,7 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region }) {
 
   // Step 2 — synthesize fresh via LLM (the demo-lightweight path).
   const userContent = JSON.stringify({ industry, subindustry, region });
-  const parsed = await callLLM(INDUSTRY_ARCHETYPE_PROMPT, userContent, { maxTokens: 5000 });
+  const parsed = await callLLM(INDUSTRY_ARCHETYPE_PROMPT, userContent, { maxTokens: 32000 });
   if (!parsed?.atoms?.length) throw new Error('Archetype synthesis returned no atoms');
 
   const archetype = {
