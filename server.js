@@ -3,6 +3,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 
 const db = require('./db');
 
@@ -59,7 +60,17 @@ const runStore = new Map(); // run_id → { sender, solution, customer, industry
 // server process lifetime. TDE cache is the cross-session persistence layer;
 // this is the instant in-session layer that actually makes repeats feel fast.
 const ingestCache = new Map(); // normalized_url → { target, summary, atoms, ... }
+const painCache = new Map();   // hash(atoms+industry+subindustry) → pain_groups
+const strategyCache = new Map(); // hash(atoms+role) → strategies
 const INGEST_CACHE_MAX = 100; // max entries before we start evicting oldest
+
+function cacheKey(obj) {
+  return crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex').slice(0, 24);
+}
+function setWithEvict(map, key, val, max = INGEST_CACHE_MAX) {
+  map.set(key, val);
+  if (map.size > max) { map.delete(map.keys().next().value); }
+}
 
 // ─── PROMPTS ─────────────────────────────────────────────────────────────────
 const INGEST_PROMPT = `You are the ingest phase of TDE (Targeted Decomposition Engine).
@@ -210,57 +221,46 @@ OUTPUT (JSON only):
   "top_pick_reasoning": "<one sentence>"
 }`;
 
-const PAIN_PROMPT = `You are the pain-surfacing phase of TDE.
+const PAIN_PROMPT = `Pain-surfacing phase of TDE. Be concise — short sentences only.
 
-INPUT: customer atoms (9D-tagged), optional industry, optional sub-industry, optional region, and a flag is_archetype.
+INPUT: customer atoms, optional industry/sub-industry/region, is_archetype flag.
 
-TASK: produce a RICH set of pain points at THREE levels so a seller sees exactly where to press:
-  1) company_pain     — specific to THIS customer. Omit or leave empty if is_archetype is true (there is no real company to know).
-  2) subindustry_pain — patterns typical of the sub-industry (if provided) or of the narrow segment the customer belongs to.
-  3) industry_pain    — broader forces affecting the whole industry.
+Produce 2-4 pain points at each of three levels:
+  1) company_pain — specific to THIS customer (empty array if is_archetype=true)
+  2) subindustry_pain — patterns typical of the sub-industry/segment
+  3) industry_pain — broader forces affecting the whole industry
 
-EVERY level must produce 3-6 pain points unless there is genuinely no signal. Do NOT return empty arrays for subindustry_pain or industry_pain — those are always knowable from the segment.
+Persona titles must be one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General
+Urgency: "high" | "medium" | "low"
+Economic levers: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction
+Inertia forces: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | Market Dynamics
 
-EACH pain point schema:
-  {
-    "id": "<kebab id>",
-    "level": "company" | "subindustry" | "industry",
-    "title": "<3-6 word chip label, e.g. 'Rising Warranty Claims'>",
-    "description": "<1-2 sentence plain-English pain description>",
-    "evidence": "<one sentence — cite a customer atom when level=company, else segment-level observation>",
-    "persona_primary": {
-      "title": "<primary owner — the person who feels this pain most acutely and owns fixing it. Use one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General>",
-      "rationale": "<1 sentence — WHY this person owns this pain: what about their role, KPIs, or responsibilities makes this land on their desk>",
-      "perspective": "<1 sentence — their inner voice, in their own words, as if thinking aloud about the problem>",
-      "urgency": "high" | "medium" | "low",
-      "economic_lever": "<one of: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction | None>",
-      "inertia_force": "<one of: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | Market Dynamics | None>"
-    },
-    "persona_secondary": {
-      "title": "<second-most affected person — different role, different angle on the same pain. Use one of the same persona list>",
-      "rationale": "<1 sentence — WHY this person is affected: what about their responsibilities puts them in the blast radius>",
-      "perspective": "<1 sentence — their inner voice, in their own words, from THEIR angle on the same pain>",
-      "urgency": "high" | "medium" | "low",
-      "economic_lever": "<one of: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction | None>",
-      "inertia_force": "<one of: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | Market Dynamics | None>"
-    }
-  }
-
-NOTE: urgency, economic_lever, and inertia_force are PER-PERSONA, not per pain point. The primary owner may feel high urgency driven by Cost while the secondary feels medium urgency driven by Risk-Reduction. Each persona has their own relationship to the same pain.
-
-DUAL-PERSONA RULE: Every pain point MUST have two distinct personas. The primary owner is the person whose job description makes them responsible for this pain. The secondary is someone in a different role who is materially affected by the same pain — perhaps downstream, upstream, or cross-functionally. A sales rep can approach EITHER persona about this pain.
-
-CRITICAL ANTI-FABRICATION RULES:
-- For LEVEL=company: only cite facts that appear in the provided customer atoms. If you cannot ground a company pain in an atom, skip it — do NOT invent incidents, dollar figures, past projects, named vendors, or dates.
-- For LEVEL=subindustry and LEVEL=industry: phrase as segment-typical patterns ("firms in this segment commonly…", "the industry is currently under pressure from…"). You may cite broad macro trends, regulatory shifts, and operational norms that are true of the class. Do NOT invent specific incidents involving real named companies.
-- If the customer is an archetype (is_archetype=true), company_pain MUST be empty — pour everything into subindustry_pain and industry_pain instead.
-
-OUTPUT (JSON only, no markdown fences):
+Each pain point:
 {
-  "company_pain":      [ ... ],
-  "subindustry_pain":  [ ... ],
-  "industry_pain":     [ ... ]
-}`;
+  "id": "<kebab-id>",
+  "level": "company|subindustry|industry",
+  "title": "<3-6 word label>",
+  "description": "<1 sentence>",
+  "evidence": "<1 sentence — cite atom if company-level, else segment observation>",
+  "persona_primary": {
+    "title": "<role>",
+    "rationale": "<1 sentence — why they own this>",
+    "perspective": "<1 sentence — their inner voice>",
+    "urgency": "<level>", "economic_lever": "<lever>", "inertia_force": "<force>"
+  },
+  "persona_secondary": {
+    "title": "<different role>",
+    "rationale": "<1 sentence — why they're affected>",
+    "perspective": "<1 sentence — their inner voice>",
+    "urgency": "<level>", "economic_lever": "<lever>", "inertia_force": "<force>"
+  }
+}
+
+Every pain MUST have two distinct personas with different roles. Each persona gets their own urgency/lever/inertia.
+Company-level: only cite facts from provided atoms — do NOT invent. Sub-industry/industry: use segment-typical patterns, no invented incidents.
+If is_archetype=true, company_pain must be [].
+
+JSON only, no markdown: { "company_pain": [...], "subindustry_pain": [...], "industry_pain": [...] }`;
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperature = 0.3 } = {}) {
@@ -646,28 +646,50 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region, demo
   return archetype;
 }
 
-async function extractPainPoints(customerEntry, { industry, subindustry, region } = {}) {
-  // Dedicated LLM call: surface company + sub-industry + industry pain points.
-  // This replaces the old atom-type filter, which silently produced empty sets
-  // whenever the ingest LLM didn't emit weakness/mission_gap/buying_trigger atoms.
+async function extractPainPoints(customerEntry, { industry, subindustry } = {}) {
   const isArchetype = !!customerEntry.target?.is_archetype;
+  const ind = industry || customerEntry.industry || null;
+  const subInd = subindustry || customerEntry.subindustry || null;
+
+  // Cache key: customer atoms + industry + subindustry
+  const pk = cacheKey({ atoms: customerEntry.atoms, industry: ind, subindustry: subInd });
+
+  // 1. In-memory cache
+  if (painCache.has(pk)) {
+    console.log(`[pain] Memory cache hit (${pk})`);
+    return painCache.get(pk);
+  }
+
+  // 2. Postgres cache
+  const dbCached = await db.getCachedIngest(pk, 'pain');
+  if (dbCached) {
+    console.log(`[pain] DB cache hit (${pk})`);
+    setWithEvict(painCache, pk, dbCached);
+    return dbCached;
+  }
+
+  // 3. Fresh LLM call
+  console.log(`[pain] Cache miss — calling LLM (${pk})`);
   const userContent = JSON.stringify({
     is_archetype: isArchetype,
-    industry: industry || customerEntry.industry || null,
-    subindustry: subindustry || customerEntry.subindustry || null,
-    region: region || customerEntry.region || null,
+    industry: ind, subindustry: subInd,
     customer: {
       name: customerEntry.target?.name,
       summary: customerEntry.summary,
       atoms: customerEntry.atoms
     }
   });
-  const parsed = await callLLM(PAIN_PROMPT, userContent, { maxTokens: 3000 });
-  return {
+  const parsed = await callLLM(PAIN_PROMPT, userContent, { maxTokens: 4000 });
+  const result = {
     company_pain:     Array.isArray(parsed.company_pain)     ? parsed.company_pain     : [],
     subindustry_pain: Array.isArray(parsed.subindustry_pain) ? parsed.subindustry_pain : [],
     industry_pain:    Array.isArray(parsed.industry_pain)    ? parsed.industry_pain    : []
   };
+
+  // Store in both caches
+  setWithEvict(painCache, pk, result);
+  db.setCachedIngest(pk, 'pain', result);
+  return result;
 }
 
 // ─── ENDPOINTS ───────────────────────────────────────────────────────────────
@@ -685,6 +707,8 @@ app.get('/healthz', (_req, res) => {
     tde_min_atoms: TDE_MIN_ATOMS,
     runs_in_memory: runStore.size,
     ingest_cache_memory: ingestCache.size,
+    pain_cache_memory: painCache.size,
+    strategy_cache_memory: strategyCache.size,
     database_configured: db.isConfigured()
   });
 });
@@ -782,7 +806,7 @@ app.post('/api/demo-flow', async (req, res) => {
     // ── PHASE 3: Pain points — dedicated LLM pass that always returns company,
     //    sub-industry, and industry pain groups (not just an atom-type filter).
     send('phase', { phase: 'pain', message: 'Surfacing company, sub-industry, industry pain…' });
-    const pain_groups = await extractPainPoints(customer, { industry, subindustry, region });
+    const pain_groups = await extractPainPoints(customer, { industry, subindustry });
     const pain_points = [
       ...pain_groups.company_pain,
       ...pain_groups.subindustry_pain,
@@ -790,16 +814,41 @@ app.post('/api/demo-flow', async (req, res) => {
     ];
     send('pain', { pain_groups, pain_points });
 
-    // ── PHASE 4: 5 strategies ────────────────────────────────────────────
+    // ── PHASE 4: 5 strategies (cached by sender+solution+customer atoms + role) ──
     send('phase', { phase: 'strategies', message: 'Generating 5 sales strategies…' });
-    const stratInput = JSON.stringify({
-      sender:   { name: sender.target?.name,   summary: sender.summary,   atoms: sender.atoms },
-      solution: { name: solution.target?.name, summary: solution.summary, atoms: solution.atoms },
-      customer: { name: customer.target?.name, summary: customer.summary, atoms: customer.atoms, is_archetype: !!customer.target?.is_archetype },
-      region: region || null,
+    const sk = cacheKey({
+      sender_atoms: sender.atoms,
+      solution_atoms: solution.atoms,
+      customer_atoms: customer.atoms,
       recipient_role: recipient_role || 'Senior executive'
     });
-    const strategies = await callLLM(STRATEGIES_PROMPT, stratInput, { maxTokens: 4000 });
+    let strategies;
+
+    // 1. In-memory
+    if (strategyCache.has(sk)) {
+      console.log(`[strategy] Memory cache hit (${sk})`);
+      strategies = strategyCache.get(sk);
+    } else {
+      // 2. Postgres
+      const dbStrat = await db.getCachedIngest(sk, 'strategy');
+      if (dbStrat) {
+        console.log(`[strategy] DB cache hit (${sk})`);
+        strategies = dbStrat;
+        setWithEvict(strategyCache, sk, strategies);
+      } else {
+        // 3. Fresh LLM call
+        console.log(`[strategy] Cache miss — calling LLM (${sk})`);
+        const stratInput = JSON.stringify({
+          sender:   { name: sender.target?.name,   summary: sender.summary,   atoms: sender.atoms },
+          solution: { name: solution.target?.name, summary: solution.summary, atoms: solution.atoms },
+          customer: { name: customer.target?.name, summary: customer.summary, atoms: customer.atoms, is_archetype: !!customer.target?.is_archetype },
+          recipient_role: recipient_role || 'Senior executive'
+        });
+        strategies = await callLLM(STRATEGIES_PROMPT, stratInput, { maxTokens: 4000 });
+        setWithEvict(strategyCache, sk, strategies);
+        db.setCachedIngest(sk, 'strategy', strategies);
+      }
+    }
     send('strategies', strategies);
 
     // ── Persist the run so /api/hydrate can retrieve it by run_id ────────
