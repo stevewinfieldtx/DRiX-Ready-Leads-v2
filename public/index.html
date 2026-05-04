@@ -615,6 +615,9 @@
   .cs-next-step-script:hover::after { content: 'Click to copy'; position: absolute; top: 4px; right: 8px; font-size: 9px; color: var(--purple); font-weight: 700; }
   .cs-next-steps-old { margin: 0 0 0 20px; font-size: 12px; color: var(--text); line-height: 1.7; }
 
+  /* Customer needs */
+  .cs-customer-need { font-size: 12px; color: var(--text); line-height: 1.55; padding: 6px 10px; border-left: 2px solid var(--accent); margin-bottom: 6px; background: rgba(90,169,255,0.04); border-radius: 0 6px 6px 0; }
+
   /* Deeper Review */
   .cs-deeper-review-wrap { margin-top: 18px; text-align: center; }
   .cs-deeper-btn { background: transparent; border: 1px dashed var(--purple); color: var(--purple); font-size: 12px; font-weight: 700; padding: 8px 24px; border-radius: 20px; cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s; }
@@ -1930,10 +1933,7 @@ function renderClearSignals(a) {
   const scorecard = d.rep_scorecard || {};
   const scoreColor = health.score >= 70 ? 'var(--green)' : health.score >= 40 ? 'var(--yellow)' : 'var(--red)';
 
-  // Build "Deeper Review" content from scorecard strengths/improvements + thread signals
-  const goodItems = (scorecard.strengths || []);
-  const badItems = (scorecard.improvements || []).map(imp => imp.issue || imp);
-  const uglyItems = threadAn.filter(t => (t.signal || '').toLowerCase() === 'negative' || (t.signal || '').toLowerCase() === 'risk').map(t => t.coaching_note || t.signal_reading || t.what_it_means || '');
+  // ── MAIN VIEW: Where we are + what to do next. No email-by-email. ──
 
   $('cs-output').innerHTML = `
     <!-- Current Status -->
@@ -1948,24 +1948,21 @@ function renderClearSignals(a) {
       </div>
     </div>
 
-    <!-- Thread Analysis (forward-looking tone) -->
-    ${threadAn.length ? `
-      <div class="cs-section-title">What happened in this thread</div>
-      ${threadAn.map(t => {
-        const sig = (t.signal || 'neutral').toLowerCase();
-        return `
-        <div class="cs-thread-msg">
-          <div class="cs-thread-msg-head">
-            <span>${esc(t.message_from || t.from || t.author || 'Message')}</span>
-            <span class="cs-thread-msg-signal cs-signal-${sig}">${esc(sig.replace('_', ' '))}</span>
-          </div>
-          <div class="cs-thread-msg-summary">${esc(t.message_summary || t.what_they_said || '')}</div>
-          <div class="cs-thread-msg-decode">${esc(t.signal_reading || t.what_it_means || '')}</div>
-          ${t.key_quote ? `<div class="cs-thread-msg-quote">"${esc(t.key_quote)}"</div>` : ''}
-        </div>`;
-      }).join('')}` : ''}
+    <!-- What the customer needs right now -->
+    ${threadAn.length ? (() => {
+      // Distill what the customer is expecting/wanting from the thread signals
+      const customerMsgs = threadAn.filter(t => {
+        const from = (t.message_from || t.from || t.author || '').toLowerCase();
+        return !from.includes('jason') && !from.includes('rep') && !from.includes('seller') && !from.includes('atlas');
+      });
+      const customerNeeds = customerMsgs.filter(t => t.signal_reading || t.what_it_means).map(t => t.signal_reading || t.what_it_means);
+      return customerNeeds.length ? `
+        <div class="cs-section-title">What the customer is telling you</div>
+        ${customerNeeds.map(n => `<div class="cs-customer-need">${esc(n)}</div>`).join('')}
+      ` : '';
+    })() : ''}
 
-    <!-- Next Steps with Scripts -->
+    <!-- Recommended next moves -->
     ${nextSteps.length ? `
       <div class="cs-section-title">Recommended next moves</div>
       ${nextSteps.map(s => {
@@ -1981,28 +1978,54 @@ function renderClearSignals(a) {
         </div>`;
       }).join('')}` : ''}
 
-    <!-- Deeper Review Button -->
+    <!-- ── DEEPER REVIEW: email-by-email teachable moments ── -->
     <div class="cs-deeper-review-wrap">
       <button class="cs-deeper-btn" onclick="this.parentElement.nextElementSibling.classList.toggle('active');this.textContent=this.textContent.includes('Deeper')?'Hide Deeper Review':'Deeper Review?'">Deeper Review?</button>
     </div>
     <div class="cs-deeper-section">
-      <div class="cs-deeper-intro">A learning-focused look at what went well and what to watch for next time.</div>
-      ${goodItems.length ? `
+      <div class="cs-deeper-intro">Email-by-email breakdown — what went well, what to watch for, and what to do differently next time.</div>
+
+      ${threadAn.length ? `
+        <div class="cs-section-title" style="margin-top:4px">Thread breakdown</div>
+        ${threadAn.map(t => {
+          const sig = (t.signal || 'neutral').toLowerCase();
+          // Rewrite "from" to second person when it's the rep
+          const from = t.message_from || t.from || t.author || 'Message';
+          const fromLower = from.toLowerCase();
+          const isRep = fromLower.includes('jason') || fromLower.includes('rep') || fromLower.includes('seller') || fromLower.includes('atlas');
+          const displayFrom = isRep ? 'You' : from;
+          return `
+          <div class="cs-thread-msg">
+            <div class="cs-thread-msg-head">
+              <span>${esc(displayFrom)}</span>
+              <span class="cs-thread-msg-signal cs-signal-${sig}">${esc(sig.replace('_', ' '))}</span>
+            </div>
+            <div class="cs-thread-msg-summary">${esc(t.message_summary || t.what_they_said || '')}</div>
+            <div class="cs-thread-msg-decode">${esc(t.signal_reading || t.what_it_means || '')}</div>
+            ${t.key_quote ? `<div class="cs-thread-msg-quote">"${esc(t.key_quote)}"</div>` : ''}
+            ${t.coaching_note ? `<div class="cs-thread-msg-coaching">${esc(t.coaching_note)}</div>` : ''}
+          </div>`;
+        }).join('')}
+      ` : ''}
+
+      ${(scorecard.strengths || []).length ? `
         <div class="cs-deeper-group cs-deeper-good">
-          <div class="cs-deeper-group-title">What worked well</div>
-          ${goodItems.map(s => `<div class="cs-deeper-item">+ ${esc(typeof s === 'string' ? s : s.issue || '')}</div>`).join('')}
+          <div class="cs-deeper-group-title">What you did well</div>
+          ${scorecard.strengths.map(s => `<div class="cs-deeper-item">+ ${esc(typeof s === 'string' ? s : s.issue || '')}</div>`).join('')}
         </div>` : ''}
-      ${badItems.length ? `
+      ${(scorecard.improvements || []).length ? `
         <div class="cs-deeper-group cs-deeper-bad">
           <div class="cs-deeper-group-title">Watch for next time</div>
-          ${badItems.map(s => `<div class="cs-deeper-item">${esc(typeof s === 'string' ? s : '')}</div>`).join('')}
+          ${scorecard.improvements.map(imp => `
+            <div class="cs-deeper-item">
+              ${esc(typeof imp === 'string' ? imp : imp.issue || '')}
+              ${imp.better_version ? `<div style="color:var(--green);margin-top:4px;font-size:11px">Try instead: ${esc(imp.better_version)}</div>` : ''}
+            </div>
+          `).join('')}
         </div>` : ''}
-      ${uglyItems.length ? `
-        <div class="cs-deeper-group cs-deeper-ugly">
-          <div class="cs-deeper-group-title">Red flags to address</div>
-          ${uglyItems.map(s => `<div class="cs-deeper-item">${esc(s)}</div>`).join('')}
-        </div>` : ''}
-      ${!goodItems.length && !badItems.length && !uglyItems.length ? `<div class="cs-deeper-item" style="color:var(--text-dim)">Not enough signal in this thread yet for a deeper review.</div>` : ''}
+
+      ${!threadAn.length && !(scorecard.strengths || []).length && !(scorecard.improvements || []).length ?
+        `<div class="cs-deeper-item" style="color:var(--text-dim)">Not enough signal in this thread yet for a deeper review.</div>` : ''}
     </div>
   `;
 }
