@@ -125,7 +125,17 @@ async function initSchema() {
         created_at      TIMESTAMPTZ DEFAULT NOW()
       );
 
+      -- Ingest cache: persists atom payloads across deploys (30-day TTL)
+      CREATE TABLE IF NOT EXISTS ingest_cache (
+        url         TEXT NOT NULL,
+        role        TEXT NOT NULL,
+        payload     JSONB NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (url, role)
+      );
+
       -- Indexes for common queries
+      CREATE INDEX IF NOT EXISTS idx_ingest_cache_ttl ON ingest_cache(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_atoms_run      ON atoms(run_id);
       CREATE INDEX IF NOT EXISTS idx_pains_run      ON pains(run_id);
       CREATE INDEX IF NOT EXISTS idx_strategies_run ON strategies(run_id);
@@ -350,6 +360,72 @@ async function saveCoaching(runId, threadText, analysisResult) {
   }
 }
 
+// ─── INGEST CACHE (30-day TTL) ───────────────────────────────────────────────
+// This is the REAL cache that persists across server restarts / deploys.
+// Keyed by normalized URL + role. Returns full atom payload instantly.
+
+const CACHE_TTL_DAYS = 30;
+
+async function getCachedIngest(url, role) {
+  const p = getPool();
+  if (!p) return null;
+  try {
+    const res = await p.query(`
+      SELECT payload FROM ingest_cache
+      WHERE url = $1 AND role = $2 AND created_at > NOW() - INTERVAL '${CACHE_TTL_DAYS} days'
+      ORDER BY created_at DESC LIMIT 1
+    `, [url, role]);
+    if (res.rows.length) return res.rows[0].payload;
+    return null;
+  } catch (err) {
+    console.error('[db] getCachedIngest error:', err.message);
+    return null;
+  }
+}
+
+async function setCachedIngest(url, role, payload) {
+  const p = getPool();
+  if (!p) return;
+  try {
+    await p.query(`
+      INSERT INTO ingest_cache (url, role, payload) VALUES ($1, $2, $3)
+      ON CONFLICT (url, role) DO UPDATE SET payload = EXCLUDED.payload, created_at = NOW()
+    `, [url, role, JSON.stringify(payload)]);
+  } catch (err) {
+    console.error('[db] setCachedIngest error:', err.message);
+  }
+}
+
+async function getCachedArchetype(industryKey) {
+  const p = getPool();
+  if (!p) return null;
+  try {
+    const res = await p.query(`
+      SELECT payload FROM ingest_cache
+      WHERE url = $1 AND role = 'archetype' AND created_at > NOW() - INTERVAL '${CACHE_TTL_DAYS} days'
+      ORDER BY created_at DESC LIMIT 1
+    `, [industryKey]);
+    if (res.rows.length) return res.rows[0].payload;
+    return null;
+  } catch (err) {
+    console.error('[db] getCachedArchetype error:', err.message);
+    return null;
+  }
+}
+
+async function setCachedArchetype(industryKey, payload) {
+  const p = getPool();
+  if (!p) return;
+  try {
+    await p.query(`
+      INSERT INTO ingest_cache (url, role, payload) VALUES ($1, 'archetype', $2)
+      ON CONFLICT (url, role) DO UPDATE SET payload = EXCLUDED.payload, created_at = NOW()
+    `, [industryKey, JSON.stringify(payload)]);
+  } catch (err) {
+    console.error('[db] setCachedArchetype error:', err.message);
+  }
+}
+
 // ─── QUERY HELPERS (for future use) ──────────────────────────────────────────
 
 async function getRunsByEmail(email, limit = 20) {
@@ -380,6 +456,10 @@ module.exports = {
   saveCoaching,
   getRunsByEmail,
   getRunFull,
+  getCachedIngest,
+  setCachedIngest,
+  getCachedArchetype,
+  setCachedArchetype,
   isConfigured,
   getPool
 };

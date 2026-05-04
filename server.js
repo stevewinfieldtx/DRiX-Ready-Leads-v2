@@ -453,26 +453,39 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
 }
 
 async function ingestOne({ url, role, hint_name, demoMode }) {
-  // Step 0 — LOCAL in-memory cache. Instant return, zero LLM calls.
+  // Step 0a — LOCAL in-memory cache. Instant return, zero LLM calls, zero DB calls.
   const cacheKey = `${url}::${role}`;
   if (ingestCache.has(cacheKey)) {
-    console.log(`[CACHE] HIT ${cacheKey} — returning instantly (no LLM call)`);
-    const hit = ingestCache.get(cacheKey);
-    return { ...hit, source: 'local_cache' };
+    console.log(`[CACHE] MEM HIT ${cacheKey} — instant`);
+    return { ...ingestCache.get(cacheKey), source: 'local_cache' };
   }
 
-  // Step 1 — prefer TDE cache.
+  // Step 0b — POSTGRES cache (30-day TTL). Survives deploys.
+  const dbCached = await db.getCachedIngest(url, role);
+  if (dbCached) {
+    console.log(`[CACHE] DB HIT ${url} (${role}) — no LLM call needed`);
+    // Populate memory cache too
+    ingestCache.set(cacheKey, dbCached);
+    if (ingestCache.size > INGEST_CACHE_MAX) {
+      const oldest = ingestCache.keys().next().value;
+      ingestCache.delete(oldest);
+    }
+    return { ...dbCached, source: 'db_cache' };
+  }
+
+  // Step 1 — prefer TDE service cache.
   const cached = await ingestFromTdeCache({ url, role, hint_name }).catch(e => {
     console.log(`[TDE] Cache lookup error: ${e.message}`);
     return null;
   });
   if (cached) {
-    // Store in local cache for instant repeat
+    // Store in both memory + Postgres for next time
     ingestCache.set(cacheKey, cached);
     if (ingestCache.size > INGEST_CACHE_MAX) {
       const oldest = ingestCache.keys().next().value;
       ingestCache.delete(oldest);
     }
+    db.setCachedIngest(url, role, cached).catch(e => console.error('[db] cache write:', e.message));
     return cached;
   }
 
@@ -509,12 +522,13 @@ async function ingestOne({ url, role, hint_name, demoMode }) {
     ingested_at: new Date().toISOString()
   };
 
-  // Store in local cache for instant repeat
+  // Store in memory cache + Postgres (30-day TTL) for instant repeats
   ingestCache.set(cacheKey, result);
   if (ingestCache.size > INGEST_CACHE_MAX) {
     const oldest = ingestCache.keys().next().value;
     ingestCache.delete(oldest);
   }
+  db.setCachedIngest(url, role, result).catch(e => console.error('[db] cache write:', e.message));
 
   return result;
 }
@@ -528,11 +542,23 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region, demo
   const industryKey = industryCacheKey(industry, subindustry, region);
   const tdeKey = 'tde_demo_archetype';
 
-  // Step 0 — LOCAL in-memory cache for archetypes too.
+  // Step 0a — LOCAL in-memory cache for archetypes.
   const localKey = `archetype::${industryKey}`;
   if (ingestCache.has(localKey)) {
-    console.log(`[CACHE] Archetype HIT ${industryKey} — returning instantly`);
+    console.log(`[CACHE] Archetype MEM HIT ${industryKey} — instant`);
     return { ...ingestCache.get(localKey), source: 'local_cache' };
+  }
+
+  // Step 0b — POSTGRES cache (30-day TTL). Survives deploys.
+  const dbCached = await db.getCachedArchetype(industryKey);
+  if (dbCached) {
+    console.log(`[CACHE] Archetype DB HIT ${industryKey} — no LLM call`);
+    ingestCache.set(localKey, dbCached);
+    if (ingestCache.size > INGEST_CACHE_MAX) {
+      const oldest = ingestCache.keys().next().value;
+      ingestCache.delete(oldest);
+    }
+    return { ...dbCached, source: 'db_cache' };
   }
 
   // Step 1 — check TDE's industry intel cache. If a fresh archetype exists,
@@ -603,12 +629,13 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region, demo
     });
   }
 
-  // Store in local cache for instant repeat
+  // Store in memory + Postgres (30-day TTL) for instant repeats
   ingestCache.set(localKey, archetype);
   if (ingestCache.size > INGEST_CACHE_MAX) {
     const oldest = ingestCache.keys().next().value;
     ingestCache.delete(oldest);
   }
+  db.setCachedArchetype(industryKey, archetype).catch(e => console.error('[db] archetype cache write:', e.message));
 
   return archetype;
 }
@@ -651,6 +678,7 @@ app.get('/healthz', (_req, res) => {
     tde_url: TDE_BASE_URL,
     tde_min_atoms: TDE_MIN_ATOMS,
     runs_in_memory: runStore.size,
+    ingest_cache_memory: ingestCache.size,
     database_configured: db.isConfigured()
   });
 });
@@ -735,7 +763,7 @@ app.post('/api/demo-flow', async (req, res) => {
     }
 
     const ingestMs = Date.now() - t0;
-    const allCached = [sender, solution, customer].every(e => e.source === 'local_cache');
+    const allCached = [sender, solution, customer].every(e => ['local_cache', 'db_cache'].includes(e.source));
     send('phase', { phase: 'ingest', message: allCached
       ? `All three from cache — ${ingestMs}ms (no LLM calls)`
       : `All three decomposed into 9D-tagged atoms (${Math.round(ingestMs/1000)}s).` });
