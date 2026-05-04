@@ -263,36 +263,43 @@ If is_archetype=true, company_pain must be [].
 JSON only, no markdown: { "company_pain": [...], "subindustry_pain": [...], "industry_pain": [...] }`;
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperature = 0.3 } = {}) {
+async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperature = 0.3, retries = 1 } = {}) {
   if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not configured');
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
-      'X-Title': 'TDE Demo v3'
-    },
-    body: JSON.stringify({
-      model: OPENROUTER_MODEL_ID,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContent }
-      ],
-      response_format: { type: 'json_object' },
-      temperature,
-      max_tokens: maxTokens
-    })
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`LLM ${response.status}: ${err.slice(0, 300)}`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
+        'X-Title': 'TDE Demo v3'
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL_ID,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent }
+        ],
+        response_format: { type: 'json_object' },
+        temperature,
+        max_tokens: maxTokens
+      })
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`LLM ${response.status}: ${err.slice(0, 300)}`);
+    }
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    const finishReason = data?.choices?.[0]?.finish_reason;
+    if (!content) {
+      console.warn(`[callLLM] Empty response (attempt ${attempt + 1}/${retries + 1}, finish_reason=${finishReason}, model=${data?.model || '?'})`);
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 1500)); continue; }
+      throw new Error(`Empty LLM response after ${retries + 1} attempts (finish_reason: ${finishReason || 'unknown'} — model may have filtered this content)`);
+    }
+    const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    return JSON.parse(cleaned);
   }
-  const data = await response.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty LLM response');
-  const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  return JSON.parse(cleaned);
 }
 
 async function fetchAndStrip(url) {
@@ -952,7 +959,7 @@ app.post('/api/hydrate', async (req, res) => {
 
     const customerName = run.customer?.target?.name || 'Target Customer';
     const customerWebsite = run.customer?.source_url || run.customer?.target?.url || '';
-    const industryName = run.customer?.industry || run.industry || solutionIntel.targetMarket || 'Unknown';
+    const industryName = run.customer?.industry || run.industry || solutionIntel.targetMarket || '';
 
     // Pass the strategy's persona × pain anchor as a hint so questions/emails
     // align to the chosen angle, not some other persona/pain.
@@ -972,7 +979,7 @@ app.post('/api/hydrate', async (req, res) => {
       body: JSON.stringify({
         companyName: customerName,
         ...(customerWebsite ? { website: customerWebsite } : {}),
-        industry: enrichedIndustry,
+        ...(enrichedIndustry ? { industry: enrichedIndustry } : {}),
         solution: solutionIntel,
         tier: 2, // LLM-only — TDE already did the deep research; don't redo it
         lang: 'en'
