@@ -1050,6 +1050,8 @@ app.post('/api/clearsignals', async (req, res) => {
     });
     if (!csRes.ok) {
       const txt = await csRes.text();
+      console.error(`[clearsignals] LeadHydration ${csRes.status}:`, txt.slice(0, 500));
+      console.error(`[clearsignals] Sent thread_text length=${thread_text.length}, companyName=${customerName}, painLabels=${painLabels.length}`);
       throw new Error(`ClearSignals analyze failed (${csRes.status}): ${txt.slice(0, 300)}`);
     }
     const analysis = await csRes.json();
