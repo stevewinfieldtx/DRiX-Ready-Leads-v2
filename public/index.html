@@ -331,6 +331,7 @@
   .pain-personas { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .pain-persona-card { flex: 1; min-width: 140px; background: var(--surface-2); border-radius: 6px; padding: 6px 8px; border-left: 2px solid var(--accent); }
   .pain-persona-card.secondary { border-left-color: var(--muted); }
+  .pain-persona-card.secondary .pain-persona-rationale { color: var(--muted); }
   .pain-persona-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; margin-bottom: 2px; }
   .pain-persona-title { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
   .pain-persona-rationale { font-size: 10px; color: var(--accent); font-weight: 600; line-height: 1.4; margin-bottom: 2px; }
@@ -1453,6 +1454,19 @@ function renderPain(painGroups, painPointsFlat) {
 }
 
 function renderPainCard(p, tone) {
+  // Build per-persona chips helper
+  const personaChips = (per) => {
+    if (!per) return '';
+    const u = per.urgency || p.urgency;  // fallback to top-level for legacy data
+    const el = per.economic_lever || p.economic_lever;
+    const inf = per.inertia_force || p.inertia_force;
+    return `<div class="pain-meta" style="margin-top:4px">
+      ${u ? `<span class="pain-chip urgency-${esc(u)}">urgency: ${esc(u)}</span>` : ''}
+      ${el && el !== 'None' ? `<span class="pain-chip">pull: ${esc(el)}</span>` : ''}
+      ${inf && inf !== 'None' ? `<span class="pain-chip">inertia: ${esc(inf)}</span>` : ''}
+    </div>`;
+  };
+
   // Build persona section — support dual personas (new) or legacy single persona
   let personaHtml = '';
   if (p.persona_primary && p.persona_secondary) {
@@ -1462,11 +1476,14 @@ function renderPainCard(p, tone) {
         <div class="pain-persona-title">${esc(p.persona_primary.title || '')}</div>
         ${p.persona_primary.rationale ? `<div class="pain-persona-rationale">${esc(p.persona_primary.rationale)}</div>` : ''}
         <div class="pain-persona-perspective">${esc(p.persona_primary.perspective || '')}</div>
+        ${personaChips(p.persona_primary)}
       </div>
       <div class="pain-persona-card secondary">
         <div class="pain-persona-label">Also Affected</div>
         <div class="pain-persona-title">${esc(p.persona_secondary.title || '')}</div>
+        ${p.persona_secondary.rationale ? `<div class="pain-persona-rationale">${esc(p.persona_secondary.rationale)}</div>` : ''}
         <div class="pain-persona-perspective">${esc(p.persona_secondary.perspective || '')}</div>
+        ${personaChips(p.persona_secondary)}
       </div>
     </div>`;
   } else if (p.persona) {
@@ -1478,11 +1495,6 @@ function renderPainCard(p, tone) {
       <div class="pain-desc">${esc(p.description || '')}</div>
       ${p.evidence ? `<div class="pain-evidence">${esc(p.evidence)}</div>` : ''}
       ${personaHtml}
-      <div class="pain-meta">
-        ${p.urgency ? `<span class="pain-chip urgency-${esc(p.urgency)}">urgency: ${esc(p.urgency)}</span>` : ''}
-        ${p.economic_lever && p.economic_lever !== 'None' ? `<span class="pain-chip">pull: ${esc(p.economic_lever)}</span>` : ''}
-        ${p.inertia_force && p.inertia_force !== 'None' ? `<span class="pain-chip">inertia: ${esc(p.inertia_force)}</span>` : ''}
-      </div>
     </div>
   `;
 }
@@ -1815,35 +1827,41 @@ function renderHydration(data) {
     <div class="report-launcher">
       <div class="report-launcher-head">
         <div>
-          <div class="report-launcher-title">Email me the full report</div>
-          <div class="report-launcher-sub">Self-contained HTML file — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run). Expect the email <b>from info@NYNImpact.com</b> — check spam if you don't see it.</div>
+          <div class="report-launcher-title">Save full report</div>
+          <div class="report-launcher-sub">Self-contained HTML file — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run). Opens in any browser, works offline.</div>
         </div>
-        <button class="btn-success" onclick="sendReportEmail()" id="report-btn">Email the report</button>
+        <button class="btn-success" onclick="downloadReport()" id="report-btn">Download report</button>
       </div>
       <div id="report-status" class="report-status"></div>
     </div>
   `;
 }
 
-// ─── EMAIL REPORT ─────────────────────────────────────────────────────────
-async function sendReportEmail() {
+// ─── DOWNLOAD REPORT ──────────────────────────────────────────────────────
+async function downloadReport() {
   const btn = $('report-btn');
   const status = $('report-status');
-  if (!state.runId) { status.textContent = 'No run to email yet — complete the demo first.'; return; }
+  if (!state.runId) { status.textContent = 'No run to download yet — complete the demo first.'; return; }
   btn.disabled = true;
-  status.textContent = 'Sending…';
+  status.textContent = 'Building report…';
   status.className = 'report-status';
   try {
-    const res = await fetch('/api/send-report', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ run_id: state.runId })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || (data.detail ? data.error + ' — ' + data.detail : 'Request failed'));
-    status.textContent = `✓ Sent to ${data.to} from ${data.from}. Check your inbox (and spam).`;
+    const res = await fetch(`/api/report/${encodeURIComponent(state.runId)}`);
+    if (!res.ok) throw new Error('Failed to generate report');
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TDE-Report-${state.runId}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    status.textContent = 'Downloaded.';
     status.className = 'report-status report-status-ok';
   } catch (e) {
-    status.textContent = '✗ ' + e.message;
+    status.textContent = e.message;
     status.className = 'report-status report-status-err';
   } finally {
     btn.disabled = false;

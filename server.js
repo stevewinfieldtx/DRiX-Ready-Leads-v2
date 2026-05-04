@@ -231,16 +231,22 @@ EACH pain point schema:
     "persona_primary": {
       "title": "<primary owner — the person who feels this pain most acutely and owns fixing it. Use one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General>",
       "rationale": "<1 sentence — WHY this person owns this pain: what about their role, KPIs, or responsibilities makes this land on their desk>",
-      "perspective": "<1 sentence — how they FEEL about it, in their own language>"
+      "perspective": "<1 sentence — their inner voice, in their own words, as if thinking aloud about the problem>",
+      "urgency": "high" | "medium" | "low",
+      "economic_lever": "<one of: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction | None>",
+      "inertia_force": "<one of: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | Market Dynamics | None>"
     },
     "persona_secondary": {
       "title": "<second-most affected person — different role, different angle on the same pain. Use one of the same persona list>",
-      "perspective": "<1 sentence — how this pain impacts THEM differently>"
-    },
-    "urgency": "high" | "medium" | "low",
-    "inertia_force": "<one of: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | None>",
-    "economic_lever": "<one of: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction | None>"
+      "rationale": "<1 sentence — WHY this person is affected: what about their responsibilities puts them in the blast radius>",
+      "perspective": "<1 sentence — their inner voice, in their own words, from THEIR angle on the same pain>",
+      "urgency": "high" | "medium" | "low",
+      "economic_lever": "<one of: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction | None>",
+      "inertia_force": "<one of: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | Market Dynamics | None>"
+    }
   }
+
+NOTE: urgency, economic_lever, and inertia_force are PER-PERSONA, not per pain point. The primary owner may feel high urgency driven by Cost while the secondary feels medium urgency driven by Risk-Reduction. Each persona has their own relationship to the same pain.
 
 DUAL-PERSONA RULE: Every pain point MUST have two distinct personas. The primary owner is the person whose job description makes them responsible for this pain. The secondary is someone in a different role who is materially affected by the same pain — perhaps downstream, upstream, or cross-functionally. A sales rep can approach EITHER persona about this pain.
 
