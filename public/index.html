@@ -1281,7 +1281,9 @@ function renderAtomGroup(entry, g) {
   const atoms = entry.atoms || [];
   const count = atoms.length;
   let sourceBadge = '';
-  if (entry.source === 'tde_cache') {
+  if (entry.source === 'local_cache') {
+    sourceBadge = `<span class="atom-source src-tde" title="Instant — served from in-memory cache (no LLM call)" style="background:rgba(61,220,132,0.18);color:var(--green);border-color:rgba(61,220,132,0.4)">⚡ Cached (instant)</span>`;
+  } else if (entry.source === 'tde_cache') {
     sourceBadge = `<span class="atom-source src-tde" title="Reused from TDE collection ${esc(entry.tde_collection || '')} (${esc(String(entry.tde_atom_count || ''))} atoms)">◈ TDE cache</span>`;
   } else if (entry.source === 'fresh') {
     sourceBadge = `<span class="atom-source src-fresh" title="Fresh ingest — TDE warmup fired in background for next time">⌁ Fresh (warming TDE)</span>`;

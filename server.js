@@ -53,6 +53,14 @@ const DIMENSIONS = {
 // ─── IN-MEMORY STORE for this session's demo runs ────────────────────────────
 const runStore = new Map(); // run_id → { sender, solution, customer, industry, strategies, ... }
 
+// ─── LOCAL INGEST CACHE ─────────────────────────────────────────────────────
+// Keyed by normalized URL → full ingest result (atoms, summary, target).
+// This is the REAL cache — skips ALL LLM calls on repeat URLs within this
+// server process lifetime. TDE cache is the cross-session persistence layer;
+// this is the instant in-session layer that actually makes repeats feel fast.
+const ingestCache = new Map(); // normalized_url → { target, summary, atoms, ... }
+const INGEST_CACHE_MAX = 100; // max entries before we start evicting oldest
+
 // ─── PROMPTS ─────────────────────────────────────────────────────────────────
 const INGEST_PROMPT = `You are the ingest phase of TDE (Targeted Decomposition Engine).
 
@@ -445,12 +453,28 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
 }
 
 async function ingestOne({ url, role, hint_name, demoMode }) {
+  // Step 0 — LOCAL in-memory cache. Instant return, zero LLM calls.
+  const cacheKey = `${url}::${role}`;
+  if (ingestCache.has(cacheKey)) {
+    console.log(`[CACHE] HIT ${cacheKey} — returning instantly (no LLM call)`);
+    const hit = ingestCache.get(cacheKey);
+    return { ...hit, source: 'local_cache' };
+  }
+
   // Step 1 — prefer TDE cache.
   const cached = await ingestFromTdeCache({ url, role, hint_name }).catch(e => {
     console.log(`[TDE] Cache lookup error: ${e.message}`);
     return null;
   });
-  if (cached) return cached;
+  if (cached) {
+    // Store in local cache for instant repeat
+    ingestCache.set(cacheKey, cached);
+    if (ingestCache.size > INGEST_CACHE_MAX) {
+      const oldest = ingestCache.keys().next().value;
+      ingestCache.delete(oldest);
+    }
+    return cached;
+  }
 
   // Step 2 — fresh demo-lightweight ingest (scrape the URL, run our INGEST_PROMPT).
   const fetched = await fetchAndStrip(url);
@@ -475,7 +499,7 @@ async function ingestOne({ url, role, hint_name, demoMode }) {
   const collectionId = urlToCollectionId(url);
   warmTdeCacheAsync(collectionId, url, role, parsed.target?.name || hint_name);
 
-  return {
+  const result = {
     target: { ...parsed.target, role, url },
     summary: parsed.summary,
     atoms: parsed.atoms,
@@ -484,6 +508,15 @@ async function ingestOne({ url, role, hint_name, demoMode }) {
     tde_collection: collectionId,
     ingested_at: new Date().toISOString()
   };
+
+  // Store in local cache for instant repeat
+  ingestCache.set(cacheKey, result);
+  if (ingestCache.size > INGEST_CACHE_MAX) {
+    const oldest = ingestCache.keys().next().value;
+    ingestCache.delete(oldest);
+  }
+
+  return result;
 }
 
 function industryCacheKey(industry, subindustry, region) {
@@ -494,6 +527,13 @@ function industryCacheKey(industry, subindustry, region) {
 async function synthesizeCustomerArchetype({ industry, subindustry, region, demoMode }) {
   const industryKey = industryCacheKey(industry, subindustry, region);
   const tdeKey = 'tde_demo_archetype';
+
+  // Step 0 — LOCAL in-memory cache for archetypes too.
+  const localKey = `archetype::${industryKey}`;
+  if (ingestCache.has(localKey)) {
+    console.log(`[CACHE] Archetype HIT ${industryKey} — returning instantly`);
+    return { ...ingestCache.get(localKey), source: 'local_cache' };
+  }
 
   // Step 1 — check TDE's industry intel cache. If a fresh archetype exists,
   // reuse it. TDE's /intel/industry/:key is purpose-built for industry-level
@@ -561,6 +601,13 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region, demo
     }).catch((e) => {
       console.log(`[TDE] Archetype save failed: ${e.message}`);
     });
+  }
+
+  // Store in local cache for instant repeat
+  ingestCache.set(localKey, archetype);
+  if (ingestCache.size > INGEST_CACHE_MAX) {
+    const oldest = ingestCache.keys().next().value;
+    ingestCache.delete(oldest);
   }
 
   return archetype;
@@ -647,6 +694,7 @@ app.post('/api/demo-flow', async (req, res) => {
 
   try {
     // ── PHASE 1 + 2: Fetch + Ingest all sources in parallel ──────────────
+    const t0 = Date.now();
     send('phase', { phase: 'fetch', message: 'Fetching sender, solution, customer in parallel…' });
 
     const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo });
@@ -686,7 +734,11 @@ app.post('/api/demo-flow', async (req, res) => {
       });
     }
 
-    send('phase', { phase: 'ingest', message: 'All three decomposed into 9D-tagged atoms.' });
+    const ingestMs = Date.now() - t0;
+    const allCached = [sender, solution, customer].every(e => e.source === 'local_cache');
+    send('phase', { phase: 'ingest', message: allCached
+      ? `All three from cache — ${ingestMs}ms (no LLM calls)`
+      : `All three decomposed into 9D-tagged atoms (${Math.round(ingestMs/1000)}s).` });
     send('atoms', {
       sender:   { target: sender.target,   summary: sender.summary,   atoms: sender.atoms,   source: sender.source,   tde_collection: sender.tde_collection,   tde_atom_count: sender.tde_atom_count },
       solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source, tde_collection: solution.tde_collection, tde_atom_count: solution.tde_atom_count },
