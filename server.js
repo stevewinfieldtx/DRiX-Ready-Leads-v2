@@ -971,7 +971,7 @@ app.post('/api/hydrate', async (req, res) => {
       },
       body: JSON.stringify({
         companyName: customerName,
-        website: customerWebsite,
+        ...(customerWebsite ? { website: customerWebsite } : {}),
         industry: enrichedIndustry,
         solution: solutionIntel,
         tier: 2, // LLM-only — TDE already did the deep research; don't redo it
