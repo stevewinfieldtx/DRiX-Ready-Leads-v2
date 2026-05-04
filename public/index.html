@@ -1916,6 +1916,7 @@ async function submitClearSignals() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Request failed');
+    console.log('[ClearSignals] Raw response:', JSON.stringify(data.analysis, null, 2));
     renderClearSignals(data.analysis || {});
     $('cs-status').textContent = 'Done.';
   } catch (e) {
@@ -1927,10 +1928,17 @@ async function submitClearSignals() {
 function renderClearSignals(a) {
   // Unwrap: LeadHydration may return { result: {...} } or the object directly
   const d = a.result || a;
+  console.log('[ClearSignals] Parsed keys:', Object.keys(d));
   const health = d.deal_health || {};
-  const threadAn = Array.isArray(d.thread_analysis) ? d.thread_analysis : [];
-  const nextSteps = Array.isArray(d.next_steps) ? d.next_steps : [];
-  const scorecard = d.rep_scorecard || {};
+  const threadAn = Array.isArray(d.thread_analysis) ? d.thread_analysis
+    : Array.isArray(d.email_analysis) ? d.email_analysis
+    : Array.isArray(d.messages) ? d.messages
+    : Array.isArray(d.analysis) ? d.analysis : [];
+  const nextSteps = Array.isArray(d.next_steps) ? d.next_steps
+    : Array.isArray(d.recommended_actions) ? d.recommended_actions
+    : Array.isArray(d.action_items) ? d.action_items : [];
+  const scorecard = d.rep_scorecard || d.scorecard || {};
+  console.log('[ClearSignals] threadAn:', threadAn.length, 'nextSteps:', nextSteps.length, 'scorecard keys:', Object.keys(scorecard));
   const scoreColor = health.score >= 70 ? 'var(--green)' : health.score >= 40 ? 'var(--yellow)' : 'var(--red)';
 
   // ── MAIN VIEW: Where we are + what to do next. No email-by-email. ──
