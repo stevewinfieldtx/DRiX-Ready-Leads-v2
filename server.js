@@ -444,7 +444,7 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
   };
 }
 
-async function ingestOne({ url, role, hint_name }) {
+async function ingestOne({ url, role, hint_name, demoMode }) {
   // Step 1 — prefer TDE cache.
   const cached = await ingestFromTdeCache({ url, role, hint_name }).catch(e => {
     console.log(`[TDE] Cache lookup error: ${e.message}`);
@@ -463,7 +463,12 @@ async function ingestOne({ url, role, hint_name }) {
     target_url: url,
     content: `PAGE TITLE: ${fetched.title || ''}\nMETA DESCRIPTION: ${fetched.description || ''}\n\n${fetched.text}`
   });
-  const parsed = await callLLM(INGEST_PROMPT, userContent, { maxTokens: 32000 });
+  // In demo mode, use a smaller token limit since we'll cap atoms anyway
+  const ingestTokens = demoMode ? 8000 : 32000;
+  const ingestPrompt = demoMode
+    ? INGEST_PROMPT.replace('50-150 atoms', '15-25 atoms').replace('50-150 atoms. Each stands alone.', '15-25 atoms. Each stands alone.')
+    : INGEST_PROMPT;
+  const parsed = await callLLM(ingestPrompt, userContent, { maxTokens: ingestTokens });
   if (!parsed?.atoms?.length) throw new Error(`Ingest for ${url} returned no atoms`);
 
   // Step 3 — fire TDE warmup in the background so next time this URL is a cache hit.
@@ -486,7 +491,7 @@ function industryCacheKey(industry, subindustry, region) {
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120);
 }
 
-async function synthesizeCustomerArchetype({ industry, subindustry, region }) {
+async function synthesizeCustomerArchetype({ industry, subindustry, region, demoMode }) {
   const industryKey = industryCacheKey(industry, subindustry, region);
   const tdeKey = 'tde_demo_archetype';
 
@@ -517,7 +522,11 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region }) {
 
   // Step 2 — synthesize fresh via LLM (the demo-lightweight path).
   const userContent = JSON.stringify({ industry, subindustry, region });
-  const parsed = await callLLM(INDUSTRY_ARCHETYPE_PROMPT, userContent, { maxTokens: 32000 });
+  const archetypeTokens = demoMode ? 8000 : 32000;
+  const archetypePrompt = demoMode
+    ? INDUSTRY_ARCHETYPE_PROMPT.replace('50-150 atoms', '15-25 atoms').replace('50-150 atoms, each tagged', '15-25 atoms, each tagged')
+    : INDUSTRY_ARCHETYPE_PROMPT;
+  const parsed = await callLLM(archetypePrompt, userContent, { maxTokens: archetypeTokens });
   if (!parsed?.atoms?.length) throw new Error('Archetype synthesis returned no atoms');
 
   const archetype = {
@@ -609,8 +618,11 @@ app.post('/api/demo-flow', async (req, res) => {
     customer_url,
     industry, subindustry, region,
     recipient_role,
-    individual_name
+    individual_name,
+    mode
   } = req.body || {};
+  const isDemo = mode === 'demo';
+  const DEMO_ATOMS_PER_CATEGORY = 20;
 
   // Validation
   if (!email) return res.status(400).json({ error: 'Require email (your email)' });
@@ -637,11 +649,11 @@ app.post('/api/demo-flow', async (req, res) => {
     // ── PHASE 1 + 2: Fetch + Ingest all sources in parallel ──────────────
     send('phase', { phase: 'fetch', message: 'Fetching sender, solution, customer in parallel…' });
 
-    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender' });
-    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution' });
+    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo });
+    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', demoMode: isDemo });
     const customerPromise = customer_url
-      ? ingestOne({ url: normUrl(customer_url), role: 'customer' })
-      : synthesizeCustomerArchetype({ industry, subindustry, region });
+      ? ingestOne({ url: normUrl(customer_url), role: 'customer', demoMode: isDemo })
+      : synthesizeCustomerArchetype({ industry, subindustry, region, demoMode: isDemo });
 
     // Settle individually so one failure doesn't kill the rest
     const [senderRes, solutionRes, customerRes] = await Promise.allSettled([
@@ -655,6 +667,24 @@ app.post('/api/demo-flow', async (req, res) => {
     const sender   = senderRes.value;
     const solution = solutionRes.value;
     const customer = customerRes.value;
+
+    // DEMO MODE: limit atoms to N per category (atom type)
+    if (isDemo) {
+      [sender, solution, customer].forEach(entry => {
+        if (!entry || !entry.atoms) return;
+        const byType = {};
+        entry.atoms.forEach(a => {
+          const t = a.type || 'unknown';
+          if (!byType[t]) byType[t] = [];
+          byType[t].push(a);
+        });
+        const trimmed = [];
+        Object.values(byType).forEach(group => {
+          trimmed.push(...group.slice(0, DEMO_ATOMS_PER_CATEGORY));
+        });
+        entry.atoms = trimmed;
+      });
+    }
 
     send('phase', { phase: 'ingest', message: 'All three decomposed into 9D-tagged atoms.' });
     send('atoms', {
@@ -899,6 +929,227 @@ app.post('/api/clearsignals', async (req, res) => {
   } catch (err) {
     console.error('[clearsignals]', err.message);
     return res.status(502).json({ error: `ClearSignals failed: ${err.message}` });
+  }
+});
+
+// ─── COACH CHAT ──────────────────────────────────────────────────────────────
+// Conversational sales coach grounded in the run's TDE data.
+// Not JSON-mode — returns plain conversational text.
+
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
+const COACH_VOICE_ID     = process.env.COACH_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+
+function buildCoachContext(run) {
+  const parts = [];
+
+  // Company context
+  const custName = run.customer?.target?.name || 'Target Customer';
+  const custSummary = run.customer?.summary || '';
+  parts.push(`COMPANY: ${custName}\n${custSummary}`);
+
+  // Pain points — compact summary
+  const painGroups = run.pain_groups || {};
+  for (const group of ['company_pain', 'subindustry_pain', 'industry_pain']) {
+    const pains = painGroups[group] || [];
+    if (!pains.length) continue;
+    const label = group.replace('_pain', '').replace('_', ' ');
+    parts.push(`PAIN POINTS (${label}):\n${pains.map(p => {
+      let line = `- ${p.title}: ${p.description || ''}`;
+      if (p.persona_primary) line += ` [Owner: ${p.persona_primary.title} — ${p.persona_primary.rationale || ''} | Feels: ${p.persona_primary.perspective || ''}]`;
+      if (p.persona_secondary) line += ` [Also: ${p.persona_secondary.title} — ${p.persona_secondary.perspective || ''}]`;
+      return line;
+    }).join('\n')}`);
+  }
+
+  // Strategies
+  const strats = run.strategies?.strategies || [];
+  if (strats.length) {
+    parts.push(`SALES STRATEGIES:\n${strats.map(s =>
+      `- ${s.title}: ${s.explanation || ''} [persona: ${s.target_persona || '?'}, pain: ${s.pain_anchor || '?'}]`
+    ).join('\n')}`);
+  }
+
+  // Chosen strategy + hydration
+  if (run.chosen_strategy) {
+    parts.push(`CHOSEN STRATEGY: ${run.chosen_strategy.title || ''}\n${run.chosen_strategy.explanation || ''}`);
+  }
+  if (run.hydration) {
+    const h = run.hydration;
+    if (h.questions?.length) {
+      parts.push(`DISCOVERY QUESTIONS:\n${h.questions.map(q => {
+        let line = `- [${q.stage}] "${q.question}" — Purpose: ${q.purpose || ''}`;
+        if (q.tone_guidance) line += ` | Tone: ${q.tone_guidance}`;
+        return line;
+      }).join('\n')}`);
+    }
+    if (h.strategicInsight) parts.push(`STRATEGIC INSIGHT: ${h.strategicInsight}`);
+    if (h.extraBackground) parts.push(`EXTRA BACKGROUND: ${h.extraBackground}`);
+  }
+
+  // Solution context
+  const solName = run.solution?.target?.name || 'Solution';
+  const solSummary = run.solution?.summary || '';
+  parts.push(`SOLUTION: ${solName}\n${solSummary}`);
+
+  // Sender context
+  const senderName = run.sender?.target?.name || 'Seller';
+  const senderSummary = run.sender?.summary || '';
+  parts.push(`SELLER: ${senderName}\n${senderSummary}`);
+
+  // Key atoms (top claims by type for quick reference)
+  const custAtoms = run.customer?.atoms || [];
+  if (custAtoms.length) {
+    const byType = {};
+    custAtoms.forEach(a => {
+      if (!byType[a.type]) byType[a.type] = [];
+      if (byType[a.type].length < 5) byType[a.type].push(a.claim);
+    });
+    parts.push(`KEY CUSTOMER ATOMS:\n${Object.entries(byType).map(([t, claims]) =>
+      `  ${t}: ${claims.join(' | ')}`
+    ).join('\n')}`);
+  }
+
+  return parts.join('\n\n');
+}
+
+const COACH_SYSTEM_PROMPT = `You are an elite B2B sales coach embedded inside OppIntelAI. The rep just completed a deep intelligence run on a target account. You have ALL the data — pain points with dual-persona owners, sales strategies, discovery questions, competitive positioning, and 9D-tagged atoms.
+
+YOUR ROLE: Strategic sales advisor. The rep asks you questions and you give specific, actionable advice grounded in the data below. You are NOT a chatbot. You are a coach who has studied every detail of this deal.
+
+HOW TO COACH:
+- Reference specific pain points, personas, and strategies from the data
+- Give exact words and scripts when asked "what should I say"
+- Use MEDDPICC, Challenger, JOLT, and Sandler frameworks naturally
+- Push back when the rep's approach is weak — suggest better angles
+- When they ask about objections, roleplay both sides: what the prospect will say and what the rep should counter with
+- Keep responses concise (2-4 sentences for simple questions, longer for roleplay/scripts)
+- Be warm but direct. You're a trusted colleague, not a script reader.
+
+NEVER:
+- Make up data that isn't in the context below
+- Give generic advice like "build rapport" without specifics
+- Repeat information without adding coaching value
+- Be sycophantic — be honest about weak angles
+
+`;
+
+app.post('/api/coach-chat', async (req, res) => {
+  const { run_id, message, history } = req.body || {};
+  if (!run_id)  return res.status(400).json({ error: 'Require run_id' });
+  if (!message) return res.status(400).json({ error: 'Require message' });
+
+  const run = runStore.get(run_id);
+  if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
+
+  const context = buildCoachContext(run);
+  const systemPrompt = COACH_SYSTEM_PROMPT + `\n---\nDEAL INTELLIGENCE:\n${context}\n---`;
+
+  // Build conversation messages
+  const messages = [{ role: 'system', content: systemPrompt }];
+  if (Array.isArray(history)) {
+    for (const h of history.slice(-20)) { // keep last 20 turns
+      messages.push({ role: h.role, content: h.content });
+    }
+  }
+  messages.push({ role: 'user', content: message });
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
+        'X-Title': 'TDE Coach'
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL_ID,
+        messages,
+        temperature: 0.5,
+        max_tokens: 2000
+        // No response_format: json_object — we want plain text
+      })
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`LLM ${response.status}: ${err.slice(0, 300)}`);
+    }
+    const data = await response.json();
+    const reply = data?.choices?.[0]?.message?.content || '';
+    return res.json({ reply });
+  } catch (err) {
+    console.error('[coach-chat]', err.message);
+    return res.status(502).json({ error: `Coach failed: ${err.message}` });
+  }
+});
+
+// ─── VOICE COACH PROVISIONING ────────────────────────────────────────────────
+// Creates a temporary ElevenLabs conversational agent with the run's data
+// baked into the system prompt. Returns agent_id for widget embed.
+
+const voiceAgentStore = new Map(); // run_id → { agent_id, created_at }
+
+app.post('/api/coach-voice/provision', async (req, res) => {
+  const { run_id } = req.body || {};
+  if (!run_id) return res.status(400).json({ error: 'Require run_id' });
+  if (!ELEVENLABS_API_KEY) return res.status(503).json({ error: 'ELEVENLABS_API_KEY not configured' });
+
+  const run = runStore.get(run_id);
+  if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
+
+  // Return existing agent if already provisioned for this run
+  if (voiceAgentStore.has(run_id)) {
+    const existing = voiceAgentStore.get(run_id);
+    return res.json({ agent_id: existing.agent_id, reused: true });
+  }
+
+  try {
+    const context = buildCoachContext(run);
+    const custName = run.customer?.target?.name || 'Target Customer';
+    const voicePrompt = COACH_SYSTEM_PROMPT + `\n---\nDEAL INTELLIGENCE:\n${context}\n---\n\nADDITIONAL VOICE RULES:\n- You are on a voice call. Keep responses spoken-length (2-3 sentences per turn unless they ask for more).\n- Leave room for back-and-forth. Don't monologue.\n- When giving scripts, say "Here's what I'd say:" and deliver it in a natural spoken cadence.\n- If they want to roleplay, commit to the character fully.\n`;
+
+    const payload = {
+      name: `TDE Coach — ${custName}`,
+      conversation_config: {
+        agent: {
+          prompt: { prompt: voicePrompt, llm: 'gpt-4o', temperature: 0.6 },
+          first_message: `Hey! I've studied everything from your ${custName} intelligence run — pain points, personas, strategies, discovery questions. What do you want to work on?`,
+          language: 'en'
+        },
+        tts: { voice_id: COACH_VOICE_ID }
+      }
+    };
+
+    const elRes = await fetch('https://api.elevenlabs.io/v1/convai/agents/create', {
+      method: 'POST',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!elRes.ok) {
+      const txt = await elRes.text();
+      throw new Error(`ElevenLabs ${elRes.status}: ${txt.slice(0, 300)}`);
+    }
+    const result = await elRes.json();
+    const agent_id = result.agent_id;
+
+    voiceAgentStore.set(run_id, { agent_id, created_at: Date.now() });
+    // Clean up voice agents older than 2 hours
+    const cutoff = Date.now() - 7200000;
+    for (const [k, v] of voiceAgentStore.entries()) {
+      if (v.created_at < cutoff) {
+        // Fire-and-forget cleanup
+        fetch(`https://api.elevenlabs.io/v1/convai/agents/${v.agent_id}`, {
+          method: 'DELETE', headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+        }).catch(() => {});
+        voiceAgentStore.delete(k);
+      }
+    }
+
+    console.log(`[coach-voice] Provisioned agent ${agent_id} for run ${run_id} (${custName})`);
+    return res.json({ agent_id, reused: false });
+  } catch (err) {
+    console.error('[coach-voice]', err.message);
+    return res.status(502).json({ error: `Voice provisioning failed: ${err.message}` });
   }
 });
 
@@ -1328,5 +1579,6 @@ app.listen(PORT, async () => {
   console.log(`   model: ${OPENROUTER_MODEL_ID}`);
   console.log(`   leadhydration: ${LEADHYDRATION_URL || '(not configured)'}`);
   console.log(`   database: ${db.isConfigured() ? 'connected' : '(not configured — set DATABASE_URL)'}`);
+  console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();
 });
