@@ -846,6 +846,7 @@
   .depth-pill.active { background: rgba(90,169,255,0.12); color: var(--accent); border-color: rgba(90,169,255,0.3); }
   .depth-arrow { color: var(--border); font-size: 9px; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -1831,9 +1832,9 @@ function renderHydration(data) {
       <div class="report-launcher-head">
         <div>
           <div class="report-launcher-title">Save full report</div>
-          <div class="report-launcher-sub">Self-contained HTML file — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run). Opens in any browser, works offline.</div>
+          <div class="report-launcher-sub">PDF report — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run).</div>
         </div>
-        <button class="btn-success" onclick="downloadReport()" id="report-btn">Download report</button>
+        <button class="btn-success" onclick="downloadReport()" id="report-btn">Download PDF</button>
       </div>
       <div id="report-status" class="report-status"></div>
     </div>
@@ -1846,22 +1847,29 @@ async function downloadReport() {
   const status = $('report-status');
   if (!state.runId) { status.textContent = 'No run to download yet — complete the demo first.'; return; }
   btn.disabled = true;
-  status.textContent = 'Building report…';
+  status.textContent = 'Building PDF…';
   status.className = 'report-status';
   try {
     const res = await fetch(`/api/report/${encodeURIComponent(state.runId)}`);
     if (!res.ok) throw new Error('Failed to generate report');
     const html = await res.text();
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TDE-Report-${state.runId}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    status.textContent = 'Downloaded.';
+    // Render into a hidden container so html2pdf can measure it
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    document.body.appendChild(container);
+    const filename = `TDE-Report-${state.runId}.pdf`;
+    await html2pdf().set({
+      margin:      [10, 10, 10, 10],
+      filename,
+      image:       { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:   { mode: ['avoid-all', 'css', 'legacy'] }
+    }).from(container).save();
+    document.body.removeChild(container);
+    status.textContent = 'PDF downloaded.';
     status.className = 'report-status report-status-ok';
   } catch (e) {
     status.textContent = e.message;

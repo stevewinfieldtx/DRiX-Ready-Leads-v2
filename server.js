@@ -983,7 +983,8 @@ app.post('/api/hydrate', async (req, res) => {
         solution: solutionIntel,
         tier: 2, // LLM-only — TDE already did the deep research; don't redo it
         lang: 'en'
-      })
+      }),
+      signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
     });
     if (!painRes.ok) {
       const txt = await painRes.text();
@@ -1053,7 +1054,8 @@ app.post('/api/clearsignals', async (req, res) => {
         thread_text,
         companyName: customerName,
         pain_context: { painLabels }
-      })
+      }),
+      signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
     });
     if (!csRes.ok) {
       const txt = await csRes.text();
@@ -1559,7 +1561,7 @@ app.post('/api/send-report', async (req, res) => {
     const filename = `TDE-report-${String(customerLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}-${run_id}.html`;
 
     const emailBody = `
-      <p>Your TDE analysis for <b>${escHtml(customerLabel)}</b> is attached as an HTML file you can open in any browser.</p>
+      <p>Your TDE analysis for <b>${escHtml(customerLabel)}</b> is attached as an HTML file you can open in any browser. For PDF, use the Download PDF button in the app.</p>
       <p>The report includes: positioning atoms, pain points (company / sub-industry / industry), the 5 sales strategies generated, and — if you ran it — the lead hydration output (discovery questions, email drip) and ClearSignals thread analysis.</p>
       <p>— TDE Demo</p>
     `;
