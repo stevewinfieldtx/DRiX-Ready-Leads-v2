@@ -970,27 +970,39 @@ app.post('/api/hydrate', async (req, res) => {
       ? `${industryName} ${strategyHint}`
       : industryName;
 
-    const painRes = await fetch(`${LEADHYDRATION_URL}/api/agent/company-pain`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
-      },
-      body: JSON.stringify({
-        companyName: customerName,
-        ...(customerWebsite ? { website: customerWebsite } : {}),
-        ...(enrichedIndustry ? { industry: enrichedIndustry } : {}),
-        solution: solutionIntel,
-        tier: 2, // LLM-only — TDE already did the deep research; don't redo it
-        lang: 'en'
-      }),
-      signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
-    });
-    if (!painRes.ok) {
+    // Retry up to 2 times — LeadHydration's LLM can return null on cold starts.
+    let hydration;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const painRes = await fetch(`${LEADHYDRATION_URL}/api/agent/company-pain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
+        },
+        body: JSON.stringify({
+          companyName: customerName,
+          ...(customerWebsite ? { website: customerWebsite } : {}),
+          ...(enrichedIndustry ? { industry: enrichedIndustry } : {}),
+          solution: solutionIntel,
+          tier: 2, // LLM-only — TDE already did the deep research; don't redo it
+          lang: 'en'
+        }),
+        signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
+      });
+      if (painRes.ok) {
+        hydration = await painRes.json();
+        break;
+      }
       const txt = await painRes.text();
+      console.error(`[hydrate] attempt ${attempt + 1}/3 — ${painRes.status}: ${txt.slice(0, 300)}`);
+      if (attempt < 2 && (painRes.status >= 500 || txt.includes('null response'))) {
+        console.log(`[hydrate] Retrying in ${3 + attempt * 3}s…`);
+        await new Promise(r => setTimeout(r, (3 + attempt * 3) * 1000));
+        continue;
+      }
       throw new Error(`LeadHydration /company-pain failed (${painRes.status}): ${txt.slice(0, 300)}`);
     }
-    const hydration = await painRes.json();
+    if (!hydration) throw new Error('LeadHydration returned no data after 3 attempts');
 
     // Persist so the email report can include the hydration result.
     run.chosen_strategy = chosenStrategy;
@@ -1044,26 +1056,36 @@ app.post('/api/clearsignals', async (req, res) => {
       ...(run.pain_groups?.industry_pain    || [])
     ].map(p => p.title).filter(Boolean).slice(0, 8);
 
-    const csRes = await fetch(`${LEADHYDRATION_URL}/api/coaching-analyze`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
-      },
-      body: JSON.stringify({
-        thread_text,
-        companyName: customerName,
-        pain_context: { painLabels }
-      }),
-      signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
-    });
-    if (!csRes.ok) {
+    // Retry up to 2 times — LeadHydration's LLM can return null on cold starts.
+    let analysis;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const csRes = await fetch(`${LEADHYDRATION_URL}/api/coaching-analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
+        },
+        body: JSON.stringify({
+          thread_text,
+          companyName: customerName,
+          pain_context: { painLabels }
+        }),
+        signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
+      });
+      if (csRes.ok) {
+        analysis = await csRes.json();
+        break;
+      }
       const txt = await csRes.text();
-      console.error(`[clearsignals] LeadHydration ${csRes.status}:`, txt.slice(0, 500));
-      console.error(`[clearsignals] Sent thread_text length=${thread_text.length}, companyName=${customerName}, painLabels=${painLabels.length}`);
+      console.error(`[clearsignals] attempt ${attempt + 1}/3 — ${csRes.status}: ${txt.slice(0, 300)}`);
+      if (attempt < 2 && (csRes.status >= 500 || txt.includes('null response'))) {
+        console.log(`[clearsignals] Retrying in ${3 + attempt * 3}s…`);
+        await new Promise(r => setTimeout(r, (3 + attempt * 3) * 1000));
+        continue;
+      }
       throw new Error(`ClearSignals analyze failed (${csRes.status}): ${txt.slice(0, 300)}`);
     }
-    const analysis = await csRes.json();
+    if (!analysis) throw new Error('ClearSignals returned no data after 3 attempts');
     // Keep the latest ClearSignals run attached to the run for the email report.
     run.clearsignals_analysis = analysis;
 
