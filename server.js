@@ -1628,16 +1628,262 @@ app.get('/api/report/:run_id', (req, res) => {
   res.send(buildReportHtml({ ...run, run_id: req.params.run_id }));
 });
 
-// GET /api/report/:run_id/doc — download as .doc (HTML that Word opens natively)
-app.get('/api/report/:run_id/doc', (req, res) => {
+// ─── DOCX REPORT — proper Word document via docx-js ─────────────────────────
+// Lazy-load so a missing package never crashes the server on startup.
+let _docx;
+function loadDocx() {
+  if (!_docx) _docx = require('docx');
+  return _docx;
+}
+
+app.get('/api/report/:run_id/doc', async (req, res) => {
   const run = runStore.get(req.params.run_id);
   if (!run) return res.status(404).json({ error: 'Run not found or expired' });
-  const html = buildReportHtml({ ...run, run_id: req.params.run_id });
-  const label = run.customer?.target?.name || run.industry || 'customer';
-  const safeName = String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
-  res.setHeader('Content-Type', 'application/msword');
-  res.setHeader('Content-Disposition', `attachment; filename="TDE-Report-${safeName}-${req.params.run_id}.doc"`);
-  res.send(html);
+
+  try {
+    const {
+      Document, Packer, Paragraph, TextRun, HeadingLevel, LevelFormat,
+      AlignmentType, Header, Footer, PageNumber, PageBreak, BorderStyle
+    } = loadDocx();
+
+    const customerName = run.customer?.target?.name || run.industry || 'Customer';
+    const d = new Date(run.created_at || Date.now());
+    const children = [];
+
+    // ── Helpers ──
+    const h1 = (t) => new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(t)] });
+    const h2 = (t) => new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(t)] });
+    const h3 = (t) => new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun(t)] });
+    const p = (t) => new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: t || '', font: 'Arial', size: 22 })] });
+    const bold = (label, value) => new Paragraph({
+      spacing: { after: 100 },
+      children: [
+        new TextRun({ text: label, bold: true, font: 'Arial', size: 22 }),
+        new TextRun({ text: value || '', font: 'Arial', size: 22 }),
+      ],
+    });
+    const bul = (t) => new Paragraph({
+      numbering: { reference: 'bullets', level: 0 },
+      spacing: { after: 60 },
+      children: [new TextRun({ text: t || '', font: 'Arial', size: 22 })],
+    });
+    const spacer = () => new Paragraph({ spacing: { after: 200 }, children: [] });
+    const pageBreak = () => new Paragraph({ children: [new PageBreak()] });
+
+    // ── Title page ──
+    children.push(
+      new Paragraph({ spacing: { before: 3000 }, children: [] }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [new TextRun({ text: 'TDE Analysis Report', font: 'Arial', size: 52, bold: true, color: '1B3A5C' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 120 },
+        children: [new TextRun({ text: customerName, font: 'Arial', size: 36, color: '2E75B6' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 120 },
+        children: [new TextRun({ text: d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), font: 'Arial', size: 24, color: '666666' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: `Run ID: ${run.run_id || ''}`, font: 'Arial', size: 20, color: '999999' })],
+      }),
+      pageBreak()
+    );
+
+    // ── Positioning Context ──
+    children.push(h1('Positioning Context'));
+    for (const [label, entry] of [['Sender', run.sender], ['Solution', run.solution], ['Customer', run.customer]]) {
+      if (!entry) continue;
+      children.push(h2(`${label} — ${entry.target?.name || ''}`));
+      if (entry.summary) children.push(p(entry.summary));
+      for (const a of (entry.atoms || [])) {
+        children.push(bold(`[${(a.type || '').replace(/_/g, ' ')}]  `, a.claim || ''));
+        if (a.evidence) children.push(p(`Evidence: ${a.evidence}`));
+      }
+      children.push(spacer());
+    }
+    children.push(pageBreak());
+
+    // ── Pain Points ──
+    const pg = run.pain_groups || {};
+    children.push(h1('Pain Points'));
+    for (const [label, key] of [['Company-Specific', 'company_pain'], ['Sub-Industry', 'subindustry_pain'], ['Industry-Wide', 'industry_pain']]) {
+      const pains = pg[key] || [];
+      if (!pains.length) continue;
+      children.push(h2(`${label} (${pains.length})`));
+      for (const pp of pains) {
+        children.push(bold('', pp.title || ''));
+        if (pp.description) children.push(p(pp.description));
+        const tags = [
+          pp.persona && `Persona: ${pp.persona}`,
+          pp.urgency && `Urgency: ${pp.urgency}`,
+          pp.economic_lever && pp.economic_lever !== 'None' && `Lever: ${pp.economic_lever}`,
+          pp.inertia_force && pp.inertia_force !== 'None' && `Inertia: ${pp.inertia_force}`,
+        ].filter(Boolean);
+        if (tags.length) children.push(p(tags.join('  |  ')));
+      }
+    }
+    children.push(pageBreak());
+
+    // ── Strategies ──
+    const strats = run.strategies?.strategies || [];
+    if (strats.length) {
+      children.push(h1(`Sales Strategies (${strats.length})`));
+      for (const s of strats) {
+        const chosen = run.chosen_strategy && run.chosen_strategy.id === s.id;
+        children.push(h2(`${s.id || ''} — ${s.title || ''}${chosen ? '  [SELECTED]' : ''}`));
+        if (s.explanation) children.push(p(s.explanation));
+        const tags = [
+          s.target_persona && `Persona: ${s.target_persona}`,
+          s.pain_anchor && `Pain: ${s.pain_anchor}`,
+          s.strategy_force,
+          s.confidence != null && `${s.confidence}% confidence`,
+        ].filter(Boolean);
+        if (tags.length) children.push(p(tags.join('  |  ')));
+        children.push(spacer());
+      }
+      children.push(pageBreak());
+    }
+
+    // ── Hydration ──
+    const hy = run.hydration || {};
+    if (run.hydration) {
+      children.push(h1(`Lead Hydration${run.chosen_strategy ? ' — ' + (run.chosen_strategy.title || '') : ''}`));
+      if (hy.whoIsThis) children.push(bold('Who is this:  ', hy.whoIsThis));
+      if (hy.primaryLead) children.push(bold('Primary lead:  ', `${hy.primaryLead.title || ''} — ${hy.primaryLead.topic || ''}`));
+      children.push(spacer());
+
+      const questions = Array.isArray(hy.questions) ? hy.questions : [];
+      if (questions.length) {
+        children.push(h2(`Discovery Questions (${questions.length})`));
+        for (const q of questions) {
+          children.push(bold(`[${q.stage || 'Q'}]  `, q.question || ''));
+          if (q.purpose) children.push(bul(`Why: ${q.purpose}`));
+          if (q.pain_it_targets || q.pain_point) children.push(bul(`Pain: ${q.pain_it_targets || q.pain_point}`));
+          if (q.tone_guidance) children.push(bul(`Tone: ${q.tone_guidance}`));
+          const pos = Array.isArray(q.positive_responses) ? q.positive_responses : [];
+          for (const r of pos) {
+            children.push(bul(`Positive: "${r.response || ''}"${r.next_step ? ' — Next: ' + r.next_step : ''}`));
+          }
+          const neg = Array.isArray(q.neutral_negative_responses) ? q.neutral_negative_responses : (q.negative_responses || []);
+          for (const r of neg) {
+            children.push(bul(`Negative: "${r.response || ''}"${r.pivot ? ' — Pivot: ' + r.pivot : ''}`));
+          }
+          children.push(spacer());
+        }
+      }
+
+      const emails = hy.emailCampaign || hy.emailSequence || [];
+      if (emails.length) {
+        children.push(h2(`Email Drip Campaign (${emails.length} steps)`));
+        for (const em of emails) {
+          children.push(bold(em.label || `Email ${em.step || ''}`, em.sendDay ? `  —  ${em.sendDay}` : ''));
+          if (em.subject || em.subject_line) children.push(bold('Subject:  ', em.subject || em.subject_line));
+          if (em.body || em.content) children.push(p(em.body || em.content));
+          children.push(spacer());
+        }
+      }
+      children.push(pageBreak());
+    }
+
+    // ── ClearSignals ──
+    const cs = run.clearsignals_analysis || null;
+    if (cs) {
+      children.push(h1('ClearSignals — Email Thread Analysis'));
+      const health = cs.deal_health || {};
+      children.push(bold('Deal Health:  ', `${health.score ?? '?'}/100 — ${health.label || ''}`));
+      if (health.summary || health.explanation) children.push(p(health.summary || health.explanation));
+
+      const threadAn = Array.isArray(cs.thread_analysis) ? cs.thread_analysis : [];
+      if (threadAn.length) {
+        children.push(h2('Thread Analysis'));
+        for (const t of threadAn) {
+          children.push(bold(`${t.from || t.author || 'Message'}:  `, t.assessment || t.sentiment || ''));
+          if (t.insight || t.analysis || t.summary) children.push(p(t.insight || t.analysis || t.summary));
+        }
+      }
+      const nextSteps = Array.isArray(cs.next_steps) ? cs.next_steps : [];
+      if (nextSteps.length) {
+        children.push(h2('Recommended Next Steps'));
+        for (const s of nextSteps) {
+          children.push(bul(typeof s === 'string' ? s : (s.action || s.step || JSON.stringify(s))));
+        }
+      }
+    }
+
+    // ── Build Document ──
+    const doc = new Document({
+      styles: {
+        default: { document: { run: { font: 'Arial', size: 22 } } },
+        paragraphStyles: [
+          { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+            run: { size: 32, bold: true, font: 'Arial', color: '1B3A5C' },
+            paragraph: { spacing: { before: 360, after: 200 }, outlineLevel: 0,
+              border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '2E75B6', space: 1 } } } },
+          { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+            run: { size: 26, bold: true, font: 'Arial', color: '2E75B6' },
+            paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 } },
+          { id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+            run: { size: 24, bold: true, font: 'Arial', color: '404040' },
+            paragraph: { spacing: { before: 200, after: 100 }, outlineLevel: 2 } },
+        ],
+      },
+      numbering: {
+        config: [{
+          reference: 'bullets',
+          levels: [{
+            level: 0,
+            format: LevelFormat.BULLET,
+            text: '•',
+            alignment: AlignmentType.LEFT,
+            style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+          }],
+        }],
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          },
+        },
+        headers: {
+          default: new Header({
+            children: [new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [new TextRun({ text: `TDE Report — ${customerName}`, font: 'Arial', size: 18, color: '999999' })],
+            })],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({ text: 'Page ', font: 'Arial', size: 18, color: '999999' }),
+                new TextRun({ children: [PageNumber.CURRENT], font: 'Arial', size: 18, color: '999999' }),
+              ],
+            })],
+          }),
+        },
+        children,
+      }],
+    });
+
+    const buf = await Packer.toBuffer(doc);
+    const safeName = String(customerName).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="TDE-Report-${safeName}-${req.params.run_id}.docx"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('[docx-report]', err);
+    res.status(500).json({ error: `Report generation failed: ${err.message}` });
+  }
 });
 
 function normUrl(u) {

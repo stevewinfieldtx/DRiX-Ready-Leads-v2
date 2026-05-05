@@ -1855,7 +1855,7 @@ async function downloadReport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `TDE-Report-${state.runId}.doc`;
+    a.download = `TDE-Report-${state.runId}.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
