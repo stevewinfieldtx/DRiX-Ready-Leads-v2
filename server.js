@@ -1494,6 +1494,23 @@ function buildReportHtml(run) {
   .email-body { font-size: 12px; color: #a8b2c0; line-height: 1.7; }
   .cs-health { background: #1a222c; border-left: 3px solid #b583ff; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
   .cs-msg { background: #1a222c; border-left: 3px solid #b583ff; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; }
+  @media print {
+    body { background: #fff !important; color: #111 !important; }
+    .section, .atom, .pain-item, .strat, .group, .email-card, .cs-health, .cs-msg {
+      background: #f8f8f8 !important; color: #111 !important; border-color: #ccc !important;
+    }
+    .atom-claim, .pain-desc, .strat-explain, .email-body, .group-sum {
+      color: #333 !important;
+    }
+    h1, h2, .group-title, .pain-block-label, .strat-title, .pain-title {
+      color: #000 !important;
+    }
+    .meta, .atom-evi, .pain-evi, .strat-chips span, .pain-chips span {
+      color: #555 !important;
+    }
+    .section { page-break-inside: avoid; }
+    .strat, .pain-block { page-break-inside: avoid; }
+  }
 </style></head>
 <body>
   <h1>${esc(title)}</h1>
