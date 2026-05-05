@@ -1849,8 +1849,18 @@ async function downloadReport() {
   status.textContent = 'Building report…';
   status.className = 'report-status';
   try {
-    window.location.href = `/api/report/${encodeURIComponent(state.runId)}/docx`;
-    status.textContent = 'Download started.';
+    const res = await fetch(`/api/report/${encodeURIComponent(state.runId)}/docx`);
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TDE-Report-${state.runId}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    status.textContent = 'Downloaded.';
     status.className = 'report-status report-status-ok';
   } catch (e) {
     status.textContent = e.message;

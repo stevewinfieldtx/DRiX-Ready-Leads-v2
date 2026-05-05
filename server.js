@@ -4,7 +4,12 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
-const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType } = require('docx');
+// Lazy-loaded on first docx download so a missing package can't crash the server
+let docx;
+function getDocx() {
+  if (!docx) docx = require('docx');
+  return docx;
+}
 
 const db = require('./db');
 
@@ -1631,6 +1636,7 @@ app.get('/api/report/:run_id', (req, res) => {
 
 // ─── DOCX REPORT GENERATOR ──────────────────────────────────────────────────
 function buildReportDocx(run) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = getDocx();
   const d = new Date(run.created_at || Date.now());
   const customerName = run.customer?.target?.name || run.industry || 'Customer';
   const sections = [];
@@ -1794,6 +1800,7 @@ app.get('/api/report/:run_id/docx', async (req, res) => {
   if (!run) return res.status(404).json({ error: 'Run not found or expired' });
   try {
     const doc = buildReportDocx({ ...run, run_id: req.params.run_id });
+    const { Packer } = getDocx();
     const buf = await Packer.toBuffer(doc);
     const label = run.customer?.target?.name || run.industry || 'customer';
     const safeName = String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
