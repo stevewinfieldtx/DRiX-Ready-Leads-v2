@@ -1831,9 +1831,9 @@ function renderHydration(data) {
       <div class="report-launcher-head">
         <div>
           <div class="report-launcher-title">Save full report</div>
-          <div class="report-launcher-sub">PDF report — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run).</div>
+          <div class="report-launcher-sub">Word document — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run).</div>
         </div>
-        <button class="btn-success" onclick="downloadReport()" id="report-btn">Download PDF</button>
+        <button class="btn-success" onclick="downloadReport()" id="report-btn">Download Report</button>
       </div>
       <div id="report-status" class="report-status"></div>
     </div>
@@ -1846,16 +1846,11 @@ async function downloadReport() {
   const status = $('report-status');
   if (!state.runId) { status.textContent = 'No run to download yet — complete the demo first.'; return; }
   btn.disabled = true;
-  status.textContent = 'Opening print dialog…';
+  status.textContent = 'Building report…';
   status.className = 'report-status';
   try {
-    const reportUrl = `/api/report/${encodeURIComponent(state.runId)}`;
-    const win = window.open(reportUrl, '_blank');
-    if (!win) throw new Error('Pop-up blocked — please allow pop-ups for this site');
-    // Wait for the report page to load, then trigger print (Save as PDF)
-    win.addEventListener('afterprint', () => win.close());
-    win.onload = () => setTimeout(() => win.print(), 300);
-    status.textContent = 'Choose "Save as PDF" in the print dialog.';
+    window.location.href = `/api/report/${encodeURIComponent(state.runId)}/docx`;
+    status.textContent = 'Download started.';
     status.className = 'report-status report-status-ok';
   } catch (e) {
     status.textContent = e.message;

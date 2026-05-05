@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType } = require('docx');
 
 const db = require('./db');
 
@@ -1578,7 +1579,7 @@ app.post('/api/send-report', async (req, res) => {
     const filename = `TDE-report-${String(customerLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}-${run_id}.html`;
 
     const emailBody = `
-      <p>Your TDE analysis for <b>${escHtml(customerLabel)}</b> is attached as an HTML file you can open in any browser. For PDF, use the Download PDF button in the app.</p>
+      <p>Your TDE analysis for <b>${escHtml(customerLabel)}</b> is attached as an HTML file you can open in any browser. You can also download a Word document from the app.</p>
       <p>The report includes: positioning atoms, pain points (company / sub-industry / industry), the 5 sales strategies generated, and — if you ran it — the lead hydration output (discovery questions, email drip) and ClearSignals thread analysis.</p>
       <p>— TDE Demo</p>
     `;
@@ -1626,6 +1627,183 @@ app.get('/api/report/:run_id', (req, res) => {
   if (!run) return res.status(404).send('<h2 style="font-family:sans-serif;padding:40px">Run not found or expired</h2>');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(buildReportHtml({ ...run, run_id: req.params.run_id }));
+});
+
+// ─── DOCX REPORT GENERATOR ──────────────────────────────────────────────────
+function buildReportDocx(run) {
+  const d = new Date(run.created_at || Date.now());
+  const customerName = run.customer?.target?.name || run.industry || 'Customer';
+  const sections = [];
+
+  // Helper: bold + normal text in one paragraph
+  const bp = (label, value) => new Paragraph({
+    spacing: { after: 80 },
+    children: [
+      new TextRun({ text: label, bold: true, size: 20, font: 'Calibri' }),
+      new TextRun({ text: value || '', size: 20, font: 'Calibri' }),
+    ],
+  });
+  const heading = (text, level = HeadingLevel.HEADING_1) => new Paragraph({
+    heading: level,
+    spacing: { before: 240, after: 120 },
+    children: [new TextRun({ text, font: 'Calibri' })],
+  });
+  const body = (text) => new Paragraph({
+    spacing: { after: 80 },
+    children: [new TextRun({ text: text || '', size: 20, font: 'Calibri' })],
+  });
+  const bullet = (text) => new Paragraph({
+    bullet: { level: 0 },
+    spacing: { after: 40 },
+    children: [new TextRun({ text: text || '', size: 20, font: 'Calibri' })],
+  });
+
+  // ── Title & meta
+  sections.push(
+    heading(`TDE Report — ${customerName}`),
+    body(`Run ${run.run_id || ''} · Generated ${d.toISOString()}${run.email ? ' · For ' + run.email : ''}`),
+    new Paragraph({ spacing: { after: 200 }, children: [] })
+  );
+
+  // ── Positioning Context (atoms)
+  for (const [label, entry] of [['Sender', run.sender], ['Solution', run.solution], ['Customer', run.customer]]) {
+    if (!entry) continue;
+    sections.push(heading(`${label} — ${entry.target?.name || ''}`, HeadingLevel.HEADING_2));
+    if (entry.summary) sections.push(body(entry.summary));
+    for (const a of (entry.atoms || [])) {
+      sections.push(bp(`[${(a.type || '').replace(/_/g, ' ')}] `, a.claim || ''));
+      if (a.evidence) sections.push(body(`  Evidence: ${a.evidence}`));
+    }
+  }
+
+  // ── Pain Points
+  const pg = run.pain_groups || {};
+  for (const [label, key] of [['Company-specific', 'company_pain'], ['Sub-industry', 'subindustry_pain'], ['Industry-wide', 'industry_pain']]) {
+    const pains = pg[key] || [];
+    if (!pains.length) continue;
+    sections.push(heading(`Pain Points — ${label} (${pains.length})`, HeadingLevel.HEADING_2));
+    for (const p of pains) {
+      sections.push(bp('', p.title || ''));
+      if (p.description) sections.push(body(p.description));
+      const chips = [
+        p.persona && `Persona: ${p.persona}`,
+        p.urgency && `Urgency: ${p.urgency}`,
+        p.economic_lever && p.economic_lever !== 'None' && `Pull: ${p.economic_lever}`,
+        p.inertia_force && p.inertia_force !== 'None' && `Inertia: ${p.inertia_force}`,
+      ].filter(Boolean);
+      if (chips.length) sections.push(body(chips.join(' · ')));
+    }
+  }
+
+  // ── Strategies
+  const strats = run.strategies?.strategies || [];
+  if (strats.length) {
+    sections.push(heading(`Sales Strategies (${strats.length})`, HeadingLevel.HEADING_2));
+    for (const s of strats) {
+      const chosen = run.chosen_strategy && run.chosen_strategy.id === s.id;
+      sections.push(bp(`${s.id || ''} — `, `${s.title || ''}${chosen ? '  ★ SELECTED' : ''}`));
+      if (s.explanation) sections.push(body(s.explanation));
+      const chips = [
+        s.target_persona && `Persona: ${s.target_persona}`,
+        s.pain_anchor && `Pain: ${s.pain_anchor}`,
+        s.strategy_force && s.strategy_force,
+        s.confidence != null && `${s.confidence}% confidence`,
+      ].filter(Boolean);
+      if (chips.length) sections.push(body(chips.join(' · ')));
+    }
+  }
+
+  // ── Hydration
+  const h = run.hydration || {};
+  if (run.hydration) {
+    sections.push(heading(`Lead Hydration${run.chosen_strategy ? ' — Strategy: ' + (run.chosen_strategy.title || '') : ''}`, HeadingLevel.HEADING_2));
+    if (h.whoIsThis) sections.push(bp('Who is this: ', h.whoIsThis));
+    if (h.primaryLead) sections.push(bp('Primary lead: ', `${h.primaryLead.title || ''} — ${h.primaryLead.topic || ''}`));
+
+    const questions = Array.isArray(h.questions) ? h.questions : [];
+    if (questions.length) {
+      sections.push(heading(`Discovery Questions (${questions.length})`, HeadingLevel.HEADING_3));
+      for (const q of questions) {
+        sections.push(bp(`[${q.stage || 'Q'}] `, q.question || ''));
+        if (q.purpose) sections.push(body(`Why: ${q.purpose}`));
+        if (q.pain_it_targets || q.pain_point) sections.push(body(`Pain: ${q.pain_it_targets || q.pain_point}`));
+        if (q.tone_guidance) sections.push(body(`Tone: ${q.tone_guidance}`));
+        const pos = Array.isArray(q.positive_responses) ? q.positive_responses : [];
+        for (const r of pos) {
+          sections.push(bullet(`✓ "${r.response || ''}"${r.next_step ? ' → ' + r.next_step : ''}`));
+        }
+        const neg = Array.isArray(q.neutral_negative_responses) ? q.neutral_negative_responses : (q.negative_responses || []);
+        for (const r of neg) {
+          sections.push(bullet(`✗ "${r.response || ''}"${r.pivot ? ' → Pivot: ' + r.pivot : ''}`));
+        }
+      }
+    }
+
+    const emails = h.emailCampaign || h.emailSequence || [];
+    if (emails.length) {
+      sections.push(heading(`Email Drip Campaign (${emails.length} steps)`, HeadingLevel.HEADING_3));
+      for (const em of emails) {
+        sections.push(bp(em.label || `Email ${em.step || ''}`, em.sendDay ? ` — ${em.sendDay}` : ''));
+        if (em.subject || em.subject_line) sections.push(bp('Subject: ', em.subject || em.subject_line));
+        if (em.body || em.content) sections.push(body(em.body || em.content));
+        sections.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+      }
+    }
+  }
+
+  // ── ClearSignals
+  const cs = run.clearsignals_analysis || null;
+  if (cs) {
+    sections.push(heading('ClearSignals — Email Thread Analysis', HeadingLevel.HEADING_2));
+    const health = cs.deal_health || {};
+    sections.push(bp('Deal Health: ', `${health.score ?? '?'}/100 — ${health.label || ''}`));
+    if (health.summary || health.explanation) sections.push(body(health.summary || health.explanation));
+    const threadAn = Array.isArray(cs.thread_analysis) ? cs.thread_analysis : [];
+    if (threadAn.length) {
+      sections.push(heading('Thread Analysis', HeadingLevel.HEADING_3));
+      for (const t of threadAn) {
+        sections.push(bp(`${t.from || t.author || 'Message'}: `, t.assessment || t.sentiment || ''));
+        if (t.insight || t.analysis || t.summary) sections.push(body(t.insight || t.analysis || t.summary));
+      }
+    }
+    const nextSteps = Array.isArray(cs.next_steps) ? cs.next_steps : [];
+    if (nextSteps.length) {
+      sections.push(heading('Next Steps', HeadingLevel.HEADING_3));
+      for (const s of nextSteps) {
+        sections.push(bullet(typeof s === 'string' ? s : (s.action || s.step || JSON.stringify(s))));
+      }
+    }
+  }
+
+  return new Document({
+    styles: {
+      default: {
+        document: { run: { font: 'Calibri', size: 22 } },
+        heading1: { run: { font: 'Calibri', size: 32, bold: true, color: '1a1a2e' } },
+        heading2: { run: { font: 'Calibri', size: 26, bold: true, color: '2d3a4a' } },
+        heading3: { run: { font: 'Calibri', size: 22, bold: true, color: '3d4f6a' } },
+      },
+    },
+    sections: [{ children: sections }],
+  });
+}
+
+// GET /api/report/:run_id/docx — download Word report
+app.get('/api/report/:run_id/docx', async (req, res) => {
+  const run = runStore.get(req.params.run_id);
+  if (!run) return res.status(404).json({ error: 'Run not found or expired' });
+  try {
+    const doc = buildReportDocx({ ...run, run_id: req.params.run_id });
+    const buf = await Packer.toBuffer(doc);
+    const label = run.customer?.target?.name || run.industry || 'customer';
+    const safeName = String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="TDE-Report-${safeName}-${req.params.run_id}.docx"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('[docx-report]', err.message);
+    res.status(500).json({ error: `DOCX generation failed: ${err.message}` });
+  }
 });
 
 function normUrl(u) {
