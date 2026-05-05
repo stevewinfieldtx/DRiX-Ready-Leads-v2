@@ -1850,16 +1850,24 @@ async function downloadReport() {
   status.textContent = 'Building PDF…';
   status.className = 'report-status';
   try {
-    const res = await fetch(`/api/report/${encodeURIComponent(state.runId)}`);
-    if (!res.ok) throw new Error('Failed to generate report');
-    const html = await res.text();
-    // Render into a hidden container so html2pdf can measure it
-    const container = document.createElement('div');
-    container.innerHTML = html;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
+    const reportUrl = `/api/report/${encodeURIComponent(state.runId)}`;
     const filename = `TDE-Report-${state.runId}.pdf`;
+
+    // Load the full HTML report in a hidden iframe so styles render properly
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1024px;height:800px;border:none;';
+    document.body.appendChild(iframe);
+
+    await new Promise((resolve, reject) => {
+      iframe.onload = resolve;
+      iframe.onerror = () => reject(new Error('Failed to load report'));
+      iframe.src = reportUrl;
+    });
+
+    // Give styles a moment to paint
+    await new Promise(r => setTimeout(r, 500));
+
+    const body = iframe.contentDocument.body;
     await html2pdf().set({
       margin:      [10, 10, 10, 10],
       filename,
@@ -1867,8 +1875,9 @@ async function downloadReport() {
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak:   { mode: ['avoid-all', 'css', 'legacy'] }
-    }).from(container).save();
-    document.body.removeChild(container);
+    }).from(body).save();
+
+    document.body.removeChild(iframe);
     status.textContent = 'PDF downloaded.';
     status.className = 'report-status report-status-ok';
   } catch (e) {
