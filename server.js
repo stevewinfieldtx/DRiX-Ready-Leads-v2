@@ -2151,6 +2151,306 @@ const REGIONS = [
   { id: 'southeast_asia', name: 'Southeast Asia', countries: ['Indonesia', 'Malaysia', 'Philippines', 'Thailand', 'Vietnam', 'Singapore'] }
 ];
 
+// ─── COMPARISON ENDPOINT (live TDE vs Standard AI) ──────────────────────────
+// Model IDs available through OpenRouter for the "standard" side
+const COMPARISON_MODELS = {
+  chatgpt: 'openai/gpt-4o',
+  gemini:  'google/gemini-2.5-flash',
+  claude:  'anthropic/claude-sonnet-4'
+};
+
+const COMPARISON_PROMPTS = {
+  email: (companyName) => `You are a sales outreach specialist. Write a cold outreach email from Steve Winfield at WinTech Partners to ${companyName}.
+
+WinTech Partners offers AI-powered enterprise solutions including content intelligence (TDE), cybersecurity (Chimera Secured), and sales optimization (LeadHydration).
+
+Research ${companyName} and write a personalized, compelling outreach email that would get a response from a senior decision-maker. Include specific details about the target company and explain why WinTech's solutions are relevant to them.`,
+
+  pitch: (companyName) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' AI products targeting ${companyName}.
+
+WinTech Partners offers: TDE (content intelligence engine), Chimera Secured (behavioral email security, $4/user/month), LeadHydration (B2B lead intelligence), and ClearSignals (sales coaching).
+
+The pitch should include an opening hook, value proposition, differentiation, and call to action. Make it specific to ${companyName} and their industry.`,
+
+  partnership: (companyName) => `You are a business development analyst. Analyze the potential partnership between WinTech Partners and ${companyName}.
+
+WinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Products include TDE, Chimera Secured, LeadHydration, and ClearSignals.
+
+Provide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`
+};
+
+const TDE_SYNTHESIS_PROMPT = `You are synthesizing a targeted sales output using ONLY the atomic intelligence units provided below.
+
+CRITICAL RULES:
+- Every claim you make MUST come from the atoms provided. Do NOT invent facts.
+- Reference specific atoms by weaving their claims naturally into your output.
+- Cross-reference sender atoms with customer atoms to find specific overlaps.
+- This should be dramatically more specific and targeted than what a generic AI would produce.
+- Do NOT use markdown formatting. Write in plain text with clear paragraph breaks.
+
+SENDER ATOMS (WinTech Partners):
+{SENDER_ATOMS}
+
+CUSTOMER ATOMS ({CUSTOMER_NAME}):
+{CUSTOMER_ATOMS}
+
+TASK: {TASK_DESCRIPTION}
+
+After writing the main output, add a section at the end labeled "---ATOMS_USED---" followed by a JSON array of the atom_ids you referenced (from both sender and customer atoms). Example:
+---ATOMS_USED---
+["atom-id-1", "atom-id-2", "atom-id-3"]`;
+
+const TDE_TASKS = {
+  email: (customerName) => `Write a cold outreach email from Steve Winfield at WinTech Partners to ${customerName}. The email should reference SPECIFIC facts about the customer that reveal you deeply understand their business — not generic compliments. Address the email to a specific person if a contact atom is available, otherwise to the most relevant persona. Include a specific, concrete proposal based on the overlap between WinTech's capabilities and the customer's needs or gaps.`,
+
+  pitch: (customerName) => `Create a sales pitch for WinTech Partners targeting ${customerName}. The pitch must reference specific customer pain points, gaps, or opportunities found in their atoms, and map specific WinTech products/capabilities to each one. Include concrete proof points and differentiation that come from the atoms, not generic value propositions.`,
+
+  partnership: (customerName) => `Analyze the potential partnership between WinTech Partners and ${customerName}. Use specific atoms from both sides to identify: concrete capability overlaps, specific gaps each side fills for the other, named team members and their relevant experience, specific products that complement each other, and honest risks or weaknesses from both sides' atoms. This should read like an analyst who has deeply studied both companies, not a template.`
+};
+
+app.post('/api/comparison', async (req, res) => {
+  const { company_url, company_name, scenario, model } = req.body || {};
+
+  if (!company_url || !scenario || !model) {
+    return res.status(400).json({ error: 'Require company_url, scenario, model' });
+  }
+  if (!COMPARISON_MODELS[model]) {
+    return res.status(400).json({ error: `Invalid model: ${model}. Use chatgpt, gemini, or claude.` });
+  }
+  if (!COMPARISON_PROMPTS[scenario]) {
+    return res.status(400).json({ error: `Invalid scenario: ${scenario}. Use email, pitch, or partnership.` });
+  }
+  if (!OPENROUTER_API_KEY) {
+    return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
+  }
+
+  // SSE setup
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none');
+  res.flushHeaders?.();
+  const keepAlive = setInterval(() => { try { res.write(':keepalive\n\n'); } catch {} }, 15000);
+  const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  const displayName = company_name || company_url;
+  const prompt = COMPARISON_PROMPTS[scenario](displayName);
+
+  try {
+    // ── STANDARD AI SIDE — fire and forget ──────────────────────────────
+    send('standard_status', { message: `Sending prompt to ${model}...` });
+
+    // Standard side fires independently and sends its result the moment it arrives
+    const standardPromise = (async () => {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
+            'X-Title': 'TDE Comparison Demo'
+          },
+          body: JSON.stringify({
+            model: COMPARISON_MODELS[model],
+            messages: [
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 2000
+          })
+        });
+        if (!response.ok) {
+          const err = await response.text();
+          throw new Error(`${model} API error ${response.status}: ${err.slice(0, 200)}`);
+        }
+        const data = await response.json();
+        const text = data?.choices?.[0]?.message?.content || '(No response)';
+        send('standard_done', { text });
+        return text;
+      } catch (e) {
+        send('standard_error', { message: e.message });
+        throw e;
+      }
+    })();
+
+    // ── TDE SIDE — full pipeline ────────────────────────────────────────
+    send('tde_phase', { phase: 'fetch', message: `Fetching ${displayName}...` });
+
+    // Ingest customer
+    const customerPromise = ingestOne({
+      url: normUrl(company_url),
+      role: 'customer',
+      hint_name: company_name,
+      demoMode: true
+    });
+
+    // Ingest WinTech (sender) — will be cached after first run
+    const senderPromise = ingestOne({
+      url: normUrl('wintech.partners'),
+      role: 'sender',
+      hint_name: 'WinTech Partners',
+      demoMode: true
+    });
+
+    // Wait for both ingests
+    const [customerRes, senderRes] = await Promise.allSettled([customerPromise, senderPromise]);
+
+    if (customerRes.status === 'rejected') {
+      send('tde_error', { message: `Customer ingest failed: ${customerRes.reason.message}` });
+      // Still wait for standard side
+      try {
+        const standardText = await standardPromise;
+        send('standard_done', { text: standardText });
+      } catch (e) {
+        send('standard_error', { message: e.message });
+      }
+      send('done', {});
+      clearInterval(keepAlive);
+      return res.end();
+    }
+
+    if (senderRes.status === 'rejected') {
+      send('tde_error', { message: `Sender ingest failed: ${senderRes.reason.message}` });
+      try {
+        const standardText = await standardPromise;
+        send('standard_done', { text: standardText });
+      } catch (e) {
+        send('standard_error', { message: e.message });
+      }
+      send('done', {});
+      clearInterval(keepAlive);
+      return res.end();
+    }
+
+    const customer = customerRes.value;
+    const sender = senderRes.value;
+
+    send('tde_phase', { phase: 'decompose', message: `Decomposed ${customer.atoms?.length || 0} customer atoms + ${sender.atoms?.length || 0} sender atoms` });
+
+    // Build source provenance map
+    const sourceMap = {};
+    (customer.atoms || []).forEach(a => {
+      const src = a.source_url || customer.source_url || company_url;
+      if (!sourceMap[src]) sourceMap[src] = { url: src, name: customer.target?.name || displayName, role: 'customer', count: 0 };
+      sourceMap[src].count++;
+    });
+    (sender.atoms || []).forEach(a => {
+      const src = a.source_url || sender.source_url || 'wintech.partners';
+      if (!sourceMap[src]) sourceMap[src] = { url: src, name: sender.target?.name || 'WinTech Partners', role: 'sender', count: 0 };
+      sourceMap[src].count++;
+    });
+
+    send('tde_phase', { phase: 'tag', message: `All atoms tagged across 9 dimensions` });
+    send('tde_phase', { phase: 'cross', message: `Cross-referencing ${Object.keys(sourceMap).length} sources...` });
+
+    // Build synthesis prompt with real atoms
+    const senderAtomText = (sender.atoms || []).map(a =>
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}${a.evidence ? ' — ' + a.evidence : ''}`
+    ).join('\n');
+
+    const customerAtomText = (customer.atoms || []).map(a =>
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}${a.evidence ? ' — ' + a.evidence : ''}`
+    ).join('\n');
+
+    const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName);
+
+    const synthesisPrompt = TDE_SYNTHESIS_PROMPT
+      .replace('{SENDER_ATOMS}', senderAtomText)
+      .replace('{CUSTOMER_NAME}', customer.target?.name || displayName)
+      .replace('{CUSTOMER_ATOMS}', customerAtomText)
+      .replace('{TASK_DESCRIPTION}', taskDesc);
+
+    send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${(customer.atoms?.length || 0) + (sender.atoms?.length || 0)} atoms...` });
+
+    // Call LLM for synthesis (use the configured TDE model, NOT the comparison model)
+    const synthesisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
+        'X-Title': 'TDE Comparison Synthesis'
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL_ID,
+        messages: [
+          { role: 'user', content: synthesisPrompt }
+        ],
+        temperature: 0.4,
+        max_tokens: 3000
+      })
+    });
+
+    if (!synthesisResponse.ok) {
+      const err = await synthesisResponse.text();
+      throw new Error(`TDE synthesis LLM error: ${err.slice(0, 200)}`);
+    }
+
+    const synthesisData = await synthesisResponse.json();
+    let synthesisText = synthesisData?.choices?.[0]?.message?.content || '';
+
+    // Parse out the atoms_used section
+    let atomsUsedIds = [];
+    const atomsSplit = synthesisText.split('---ATOMS_USED---');
+    if (atomsSplit.length > 1) {
+      synthesisText = atomsSplit[0].trim();
+      try {
+        atomsUsedIds = JSON.parse(atomsSplit[1].trim());
+      } catch {}
+    }
+
+    // Find the actual atom objects that were used
+    const allAtoms = [...(sender.atoms || []), ...(customer.atoms || [])];
+    const atomsUsed = atomsUsedIds.length > 0
+      ? allAtoms.filter(a => atomsUsedIds.includes(a.atom_id || a.id))
+      : allAtoms.slice(0, 6); // fallback: show first 6 if parsing failed
+
+    // Send TDE result with atoms and source provenance
+    send('tde_done', {
+      text: synthesisText,
+      atoms_used: atomsUsed.map(a => ({
+        atom_id: a.atom_id || a.id,
+        type: a.type,
+        claim: a.claim,
+        evidence: a.evidence,
+        confidence: a.confidence,
+        source_url: a.source_url || (a.type && sender.atoms?.includes(a) ? (sender.source_url || 'wintech.partners') : (customer.source_url || company_url)),
+        source_name: sender.atoms?.includes(a) ? (sender.target?.name || 'WinTech Partners') : (customer.target?.name || displayName),
+        source_role: sender.atoms?.includes(a) ? 'sender' : 'customer',
+        d_persona: a.d_persona,
+        d_buying_stage: a.d_buying_stage,
+        d_emotional_driver: a.d_emotional_driver,
+        d_evidence_type: a.d_evidence_type,
+        d_credibility: a.d_credibility,
+        d_recency: a.d_recency,
+        d_economic_driver: a.d_economic_driver,
+        d_status_quo_pressure: a.d_status_quo_pressure,
+        d_industry: a.d_industry
+      })),
+      sources: Object.values(sourceMap),
+      total_atoms: allAtoms.length
+    });
+
+    // Wait for standard side to finish (it sends its own events, just need to not close SSE early)
+    await standardPromise.catch(() => {});
+
+    send('done', {});
+
+  } catch (err) {
+    console.error('[comparison]', err.message);
+    send('error', { message: err.message });
+    // Try to still deliver the standard side if TDE failed
+    try {
+      // standardPromise may already be resolved or rejected
+    } catch {}
+  } finally {
+    clearInterval(keepAlive);
+    res.end();
+  }
+});
+
 // ─── BOOT ────────────────────────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`✅ TDE Demo v3 listening on port ${PORT}`);

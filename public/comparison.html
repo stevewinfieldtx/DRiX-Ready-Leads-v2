@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TDE vs Standard AI — Side-by-Side Comparison</title>
+<title>TDE vs Standard AI — Live Side-by-Side Comparison</title>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -20,6 +20,9 @@
     --orange-dim: rgba(245,158,11,0.12);
     --red: #ef4444;
     --red-dim: rgba(239,68,68,0.12);
+    --cyan: #06b6d4;
+    --purple: #a855f7;
+    --pink: #ec4899;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -227,65 +230,6 @@
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .response h3 {
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-dim);
-    margin-bottom: 12px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-  }
-  .response p { margin-bottom: 12px; }
-  .response .email-block {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    margin: 12px 0;
-    font-size: 0.84rem;
-  }
-  .response .email-block .subject {
-    font-weight: 700;
-    margin-bottom: 8px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-  }
-  .response .email-block .body { color: var(--text); white-space: pre-wrap; }
-  /* (atom-tag and atom-ref styles removed — using 9D grid cards now) */
-  .response .insight-box {
-    background: var(--green-dim);
-    border: 1px solid rgba(34,197,94,0.25);
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin: 12px 0;
-    font-size: 0.84rem;
-  }
-  .response .insight-box .label {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--green);
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-  .response .weakness-box {
-    background: var(--red-dim);
-    border: 1px solid rgba(239,68,68,0.25);
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin: 12px 0;
-    font-size: 0.84rem;
-  }
-  .response .weakness-box .label {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--red);
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
 
   /* ── STREAMING EFFECT ── */
   .typing-cursor::after {
@@ -296,6 +240,59 @@
   @keyframes blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0; }
+  }
+
+  /* ── SOURCE PROVENANCE BANNER ── */
+  .source-banner {
+    background: linear-gradient(135deg, var(--green-dim), rgba(99,102,241,0.08));
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    animation: fadeUp 0.4s ease-out;
+  }
+  .source-banner .source-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--green);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .source-banner .source-summary {
+    font-size: 0.82rem;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .source-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .source-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  .source-chip.customer { background: rgba(99,102,241,0.12); color: var(--accent); border-color: rgba(99,102,241,0.3); }
+  .source-chip.sender { background: rgba(34,197,94,0.12); color: var(--green); border-color: rgba(34,197,94,0.3); }
+
+  /* ── RESPONSE TEXT ── */
+  .tde-response-text {
+    white-space: pre-wrap;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+  .standard-response-text {
+    white-space: pre-wrap;
+    font-size: 0.88rem;
+    line-height: 1.7;
   }
 
   /* ── FOOTER ── */
@@ -324,7 +321,7 @@
   }
   .atoms-tray summary:hover { color: var(--text); }
 
-  /* ── 9D ATOM CARDS (matching TDE-Demo style) ── */
+  /* ── 9D ATOM CARDS ── */
   .atom-card-9d {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -354,12 +351,24 @@
     color: var(--green);
   }
   .atom-card-9d .atom-confidence.medium { color: var(--orange); }
+  .atom-card-9d .atom-confidence.low { color: var(--red); }
   .atom-card-9d .atom-text {
     font-size: 0.82rem;
     line-height: 1.5;
     color: var(--text);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
+  .atom-card-9d .atom-source {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    padding: 4px 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .atom-card-9d .atom-source.sender { color: var(--green); }
+  .atom-card-9d .atom-source.customer { color: var(--accent); }
   .atom-card-9d .dim-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -386,7 +395,6 @@
     font-weight: 600;
     color: var(--text);
   }
-  /* Colored bottom borders per dimension */
   .atom-card-9d .dim-cell::after {
     content: '';
     position: absolute;
@@ -405,7 +413,6 @@
   .atom-card-9d .dim-cell.d-econ::after       { background: #a855f7; }
   .atom-card-9d .dim-cell.d-inertia::after    { background: #f97316; }
   .atom-card-9d .dim-cell.d-industry::after   { background: #64748b; }
-  /* Cred bar */
   .cred-bar {
     display: flex;
     gap: 2px;
@@ -418,6 +425,19 @@
     background: var(--border);
   }
   .cred-bar .cred-dot.filled { background: var(--green); }
+
+  /* ── TIMER ── */
+  .timer {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    margin-left: auto;
+    padding: 2px 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+  }
+  .timer.done-timer { color: var(--green); }
 </style>
 </head>
 <body>
@@ -425,9 +445,9 @@
 <!-- ── HERO ── -->
 <div class="hero">
   <h1>Standard AI <span>vs</span> TDE</h1>
-  <p class="subtitle">Same prompt. Same model. Fundamentally different approach. See what happens when AI decomposes content into atomic intelligence units before generating output.</p>
+  <p class="subtitle">Same prompt. Real API calls. Fundamentally different approach. Watch TDE decompose real content into atoms, then synthesize targeted output — live.</p>
   <div class="edu-banner">
-    <strong>Why this matters:</strong> Standard AI reads a prompt and generates from training data. TDE <em>decomposes</em> real content into tagged atoms, then <em>cross-references</em> multiple entities to produce output grounded in actual intelligence — not pattern-matched guesses.
+    <strong>This is live.</strong> The left side sends your prompt to a real LLM. The right side fetches the company's actual website, decomposes it into 9D-tagged atoms, cross-references with WinTech's atoms, and synthesizes from real intelligence — not training data.
   </div>
 </div>
 
@@ -436,9 +456,9 @@
   <div class="control-group">
     <label>Target Company</label>
     <div class="pill-row" id="companyPills">
-      <div class="pill active" data-company="aiaivn">AIAIVN</div>
-      <div class="pill" data-company="techcombank">Techcombank</div>
-      <div class="pill" data-company="fpt">FPT Software</div>
+      <div class="pill active" data-company="aiaivn" data-url="aiaivn.com" data-name="AIAIVN">AIAIVN</div>
+      <div class="pill" data-company="techcombank" data-url="techcombank.com.vn" data-name="Techcombank">Techcombank</div>
+      <div class="pill" data-company="fpt" data-url="fpt-software.com" data-name="FPT Software">FPT Software</div>
     </div>
   </div>
   <div class="control-group">
@@ -462,7 +482,7 @@
 
 <!-- ── PROMPT DISPLAY ── -->
 <div class="prompt-display" id="promptDisplay">
-  <div class="prompt-label">PROMPT SENT TO BOTH SYSTEMS</div>
+  <div class="prompt-label">PROMPT SENT TO STANDARD AI (TDE receives the same intent but works from decomposed atoms)</div>
   <div class="prompt-text" id="promptText"></div>
 </div>
 
@@ -474,6 +494,7 @@
       <span class="badge" id="standardBadgeText">ChatGPT</span>
       <h2 id="standardTitle">ChatGPT Response</h2>
       <span class="model-tag" id="standardModelTag">GPT-4o</span>
+      <span class="timer" id="standardTimer"></span>
     </div>
     <div class="panel-body" id="standardBody">
       <div class="placeholder">Select a company and scenario, then click <strong>Run Comparison</strong></div>
@@ -485,7 +506,8 @@
     <div class="panel-header">
       <span class="badge">TDE</span>
       <h2>TDE-Powered Response</h2>
-      <span class="model-tag">Decompose &rarr; Tag &rarr; Cross-reference &rarr; Synthesize</span>
+      <span class="model-tag">Live Pipeline</span>
+      <span class="timer" id="tdeTimer"></span>
     </div>
     <div class="phases" id="phases">
       <div class="phase" data-phase="fetch">Fetch</div>
@@ -505,938 +527,35 @@
 </div>
 
 <script>
-// ── DATA: Pre-built comparison responses ──
-const DATA = {
-
-// ═══════════════════════ AIAIVN ═══════════════════════
-aiaivn: {
-  name: "AIAIVN",
-  url: "aiaivn.com",
-  email: {
-    standard: `<div class="response">
-<h3>Generated Email</h3>
-<div class="email-block">
-<div class="subject">Subject: Partnership Opportunity — AI Solutions</div>
-<div class="body">Dear AIAIVN Team,
-
-I hope this message finds you well. I came across your company and was impressed by your work in the AI space in Vietnam.
-
-At WinTech Partners, we specialize in AI-powered business solutions and believe there could be strong synergies between our organizations. We offer a range of products including content intelligence, sales optimization, and security solutions that could complement your existing offerings.
-
-I'd love to schedule a call to explore how we might work together to create mutual value. Would you have 15 minutes this week?
-
-Looking forward to hearing from you.
-
-Best regards,
-Steve Winfield
-WinTech Partners</div>
-</div>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>Note: This is a generic outreach template. The AI had no specific knowledge of either company's actual capabilities, gaps, or strategic positioning. It could have been written about any two AI companies.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE-Generated Email</h3>
-<div class="insight-box">
-<div class="label">Key Atom Cross-Reference</div>
-AIAIVN's stated mission is enterprise-wide AI transformation, but their deployed catalog is exclusively tourism and public-service. Their CEO Anthony Phan has direct Techcombank data architecture experience. WinTech's TDE and LeadHydration are enterprise-ready products that could fill AIAIVN's catalog gap — and Steve's CISSP + channel methodology maps to their missing GTM layer.
-</div>
-
-<div class="email-block">
-<div class="subject">Subject: Filling the enterprise gap in AIAIVN's catalog — a concrete proposal</div>
-<div class="body">My Huong,
-
-I'm writing because I noticed something specific about AIAIVN that most people would miss: your mission statement describes enterprise-wide AI transformation, but your current product catalog — HeriStepAI, Travist, the ticketing kiosks — is almost entirely tourism and public-service deployments.
-
-That's not a criticism. It's an opportunity.
-
-WinTech Partners has three production-ready enterprise products that could deploy under AIAIVN's brand for the Vietnamese market:
-
-1. Chimera Secured — behavioral email security at $4/user/month, 30% channel margin. Anthony's security background (HP Security Lab, Amazon Multipass) means your technical team already speaks this language.
-
-2. LeadHydration — B2B lead intelligence covering 9 countries with pain-scored opportunity cards. This gives AIAIVN a sales product to offer the banking and enterprise clients Anthony built relationships with at Techcombank.
-
-3. TDE itself — the content intelligence backbone behind this very analysis. Deployable as a white-label research engine for any Vietnamese enterprise that needs to move from "we have data" to "we have intelligence."
-
-I'm based in Da Nang — same city as your primary office. I'd like to buy My Huong or Anthony coffee and walk through a specific joint GTM proposal I've drafted.
-
-Steve Winfield
-WinTech Partners | Da Nang
-CISSP | 25yr Enterprise Tech | Ex-Microsoft</div>
-</div>
-
-<details class="atoms-tray">
-<summary>12 atoms used in this synthesis (click to expand)</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Mission Gap</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">AIAIVN's mission describes enterprise-wide AI transformation, but published solutions are exclusively tourism and public-service.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Executive/C-Suite</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Awareness</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Comparison</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Team</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">CEO Anthony Phan spent 2020-2021 as Director and Data Architect at Techcombank, leading their core data platform migration.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CTO/IT</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Last 1-2 Years</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Quality</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Team</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">My Huong is Co-founder and Chief Growth Officer — the primary owner of external partnership conversations.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">VP Sales</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Anecdote/Story</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Product</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Chimera Secured: behavioral security wrapping CPP for enterprise, $4/user/month, 30% channel margin.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CISO/Security</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Fear/Risk</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Product Demo</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Current Quarter</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Cost-Out</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Stack Signal</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Steve is resident in Da Nang — same city as AIAIVN's primary office, enabling in-person collaboration.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">General</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Anecdote/Story</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-</details>
-</div>`,
-  },
-
-  pitch: {
-    standard: `<div class="response">
-<h3>Generated Sales Pitch</h3>
-<p><strong>Opening:</strong> "AIAIVN is an exciting AI company based in Vietnam. As fellow AI innovators, WinTech Partners offers enterprise technology solutions that could help AIAIVN expand their market reach."</p>
-<p><strong>Value Proposition:</strong> "Our suite of AI-powered tools — including content intelligence, lead generation, and cybersecurity — can complement your existing product lineup and help you serve enterprise customers more effectively."</p>
-<p><strong>Differentiation:</strong> "With 25 years of enterprise technology experience, our founder brings deep expertise in channel sales, partner enablement, and go-to-market strategy."</p>
-<p><strong>Call to Action:</strong> "We'd love to explore a partnership. Let's schedule a discovery call to discuss how our solutions align with your growth plans."</p>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>This pitch could apply to virtually any AI company. It doesn't reference AIAIVN's specific products, gaps, team background, or deployment history. A recipient would recognize it as a template.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE-Generated Sales Pitch</h3>
-<div class="insight-box">
-<div class="label">Strategic gap identified</div>
-AIAIVN has engineering depth (FAANG advisory bench, GenAI-first architecture, 6-channel deployment capability) but no Western enterprise sales motion. WinTech has Western GTM methodology but no production deployments. This is a complementary-weakness match, not a vendor-customer relationship.
-</div>
-
-<p><strong>Opening (to Anthony or My Huong):</strong></p>
-<p>"You've built products that work — Da Nang Museum, Hoi An kiosks, the marathon face-recognition system. But your about page says 'empowering Vietnamese enterprise with world-leading AI,' and your catalog is still 100% tourism and public-service. You know that gap exists. I have three enterprise products that close it."</p>
-
-<p><strong>The Specific Proposal:</strong></p>
-<p>"Here's what I'm not proposing: I'm not asking AIAIVN to resell WinTech products. I'm proposing AIAIVN <em>deploys</em> them as AIAIVN products, with WinTech providing the GTM engine — channel training, pricing, sales enablement — that turns your 18 partner logos from a wall decoration into a revenue pipeline."</p>
-
-<div class="weakness-box">
-<div class="label">Honest framing (builds trust)</div>
-"I should be upfront: WinTech has no production deployments yet and no revenue. What we have is methodology and IP that's been battle-tested across 1,400 resellers in 100+ countries at companies like Microsoft, Cybereason, and Kaspersky. AIAIVN has production deployments but no enterprise sales motion. We each have what the other is missing."
-</div>
-
-<p><strong>Why Now:</strong></p>
-<p>"Anthony's Techcombank relationships are warm. Vietnamese banking is undergoing digital transformation. Chimera Secured's $4/user BEC detection is a product Anthony can walk into Techcombank and sell tomorrow — because he architected their data platform and knows exactly where email security fits in their stack."</p>
-
-<details class="atoms-tray">
-<summary>Cross-referenced atoms from both entities</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Proof Point</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Da Nang Museum is a live deployment running multilingual audio narration and AI robot greeter systems.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">General</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Validation</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">This Year</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Quality</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">71</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Weakness</span><span class="atom-confidence medium">MEDIUM</span></div>
-<div class="atom-text">WinTech has no production deployments and no revenue — value proposition is methodology and IP, not installed base.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Executive/C-Suite</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Anecdote/Story</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span><span class="cred-dot"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Current Quarter</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Differentiator</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Strongest asymmetric asset: Western enterprise sales motion — design, deliver, train channel programs at scale across countries.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">VP Sales</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Framework/Model</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  },
-
-  partnership: {
-    standard: `<div class="response">
-<h3>Partnership Analysis</h3>
-<p><strong>Overview:</strong> A partnership between WinTech Partners and AIAIVN could leverage both companies' strengths in AI technology and enterprise solutions to address the growing Vietnamese market.</p>
-<p><strong>Potential Synergies:</strong></p>
-<p>1. Combined AI product offerings for Vietnamese enterprises<br>
-2. Shared technology development resources<br>
-3. Joint go-to-market strategy for Southeast Asia<br>
-4. Cross-selling opportunities across customer bases</p>
-<p><strong>Recommended Structure:</strong> A strategic technology partnership with defined revenue sharing and joint product development roadmap.</p>
-<p><strong>Next Steps:</strong> Schedule an introductory call to discuss alignment of business goals and identify quick-win collaboration opportunities.</p>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>This analysis contains no company-specific intelligence. Every bullet could apply to any two AI companies considering a partnership. No specific products, people, gaps, or deployment history are referenced.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE Partnership Analysis: WinTech × AIAIVN</h3>
-
-<div class="insight-box">
-<div class="label">Core Thesis</div>
-This is not a vendor-customer partnership. It's a <strong>complementary-weakness merger</strong>: AIAIVN has production deployments + engineering depth + Vietnam-market access but no enterprise sales motion or B2B catalog. WinTech has enterprise methodology + B2B products + channel experience but no production deployments or Vietnam customer base.
-</div>
-
-<p><strong>Partnership Model: White-Label Enterprise Expansion</strong></p>
-<p>AIAIVN deploys WinTech IP (Chimera Secured, LeadHydration, TDE) as AIAIVN-branded enterprise products. WinTech provides GTM design, channel enablement, and sales training. Revenue share: negotiable, but the reference architecture is WinTech's Chimera pricing at $4/user/month with 30% channel margin.</p>
-
-<p><strong>Why This Specific Pairing Works:</strong></p>
-
-<div class="insight-box">
-<div class="label">Atom Cross-Reference: Security Thread</div>
-Anthony Phan has applied security background (HP Security Lab + Amazon Multipass). Steve Winfield holds CISSP. Both founders speak security credibly — rare for a partnership between a tourism-AI company and a sales-methodology company. This means Chimera Secured has two credentialed champions, not one.
-</div>
-
-<div class="insight-box">
-<div class="label">Atom Cross-Reference: Banking Entry Point</div>
-Anthony built Techcombank's data platform (2020-2021). Chimera Secured's BEC detection is a natural upsell to banking clients who already trust Anthony's technical judgment. This isn't cold outreach — it's a warm introduction into a $13B-revenue bank.
-</div>
-
-<div class="insight-box">
-<div class="label">Atom Cross-Reference: Educator Symmetry</div>
-Both founders are former educators. Anthony taught at Vietnam National University and Rutgers. Steve taught 9 years in Texas public schools and built the Educator's Advantage methodology from that experience. Shared pedagogical DNA means faster alignment on how to train channel partners and enable sales teams.
-</div>
-
-<div class="weakness-box">
-<div class="label">Risks TDE surfaced</div>
-AIAIVN's 18 partner logos have undisclosed relationship depth — some may be press logos, not active partnerships. WinTech's ~1,000 channel contacts are cold. Neither entity has enterprise B2B revenue. A partnership of two pre-revenue companies needs a forcing function: a specific first customer, a specific first deployment, a specific deadline.
-</div>
-
-<details class="atoms-tray">
-<summary>18 atoms cross-referenced across both entities</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Mission Gap</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">AIAIVN's mission = enterprise AI transformation. Catalog = tourism + public-service only.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Executive/C-Suite</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Awareness</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Comparison</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Team x Team</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Both founders are former educators (Anthony: VNU + Rutgers | Steve: Texas public schools). Shared pedagogical methodology foundation.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">General</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Anecdote/Story</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Quality</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">61</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Team x Product</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Anthony's Techcombank data architecture experience + Chimera Secured BEC product = warm banking entry point.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CISO/Security</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Interest</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Validation</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">This Year</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Risk-Reduction</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Sunk Cost</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  }
-},
-
-// ═══════════════════════ TECHCOMBANK ═══════════════════════
-techcombank: {
-  name: "Techcombank",
-  url: "techcombank.com.vn",
-  email: {
-    standard: `<div class="response">
-<h3>Generated Email</h3>
-<div class="email-block">
-<div class="subject">Subject: AI Solutions for Banking — WinTech Partners</div>
-<div class="body">Dear Techcombank Team,
-
-I'm reaching out to introduce WinTech Partners, a technology company specializing in AI-powered enterprise solutions.
-
-As one of Vietnam's leading banks, I'm sure you're always looking for innovative ways to improve efficiency, enhance security, and better serve your customers. Our suite of AI tools could help you achieve these goals.
-
-We offer solutions in content intelligence, cybersecurity, and sales optimization that have been designed specifically for enterprise environments.
-
-I'd welcome the chance to discuss how we might support Techcombank's digital transformation journey. Would you have time for a brief introductory call?
-
-Best regards,
-Steve Winfield
-WinTech Partners</div>
-</div>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>Generic banking outreach. No mention of Techcombank's specific tech stack, recent initiatives, leadership, or what problems they're actually trying to solve. This email would be deleted within seconds by any senior banking executive.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE-Generated Email</h3>
-<div class="insight-box">
-<div class="label">Intelligence Cross-Reference</div>
-Techcombank completed a core data platform migration from on-prem to cloud data lake (2020-2021), led by Anthony Phan (now CEO of AIAIVN). Their digital banking push makes them a BEC target — Vietnamese banking saw a 340% increase in phishing attacks in 2024. WinTech's Chimera Secured addresses this with behavioral email fingerprinting.
-</div>
-
-<div class="email-block">
-<div class="subject">Subject: BEC detection for the data platform Anthony Phan built</div>
-<div class="body">Dear CTO / CISO Office,
-
-Techcombank's 2020-2021 cloud data lake migration was a foundational move — and it opened new surface area that your legacy email security stack wasn't designed for. Vietnamese banking saw a 340% increase in Business Email Compromise (BEC) attempts in 2024, and cloud-first architectures like yours are the primary target.
-
-Chimera Secured is a behavioral email security product that detects BEC by building per-sender communication fingerprints — not by scanning for keywords or matching known threats. When a fraudster impersonates your CFO's writing style, Chimera flags the deviation before the wire instruction is executed.
-
-Three specifics for Techcombank:
-
-1. Your cloud data lake means email metadata is already centralized — Chimera's integration is a 2-day deployment, not a 2-month project.
-2. At $4/user/month, a 5,000-seat pilot is $20K/month — less than the average cost of a single successful BEC attack in Vietnamese banking.
-3. I hold a CISSP and spent 11 years at Microsoft building channel security programs across 100+ countries. This isn't a startup guessing at enterprise security — it's proven methodology applied to a new product.
-
-I'm based in Da Nang and can be in Ho Chi Minh City with 24 hours notice for a technical deep-dive.
-
-Steve Winfield
-WinTech Partners | CISSP
-Da Nang, Vietnam</div>
-</div>
-
-<details class="atoms-tray">
-<summary>9 atoms used in this synthesis</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Buying Trigger</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Vietnamese banking 340% BEC increase in 2024 — cloud-first banks are primary targets.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CISO/Security</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Awareness</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Fear/Risk</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Statistic/Data</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">This Year</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Risk-Reduction</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Stack Signal</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Techcombank completed cloud data lake migration 2020-2021, centralizing email metadata.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CTO/IT</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Validation</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Last 1-2 Years</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Speed</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Sunk Cost</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  },
-
-  pitch: {
-    standard: `<div class="response">
-<h3>Generated Sales Pitch</h3>
-<p><strong>Opening:</strong> "Techcombank is one of Vietnam's largest and most innovative banks. As digital transformation accelerates in the financial sector, the need for AI-powered solutions has never been greater."</p>
-<p><strong>Value Proposition:</strong> "WinTech Partners offers cutting-edge AI solutions that can help Techcombank improve operational efficiency, enhance customer experience, and strengthen cybersecurity defenses."</p>
-<p><strong>Key Benefits:</strong> Improved threat detection, automated content intelligence, enhanced lead management, and streamlined internal communications.</p>
-<p><strong>Call to Action:</strong> "Let's discuss how WinTech can support Techcombank's technology roadmap."</p>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>Interchangeable with any bank in any country. No specific intelligence about Techcombank's infrastructure, recent moves, or actual needs.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE-Generated Sales Pitch for Techcombank</h3>
-<div class="insight-box">
-<div class="label">Entry Strategy: The Anthony Bridge</div>
-AIAIVN's CEO Anthony Phan built Techcombank's data platform. If WinTech partners with AIAIVN first, the Techcombank introduction comes through Anthony — not cold. This changes the pitch from "unknown vendor" to "recommended by the person who built your infrastructure."
-</div>
-
-<p><strong>Pitch Structure (delivered via Anthony introduction):</strong></p>
-<p>"Anthony built your data platform. I built the security layer that protects what runs on it. Chimera Secured detects Business Email Compromise by fingerprinting how your people actually write — so when a fraudster mimics your CFO's email style, the system flags it before the wire transfer goes out."</p>
-
-<p><strong>Why Techcombank Specifically:</strong></p>
-<p>Your cloud migration centralized email metadata — that's Chimera's integration point. A 5,000-seat deployment at $4/user/month costs less per month than one successful BEC attack costs in investigation alone. And because your platform is already cloud-native, deployment is days, not months.</p>
-
-<div class="weakness-box">
-<div class="label">Objection Pre-Handling</div>
-"You'll ask why you should trust a product without banking production deployments. Fair question. The answer: the underlying CPP behavioral engine was built on the same detection methodology I used across 1,400 resellers at Cybereason and Kaspersky. What's new is the product packaging — the detection science is battle-tested."
-</div>
-
-<details class="atoms-tray">
-<summary>7 atoms used in this pitch</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Team x Product</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Anthony Phan architected Techcombank's cloud data platform (2020-2021) — warm introduction path for Chimera Secured deployment.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CTO/IT</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Interest</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Last 1-2 Years</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Risk-Reduction</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Sunk Cost</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Product</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Chimera Secured: $4/user/month BEC detection via communication fingerprinting, 30% channel margin, 2-day cloud deployment.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CISO/Security</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Fear/Risk</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Product Demo</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Current Quarter</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Cost-Out</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Weakness</span><span class="atom-confidence medium">MEDIUM</span></div>
-<div class="atom-text">WinTech has no banking production deployments — detection methodology is proven at Cybereason/Kaspersky, but product packaging is new.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Executive/C-Suite</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Anecdote/Story</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span><span class="cred-dot"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Current Quarter</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  },
-
-  partnership: {
-    standard: `<div class="response">
-<h3>Partnership Analysis</h3>
-<p><strong>Overview:</strong> WinTech Partners and Techcombank could collaborate to bring AI solutions to the banking sector in Vietnam.</p>
-<p><strong>Synergies:</strong> WinTech's AI technology combined with Techcombank's market position and customer base could accelerate digital transformation initiatives.</p>
-<p><strong>Model:</strong> Technology vendor relationship with Techcombank as the customer and WinTech providing AI solutions and support.</p>
-<p><strong>Next Steps:</strong> Identify pilot use cases and schedule a technical evaluation.</p>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>No specific intelligence about either company's capabilities, gaps, or strategic context. Could describe any tech vendor approaching any bank.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE Partnership Analysis: WinTech → Techcombank (via AIAIVN)</h3>
-<div class="insight-box">
-<div class="label">Core Thesis</div>
-Techcombank is not a direct WinTech partner target — it's a <strong>customer target reached through the AIAIVN partnership</strong>. The play is: WinTech enables AIAIVN with Chimera Secured → AIAIVN's CEO Anthony Phan introduces it to Techcombank where he built the data infrastructure → Techcombank becomes the first reference deployment that proves both the product and the partnership model.
-</div>
-
-<p><strong>Three-Entity Atom Map:</strong></p>
-
-<div class="insight-box">
-<div class="label">WinTech → AIAIVN (enablement)</div>
-WinTech provides: Chimera Secured product, GTM playbook, channel training methodology (1,400+ resellers trained). AIAIVN provides: Vietnam market access, Anthony's banking relationships, technical delivery team, local brand credibility.
-</div>
-
-<div class="insight-box">
-<div class="label">AIAIVN → Techcombank (warm intro)</div>
-Anthony Phan is not a cold caller at Techcombank — he's the person who architected their data platform. His introduction carries technical credibility that no marketing material can replicate. The pitch becomes peer-to-peer, not vendor-to-prospect.
-</div>
-
-<div class="insight-box">
-<div class="label">Revenue Model</div>
-Chimera Secured at $4/user/month, 30% to AIAIVN as channel. 5,000-seat pilot = $20K/month, $14K to WinTech, $6K to AIAIVN. At scale across Techcombank's full employee base: significantly higher. First revenue for both WinTech and AIAIVN's enterprise division.
-</div>
-
-<div class="weakness-box">
-<div class="label">Risks</div>
-Anthony left Techcombank in 2021 — relationships may have cooled over 5 years. Vietnamese banking procurement is relationship-driven but also bureaucratic. Neither WinTech nor AIAIVN has banking compliance certifications yet. Mitigation: start with a security-team pilot, not a full procurement cycle.
-</div>
-
-<details class="atoms-tray">
-<summary>14 atoms cross-referenced across three entities</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Team</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">CEO Anthony Phan spent 2020-2021 as Director and Data Architect at Techcombank, leading core data platform migration from on-prem to cloud.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CTO/IT</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Trust</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Last 1-2 Years</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Quality</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Sunk Cost</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Buying Trigger</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Vietnamese banking saw 340% increase in BEC attacks in 2024 — cloud-first banks are primary targets.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CISO/Security</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Awareness</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Fear/Risk</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Statistic/Data</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">This Year</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Risk-Reduction</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Differentiator</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">WinTech's GTM design and channel enablement — ability to design, deliver, train channel programs at scale across countries.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">VP Sales</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Framework/Model</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Weakness</span><span class="atom-confidence medium">MEDIUM</span></div>
-<div class="atom-text">Anthony left Techcombank in 2021 — 5-year relationship gap. Vietnamese banking procurement is relationship-driven but bureaucratic.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Executive/C-Suite</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Fear/Risk</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Anecdote/Story</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span><span class="cred-dot"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Dated (3-5yr)</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Political Cost</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  }
-},
-
-// ═══════════════════════ FPT SOFTWARE ═══════════════════════
-fpt: {
-  name: "FPT Software",
-  url: "fpt-software.com",
-  email: {
-    standard: `<div class="response">
-<h3>Generated Email</h3>
-<div class="email-block">
-<div class="subject">Subject: Collaboration Opportunity — AI Technology</div>
-<div class="body">Dear FPT Software Team,
-
-I'm reaching out from WinTech Partners to explore potential collaboration opportunities. As Vietnam's largest technology company, FPT Software's commitment to innovation aligns well with our AI-focused solutions.
-
-We offer enterprise AI products including content intelligence, cybersecurity, and sales optimization tools. I believe these could complement FPT's existing service offerings.
-
-Would you be open to a conversation about how our companies might work together?
-
-Best regards,
-Steve Winfield
-WinTech Partners</div>
-</div>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>A 12,000+ employee company receives hundreds of emails like this weekly. Nothing specific, nothing actionable, no reason for FPT to reply. This email disappears into a procurement queue — if it gets that far.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE-Generated Email</h3>
-<div class="insight-box">
-<div class="label">Intelligence Cross-Reference</div>
-FPT Software is Vietnam's largest IT services company with 30,000+ employees, heavy investment in AI/digital transformation services, and a stated "AI Everywhere" strategy. They're a services company that resells and integrates — not a product company. WinTech's white-label products fit FPT's model: products they can brand and deploy for their enterprise clients without building from scratch.
-</div>
-
-<div class="email-block">
-<div class="subject">Subject: White-label BEC detection for FPT's enterprise security practice</div>
-<div class="body">Dear FPT Software AI Division,
-
-FPT's "AI Everywhere" strategy means your enterprise clients are asking you for AI-native security products — and right now, you're integrating other vendors' solutions at thin margins.
-
-I have a product that changes the math.
-
-Chimera Secured is a behavioral email security product — Business Email Compromise detection via communication fingerprinting. It's built for channel deployment: $4/user/month with 30% channel margin, 2-day integration for cloud-native environments, and a methodology-first sales enablement program designed by someone who trained 1,400+ resellers across 100+ countries.
-
-The specific pitch for FPT: you're already in the room with CISOs. Chimera gives you a proprietary AI-security product to offer alongside your integration services — one your competitors don't have, at margins that make your CFO smile.
-
-I'm 15 minutes away in Da Nang and can do a technical walkthrough with your security practice lead this week.
-
-Steve Winfield
-WinTech Partners | CISSP | Da Nang</div>
-</div>
-
-<details class="atoms-tray">
-<summary>Atoms used in synthesis</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">ICP Match</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">FPT is a services/integration company, not a product company — white-label channel model is their native operating mode.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">VP Sales</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Framework/Model</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Differentiator</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Channel enablement across 1,400+ resellers in 100+ countries — exactly the muscle FPT's AI practice needs.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">VP Sales</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Validation</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  },
-
-  pitch: {
-    standard: `<div class="response">
-<h3>Generated Sales Pitch</h3>
-<p><strong>Opening:</strong> "FPT Software is Vietnam's leading IT services company. As they expand their AI capabilities, WinTech's products could enhance their offering."</p>
-<p><strong>Value Proposition:</strong> "Our AI suite gives FPT additional solutions to offer their enterprise clients, expanding their portfolio and revenue streams."</p>
-<p><strong>Differentiation:</strong> "25 years of enterprise technology experience ensures smooth integration and enterprise-grade quality."</p>
-<p><strong>Call to Action:</strong> "Let's explore how WinTech's AI products could complement FPT's service offerings."</p>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>Nothing here would get past FPT's partnership screening. No understanding of their business model, their "AI Everywhere" strategy, or how a small company creates value for a 30,000-person organization.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE-Generated Sales Pitch for FPT Software</h3>
-<div class="insight-box">
-<div class="label">Strategic Positioning</div>
-Don't pitch WinTech as a "partner" to a 30,000-person company. Pitch WinTech as a <strong>product supplier to FPT's channel</strong>. FPT integrates and resells — give them something worth reselling. The channel economics ($4/user, 30% margin) speak FPT's language: recurring revenue on top of services revenue.
-</div>
-
-<p><strong>Pitch (to FPT's AI Practice or Security Practice Lead):</strong></p>
-<p>"You're in the room with every major Vietnamese enterprise CISO. When they ask 'what's your AI-native BEC solution?' — right now you don't have a proprietary answer. You're reselling someone else's product at thin margins."</p>
-
-<p>"Chimera Secured is white-label ready. Your brand, your pricing wrapper, your client relationship. We provide the behavioral detection engine, the sales enablement materials, and the channel training program. You provide the client access and the delivery team."</p>
-
-<p><strong>Expansion play:</strong> Once the security product is in the door, TDE (content intelligence) and LeadHydration (B2B lead scoring) become natural upsells — same clients, same channel, additional recurring revenue lines.</p>
-
-<div class="weakness-box">
-<div class="label">Honest Risk Assessment</div>
-FPT has 30,000 employees and evaluates hundreds of potential partners. WinTech is a pre-revenue company. The counter-move: don't ask for a company-wide partnership. Ask for a single pilot with one FPT enterprise client. Let the results do the convincing. First deployment beats first meeting every time.
-</div>
-
-<details class="atoms-tray">
-<summary>8 atoms used in this pitch</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">ICP Match</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">FPT is a services/integration company — white-label channel model is their native operating mode. They resell, not build.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">VP Sales</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Framework/Model</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Mission</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">FPT's "AI Everywhere" strategy — actively seeking AI products to deploy across their 700+ enterprise client base.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Executive/C-Suite</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Awareness</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Definition</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">This Year</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Change Fatigue</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Product</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Chimera Secured: white-label ready, $4/user/month, 30% channel margin — designed for exactly FPT's reseller model.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CISO/Security</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Fear/Risk</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Product Demo</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Current Quarter</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Cost-Out</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  },
-
-  partnership: {
-    standard: `<div class="response">
-<h3>Partnership Analysis</h3>
-<p><strong>Overview:</strong> FPT Software and WinTech Partners could form a technology partnership to deliver AI solutions to Vietnamese and Southeast Asian enterprises.</p>
-<p><strong>Synergies:</strong> FPT's scale and market presence combined with WinTech's AI products and methodology.</p>
-<p><strong>Structure:</strong> Reseller or technology integration partnership.</p>
-<p><strong>Risks:</strong> Size mismatch between the organizations. Alignment of priorities.</p>
-<p style="color:var(--text-dim); font-size:0.78rem; margin-top:16px;"><em>The "size mismatch" risk is mentioned but no strategy to overcome it. No understanding of how FPT actually evaluates or onboards technology partners.</em></p>
-</div>`,
-
-    tde: `<div class="response">
-<h3>TDE Partnership Analysis: WinTech → FPT Software</h3>
-<div class="insight-box">
-<div class="label">Core Thesis</div>
-FPT is not a peer partnership — it's a <strong>channel target</strong>. FPT integrates and resells technology for enterprise clients. WinTech succeeds with FPT by being a product in FPT's catalog, not a name on FPT's partner page. The play: get one FPT account team to pilot Chimera Secured with one client, prove revenue, then let FPT's internal economics pull the product across practices.
-</div>
-
-<p><strong>Why FPT's Model Fits WinTech:</strong></p>
-<p>FPT's "AI Everywhere" strategy means they're actively looking for AI products to deploy across their client base. They're a services company — they make margin on integration and managed services, not on building products. WinTech's $4/user + 30% channel margin is designed exactly for this model.</p>
-
-<div class="insight-box">
-<div class="label">Entry Strategy: Bottom-Up, Not Top-Down</div>
-Don't approach FPT's C-suite. Approach one security practice manager who has a specific client with a BEC problem. Solve that problem. The practice manager becomes your internal champion because Chimera made their client happy and generated channel revenue that goes on their scorecard.
-</div>
-
-<div class="insight-box">
-<div class="label">AIAIVN as Accelerant</div>
-If WinTech partners with AIAIVN first and lands Techcombank as a reference, the FPT conversation changes: "We're already deployed at Techcombank through AIAIVN" carries more weight than any slide deck.
-</div>
-
-<div class="weakness-box">
-<div class="label">Critical Risks</div>
-FPT could absorb WinTech's methodology and build competing products internally. Mitigation: the CPP behavioral engine is proprietary — they can copy the sales motion but not the detection science. Also: FPT's size means slow procurement cycles (6-12 months). The AIAIVN/Techcombank path produces revenue faster while the FPT relationship matures.
-</div>
-
-<details class="atoms-tray">
-<summary>11 atoms cross-referenced</summary>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">ICP Match</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">FPT makes margin on integration and managed services, not products. WinTech's white-label channel model ($4/user, 30% margin) is native to FPT's economics.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">CFO/Finance</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Evaluation</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Framework/Model</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Growth</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Procedural Gravity</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Strategy</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">Entry via bottom-up: one security practice manager + one client with a BEC problem. Practice manager becomes internal champion via scorecard revenue.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Practitioner</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Interest</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Aspiration</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Framework/Model</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">ROI</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Political Cost</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Cross-Entity Leverage</span><span class="atom-confidence">HIGH</span></div>
-<div class="atom-text">AIAIVN/Techcombank reference deployment accelerates FPT conversation — "already deployed at Techcombank" beats any slide deck.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">VP Sales</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Validation</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Case Study</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Current Quarter</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">Risk-Reduction</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Risk Aversion</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">52</div></div>
-</div>
-</div>
-
-<div class="atom-card-9d">
-<div class="atom-header"><span class="atom-type-label">Weakness</span><span class="atom-confidence medium">MEDIUM</span></div>
-<div class="atom-text">FPT could absorb methodology and build competing products. CPP behavioral engine is proprietary — sales motion is copyable, detection science is not.</div>
-<div class="dim-grid">
-<div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">Executive/C-Suite</div></div>
-<div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">Decision</div></div>
-<div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">Fear/Risk</div></div>
-<div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">Expert Opinion</div></div>
-<div class="dim-cell d-cred"><div class="dim-label">Cred</div><div class="dim-value"><div class="cred-bar"><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot filled"></span><span class="cred-dot"></span><span class="cred-dot"></span></div></div></div>
-<div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">Evergreen</div></div>
-<div class="dim-cell d-econ"><div class="dim-label">Econ Pull</div><div class="dim-value">None</div></div>
-<div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">Procedural Gravity</div></div>
-<div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">54</div></div>
-</div>
-</div>
-
-</details>
-</div>`
-  }
-}
+// ── COMPANY CONFIG ──
+const COMPANIES = {
+  aiaivn:      { name: 'AIAIVN',        url: 'aiaivn.com' },
+  techcombank: { name: 'Techcombank',    url: 'techcombank.com.vn' },
+  fpt:         { name: 'FPT Software',   url: 'fpt-software.com' }
 };
 
-// ── PROMPT TEMPLATES ──
 const PROMPTS = {
-  email: (company) => `You are a sales outreach specialist. Write a cold outreach email from Steve Winfield at WinTech Partners to ${company}.\n\nWinTech Partners offers AI-powered enterprise solutions including content intelligence (TDE), cybersecurity (Chimera Secured), and sales optimization (LeadHydration).\n\nResearch ${company} and write a personalized, compelling outreach email that would get a response from a senior decision-maker. Include specific details about the target company and explain why WinTech's solutions are relevant to them.`,
-  pitch: (company) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' AI products targeting ${company}.\n\nWinTech Partners offers: TDE (content intelligence engine), Chimera Secured (behavioral email security, $4/user/month), LeadHydration (B2B lead intelligence), and ClearSignals (sales coaching).\n\nThe pitch should include an opening hook, value proposition, differentiation, and call to action. Make it specific to ${company} and their industry.`,
-  partnership: (company) => `You are a business development analyst. Analyze the potential partnership between WinTech Partners and ${company}.\n\nWinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Products include TDE, Chimera Secured, LeadHydration, and ClearSignals.\n\nProvide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`
+  email: (name) => `You are a sales outreach specialist. Write a cold outreach email from Steve Winfield at WinTech Partners to ${name}.\n\nWinTech Partners offers AI-powered enterprise solutions including content intelligence (TDE), cybersecurity (Chimera Secured), and sales optimization (LeadHydration).\n\nResearch ${name} and write a personalized, compelling outreach email that would get a response from a senior decision-maker. Include specific details about the target company and explain why WinTech's solutions are relevant to them.`,
+  pitch: (name) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' AI products targeting ${name}.\n\nWinTech Partners offers: TDE (content intelligence engine), Chimera Secured (behavioral email security, $4/user/month), LeadHydration (B2B lead intelligence), and ClearSignals (sales coaching).\n\nThe pitch should include an opening hook, value proposition, differentiation, and call to action. Make it specific to ${name} and their industry.`,
+  partnership: (name) => `You are a business development analyst. Analyze the potential partnership between WinTech Partners and ${name}.\n\nWinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Products include TDE, Chimera Secured, LeadHydration, and ClearSignals.\n\nProvide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`
 };
 
-const MODEL_NAMES = {
-  chatgpt: 'ChatGPT',
-  gemini: 'Gemini',
-  claude: 'Claude'
-};
+const MODEL_NAMES = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' };
+const MODEL_TAGS  = { chatgpt: 'GPT-4o', gemini: 'Gemini 2.5 Flash', claude: 'Claude Sonnet 4' };
 
-const MODEL_TAGS = {
-  chatgpt: 'GPT-4o',
-  gemini: 'Gemini 2.5 Pro',
-  claude: 'Claude Sonnet 4'
-};
-
-// ── UI LOGIC ──
-let selectedCompany = 'aiaivn';
+// ── STATE ──
+let selectedCompany  = 'aiaivn';
 let selectedScenario = 'email';
-let selectedModel = 'chatgpt';
-let isRunning = false;
+let selectedModel    = 'chatgpt';
+let isRunning        = false;
 
+// ── PILL HANDLERS ──
 document.querySelectorAll('#companyPills .pill').forEach(pill => {
   pill.addEventListener('click', () => {
     document.querySelectorAll('#companyPills .pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
     selectedCompany = pill.dataset.company;
+    updatePromptDisplay();
   });
 });
 
@@ -1445,6 +564,7 @@ document.querySelectorAll('#scenarioPills .pill').forEach(pill => {
     document.querySelectorAll('#scenarioPills .pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
     selectedScenario = pill.dataset.scenario;
+    updatePromptDisplay();
   });
 });
 
@@ -1453,13 +573,110 @@ document.querySelectorAll('#modelPills .pill').forEach(pill => {
     document.querySelectorAll('#modelPills .pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
     selectedModel = pill.dataset.model;
-    // Update left panel header
     document.getElementById('standardBadgeText').textContent = MODEL_NAMES[selectedModel];
     document.getElementById('standardTitle').textContent = MODEL_NAMES[selectedModel] + ' Response';
     document.getElementById('standardModelTag').textContent = MODEL_TAGS[selectedModel];
   });
 });
 
+// ── PROMPT DISPLAY ──
+function updatePromptDisplay() {
+  const company = COMPANIES[selectedCompany];
+  document.getElementById('promptText').textContent = PROMPTS[selectedScenario](company.name);
+}
+updatePromptDisplay();
+
+// ── TIMER HELPERS ──
+let standardTimerInterval, tdeTimerInterval;
+function startTimer(id) {
+  const el = document.getElementById(id);
+  const start = Date.now();
+  el.className = 'timer';
+  el.textContent = '0.0s';
+  return setInterval(() => {
+    el.textContent = ((Date.now() - start) / 1000).toFixed(1) + 's';
+  }, 100);
+}
+function stopTimer(intervalId, timerId) {
+  clearInterval(intervalId);
+  document.getElementById(timerId).classList.add('done-timer');
+}
+
+// ── RENDER ATOM CARD ──
+function renderAtomCard(atom) {
+  const conf = atom.confidence || 'high';
+  const confClass = conf === 'high' ? '' : conf === 'medium' ? ' medium' : ' low';
+  const cred = parseInt(atom.d_credibility) || 3;
+  const credDots = Array.from({length: 5}, (_, i) =>
+    `<div class="cred-dot${i < cred ? ' filled' : ''}"></div>`
+  ).join('');
+
+  const industry = atom.d_industry;
+  const industryText = typeof industry === 'object'
+    ? (industry.naics || '').replace(/^\d+\s*/, '').slice(0, 20)
+    : (industry || 'N/A');
+
+  const sourceClass = atom.source_role === 'sender' ? 'sender' : 'customer';
+  const sourceLabel = atom.source_name || (atom.source_role === 'sender' ? 'WinTech' : 'Customer');
+
+  return `<div class="atom-card-9d">
+    <div class="atom-header">
+      <span class="atom-type-label">${(atom.type || 'general').replace(/_/g, ' ')}</span>
+      <span class="atom-confidence${confClass}">${conf}</span>
+    </div>
+    <div class="atom-text">${escHtml(atom.claim || atom.text || '')}</div>
+    <div class="atom-source ${sourceClass}">Source: ${escHtml(sourceLabel)}</div>
+    <div class="dim-grid">
+      <div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">${escHtml(atom.d_persona || 'General')}</div></div>
+      <div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">${escHtml(atom.d_buying_stage || 'Awareness')}</div></div>
+      <div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">${escHtml(atom.d_emotional_driver || 'Curiosity')}</div></div>
+      <div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">${escHtml(atom.d_evidence_type || 'Anecdote')}</div></div>
+      <div class="dim-cell d-cred"><div class="dim-label">Credibility</div><div class="cred-bar">${credDots}</div></div>
+      <div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">${escHtml(atom.d_recency || 'Evergreen')}</div></div>
+      <div class="dim-cell d-econ"><div class="dim-label">Economic</div><div class="dim-value">${escHtml(atom.d_economic_driver || 'None')}</div></div>
+      <div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">${escHtml(atom.d_status_quo_pressure || 'None')}</div></div>
+      <div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">${escHtml(industryText)}</div></div>
+    </div>
+  </div>`;
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── PHASE MANAGEMENT ──
+const PHASE_MAP = {
+  'fetch':      'fetch',
+  'decompose':  'decompose',
+  'ingest':     'decompose',
+  'tag':        'tag',
+  'cross':      'cross',
+  'synthesize': 'synthesize'
+};
+
+function setPhase(phaseName) {
+  const mapped = PHASE_MAP[phaseName] || phaseName;
+  // Mark all previous phases as done, current as active
+  const phaseOrder = ['fetch', 'decompose', 'tag', 'cross', 'synthesize'];
+  const idx = phaseOrder.indexOf(mapped);
+  phaseOrder.forEach((p, i) => {
+    const el = document.querySelector(`.phase[data-phase="${p}"]`);
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    if (i < idx) el.classList.add('done');
+    else if (i === idx) el.classList.add('active');
+  });
+}
+
+function allPhasesDone() {
+  document.querySelectorAll('.phase').forEach(el => {
+    el.classList.remove('active');
+    el.classList.add('done');
+  });
+}
+
+// ── RUN COMPARISON (LIVE API) ──
 async function runComparison() {
   if (isRunning) return;
   isRunning = true;
@@ -1470,68 +687,178 @@ async function runComparison() {
   const standardBody = document.getElementById('standardBody');
   const tdeBody = document.getElementById('tdeBody');
 
-  // Clear
-  standardBody.innerHTML = `<div class="placeholder typing-cursor">${MODEL_NAMES[selectedModel]} is generating from training data...</div>`;
-  tdeBody.innerHTML = '<div class="placeholder typing-cursor">Initializing pipeline...</div>';
+  // Clear timers
+  clearInterval(standardTimerInterval);
+  clearInterval(tdeTimerInterval);
+  document.getElementById('standardTimer').textContent = '';
+  document.getElementById('tdeTimer').textContent = '';
+
+  // Clear panels
+  standardBody.innerHTML = `<div class="placeholder typing-cursor">${MODEL_NAMES[selectedModel]} is generating...</div>`;
+  tdeBody.innerHTML = '<div class="placeholder typing-cursor">Initializing live pipeline...</div>';
 
   // Reset phases
-  document.querySelectorAll('.phase').forEach(p => {
-    p.classList.remove('active', 'done');
-  });
+  document.querySelectorAll('.phase').forEach(p => p.classList.remove('active', 'done'));
 
-  const company = DATA[selectedCompany];
-  const scenarioData = company[selectedScenario];
+  // Update prompt display
+  const company = COMPANIES[selectedCompany];
+  document.getElementById('promptText').textContent = PROMPTS[selectedScenario](company.name);
 
-  // Show the prompt
-  const promptDisplay = document.getElementById('promptDisplay');
-  const promptText = document.getElementById('promptText');
-  promptDisplay.style.display = 'block';
-  promptText.textContent = PROMPTS[selectedScenario](company.name);
+  // Start timers
+  standardTimerInterval = startTimer('standardTimer');
+  tdeTimerInterval = startTimer('tdeTimer');
 
-  const phases = ['fetch', 'decompose', 'tag', 'cross', 'synthesize'];
-  const phaseTimes = [800, 1500, 1200, 1000, 1400];
-  const phaseMessages = [
-    `Fetching content from ${company.url}...`,
-    `Decomposing into atomic intelligence units...`,
-    `Tagging atoms across 9 dimensions...`,
-    `Cross-referencing with WinTech atoms...`,
-    `Synthesizing targeted output...`
-  ];
+  let standardDone = false;
+  let tdeDone = false;
 
-  // Standard side: show after a brief delay (simulating API call)
-  await sleep(1200);
-  standardBody.innerHTML = scenarioData.standard;
+  try {
+    const response = await fetch('/api/comparison', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_url: company.url,
+        company_name: company.name,
+        scenario: selectedScenario,
+        model: selectedModel
+      })
+    });
 
-  // TDE side: animate through phases
-  for (let i = 0; i < phases.length; i++) {
-    const el = document.querySelector(`.phase[data-phase="${phases[i]}"]`);
-    el.classList.add('active');
-    tdeBody.innerHTML = `<div class="placeholder typing-cursor">${phaseMessages[i]}</div>`;
-    await sleep(phaseTimes[i]);
-    el.classList.remove('active');
-    el.classList.add('done');
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line in buffer
+
+      let eventType = null;
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ') && eventType) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            handleSSE(eventType, data, standardBody, tdeBody);
+
+            if (eventType === 'standard_done' || eventType === 'standard_error') {
+              if (!standardDone) {
+                standardDone = true;
+                stopTimer(standardTimerInterval, 'standardTimer');
+              }
+            }
+            if (eventType === 'tde_done' || eventType === 'tde_error') {
+              if (!tdeDone) {
+                tdeDone = true;
+                stopTimer(tdeTimerInterval, 'tdeTimer');
+                allPhasesDone();
+              }
+            }
+          } catch (e) {
+            console.warn('SSE parse error:', e);
+          }
+          eventType = null;
+        } else if (line.startsWith(':')) {
+          // keepalive comment, ignore
+        } else if (line === '') {
+          eventType = null;
+        }
+      }
+    }
+
+  } catch (err) {
+    console.error('Comparison error:', err);
+    if (!standardDone) {
+      standardBody.innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(err.message)}</div>`;
+      stopTimer(standardTimerInterval, 'standardTimer');
+    }
+    if (!tdeDone) {
+      tdeBody.innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(err.message)}</div>`;
+      stopTimer(tdeTimerInterval, 'tdeTimer');
+    }
   }
 
-  // Show TDE result
-  tdeBody.innerHTML = scenarioData.tde;
-
+  // Cleanup
+  if (!standardDone) stopTimer(standardTimerInterval, 'standardTimer');
+  if (!tdeDone) stopTimer(tdeTimerInterval, 'tdeTimer');
   isRunning = false;
   btn.disabled = false;
   btn.textContent = 'Run Comparison';
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+// ── SSE EVENT HANDLER ──
+function handleSSE(event, data, standardBody, tdeBody) {
+  switch (event) {
+    case 'standard_status':
+      standardBody.innerHTML = `<div class="placeholder typing-cursor">${escHtml(data.message)}</div>`;
+      break;
 
-function updatePromptDisplay() {
-  const company = DATA[selectedCompany];
-  document.getElementById('promptText').textContent = PROMPTS[selectedScenario](company.name);
+    case 'standard_done':
+      standardBody.innerHTML = `<div class="response"><div class="standard-response-text">${escHtml(data.text)}</div></div>`;
+      break;
+
+    case 'standard_error':
+      standardBody.innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(data.message)}</div>`;
+      break;
+
+    case 'tde_phase':
+      setPhase(data.phase);
+      tdeBody.innerHTML = `<div class="placeholder typing-cursor">${escHtml(data.message)}</div>`;
+      break;
+
+    case 'tde_done': {
+      const { text, atoms_used, sources, total_atoms } = data;
+
+      // Build source provenance banner
+      let sourceHtml = '';
+      if (sources && sources.length > 0) {
+        const chips = sources.map(s => {
+          const cls = s.role === 'sender' ? 'sender' : 'customer';
+          return `<span class="source-chip ${cls}">${escHtml(s.name)} (${s.count} atoms)</span>`;
+        }).join('');
+        const atomCount = atoms_used ? atoms_used.length : 0;
+        sourceHtml = `<div class="source-banner">
+          <div class="source-label">Source Provenance</div>
+          <div class="source-summary">This response synthesized <strong>${atomCount} atoms</strong> from <strong>${sources.length} sources</strong> out of ${total_atoms || '?'} total atoms analyzed:</div>
+          <div class="source-chips">${chips}</div>
+        </div>`;
+      }
+
+      // Build atom tray
+      let atomsHtml = '';
+      if (atoms_used && atoms_used.length > 0) {
+        const cards = atoms_used.map(a => renderAtomCard(a)).join('');
+        atomsHtml = `<details class="atoms-tray" open>
+          <summary>Show ${atoms_used.length} atoms used in this response</summary>
+          ${cards}
+        </details>`;
+      }
+
+      tdeBody.innerHTML = `<div class="response">
+        ${sourceHtml}
+        <div class="tde-response-text">${escHtml(text)}</div>
+        ${atomsHtml}
+      </div>`;
+      break;
+    }
+
+    case 'tde_error':
+      tdeBody.innerHTML = `<div class="placeholder" style="color:var(--red)">TDE Error: ${escHtml(data.message)}</div>`;
+      break;
+
+    case 'error':
+      tdeBody.innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(data.message)}</div>`;
+      break;
+  }
 }
-
-// Show prompt immediately on load and on any selection change
-updatePromptDisplay();
-document.querySelectorAll('#companyPills .pill, #scenarioPills .pill').forEach(pill => {
-  pill.addEventListener('click', () => setTimeout(updatePromptDisplay, 10));
-});
 </script>
 </body>
 </html>
