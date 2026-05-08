@@ -2342,18 +2342,18 @@ app.post('/api/comparison', async (req, res) => {
     send('tde_phase', { phase: 'tag', message: `All atoms tagged across 9 dimensions` });
     send('tde_phase', { phase: 'cross', message: `Cross-referencing ${Object.keys(sourceMap).length} sources...` });
 
-    // Build synthesis prompt — cap at 15 atoms per side, truncate claims
-    const MAX_SYNTH_ATOMS = 15;
+    // Build synthesis prompt — generous atom budget now that Cerebras handles volume
+    const MAX_SYNTH_ATOMS = 30;
     const senderAtomsForSynth = (sender.atoms || []).slice(0, MAX_SYNTH_ATOMS);
     const customerAtomsForSynth = (customer.atoms || []).slice(0, MAX_SYNTH_ATOMS);
 
-    const truncClaim = (c) => c && c.length > 150 ? c.slice(0, 150) + '...' : (c || '');
+    const truncClaim = (c) => c && c.length > 300 ? c.slice(0, 300) + '...' : (c || '');
     const senderAtomText = senderAtomsForSynth.map(a =>
-      `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}`
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}${a.evidence ? ' | Evidence: ' + truncClaim(a.evidence) : ''}`
     ).join('\n');
 
     const customerAtomText = customerAtomsForSynth.map(a =>
-      `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}`
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}${a.evidence ? ' | Evidence: ' + truncClaim(a.evidence) : ''}`
     ).join('\n');
 
     const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName);
@@ -2392,7 +2392,7 @@ app.post('/api/comparison', async (req, res) => {
             { role: 'user', content: synthesisPrompt }
           ],
           temperature: 0.4,
-          max_tokens: 1500
+          max_tokens: 3000
         }),
         signal: AbortSignal.timeout(30000)
       });
