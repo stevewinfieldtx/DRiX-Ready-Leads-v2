@@ -2265,6 +2265,8 @@ app.post('/api/comparison', async (req, res) => {
     // Standard side fires independently and sends its result the moment it arrives
     const standardPromise = (async () => {
       try {
+        console.log(`[comparison] Standard side: calling ${COMPARISON_MODELS[model]} via OpenRouter...`);
+        const stdT0 = Date.now();
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -2280,7 +2282,8 @@ app.post('/api/comparison', async (req, res) => {
             ],
             temperature: 0.7,
             max_tokens: 2000
-          })
+          }),
+          signal: AbortSignal.timeout(45000)
         });
         if (!response.ok) {
           const err = await response.text();
@@ -2288,9 +2291,11 @@ app.post('/api/comparison', async (req, res) => {
         }
         const data = await response.json();
         const text = data?.choices?.[0]?.message?.content || '(No response)';
+        console.log(`[comparison] Standard side done: ${text.length} chars in ${Date.now() - stdT0}ms`);
         send('standard_done', { text });
         return text;
       } catch (e) {
+        console.error(`[comparison] Standard side FAILED: ${e.message}`);
         send('standard_error', { message: e.message });
         throw e;
       }
@@ -2367,7 +2372,7 @@ app.post('/api/comparison', async (req, res) => {
     const synthUrl = useCerebras
       ? 'https://api.cerebras.ai/v1/chat/completions'
       : 'https://openrouter.ai/api/v1/chat/completions';
-    const synthModel = useCerebras ? 'llama-3.3-70b' : 'google/gemini-2.5-flash';
+    const synthModel = useCerebras ? 'gpt-oss-120b' : 'google/gemini-2.5-flash';
     const synthHeaders = useCerebras
       ? { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' }
       : { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json',
@@ -2466,7 +2471,7 @@ app.post('/api/comparison', async (req, res) => {
     console.error('[comparison]', err.message);
     send('tde_error', { message: err.message });
     // Standard side sends its own events, just make sure it finishes
-    await standardPromise.catch(() => {});
+    if (typeof standardPromise !== 'undefined') await standardPromise.catch(() => {});
   } finally {
     clearInterval(keepAlive);
     res.end();
