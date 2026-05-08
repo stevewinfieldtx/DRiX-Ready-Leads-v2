@@ -35,6 +35,8 @@ if (!RESEND_API_KEY)     console.warn('⚠️  RESEND_API_KEY not set — email 
 if (!TDE_API_KEY)        console.warn('⚠️  TDE_API_KEY not set — TDE cache lookups will be skipped (fresh ingest every time).');
 if (!FIRECRAWL_API_KEY)  console.warn('⚠️  FIRECRAWL_API_KEY not set — fetches use basic HTTP (SPAs may return empty content).');
 if (!APOLLO_API_KEY)     console.warn('⚠️  APOLLO_API_KEY not set — decision-maker lookup will be skipped.');
+const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY || '';
+if (!CEREBRAS_API_KEY)   console.warn('⚠️  CEREBRAS_API_KEY not set — comparison synthesis will fall back to OpenRouter.');
 
 // ─── 9D TAXONOMY ─────────────────────────────────────────────────────────────
 // Dimensions 1-6 mirror TargetedDecomposition/src/config.js canonical taxonomy.
@@ -2360,30 +2362,34 @@ app.post('/api/comparison', async (req, res) => {
     const totalSynthAtoms = senderAtomsForSynth.length + customerAtomsForSynth.length;
     send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${totalSynthAtoms} atoms...` });
 
-    // Use Gemini Flash for synthesis — fast, cheap, reliable
-    const SYNTH_MODEL = 'google/gemini-2.5-flash';
-    console.log(`[comparison] Synthesis call: ${SYNTH_MODEL}, prompt ~${synthesisPrompt.length} chars`);
+    // Cerebras direct (~2000 tok/s) with OpenRouter fallback
+    const useCerebras = !!CEREBRAS_API_KEY;
+    const synthUrl = useCerebras
+      ? 'https://api.cerebras.ai/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions';
+    const synthModel = useCerebras ? 'llama-3.3-70b' : 'google/gemini-2.5-flash';
+    const synthHeaders = useCerebras
+      ? { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' }
+      : { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app', 'X-Title': 'TDE Comparison Synthesis' };
+
+    console.log(`[comparison] Synthesis via ${useCerebras ? 'Cerebras direct' : 'OpenRouter'}: ${synthModel}, prompt ~${synthesisPrompt.length} chars`);
     const synthT0 = Date.now();
 
     let synthesisText = '';
     try {
-      const synthesisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const synthesisResponse = await fetch(synthUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
-          'X-Title': 'TDE Comparison Synthesis'
-        },
+        headers: synthHeaders,
         body: JSON.stringify({
-          model: SYNTH_MODEL,
+          model: synthModel,
           messages: [
             { role: 'user', content: synthesisPrompt }
           ],
           temperature: 0.4,
           max_tokens: 1500
         }),
-        signal: AbortSignal.timeout(60000)
+        signal: AbortSignal.timeout(30000)
       });
 
       console.log(`[comparison] Synthesis response: ${synthesisResponse.status} in ${Date.now() - synthT0}ms`);
@@ -2396,7 +2402,7 @@ app.post('/api/comparison', async (req, res) => {
 
       const synthesisData = await synthesisResponse.json();
       synthesisText = synthesisData?.choices?.[0]?.message?.content || '';
-      console.log(`[comparison] Synthesis text length: ${synthesisText.length}`);
+      console.log(`[comparison] Synthesis done: ${synthesisText.length} chars in ${Date.now() - synthT0}ms`);
 
       if (!synthesisText) {
         throw new Error('Empty synthesis response from LLM');
