@@ -2204,7 +2204,7 @@ const TDE_SYNTHESIS_PROMPT = `You are synthesizing a targeted sales output using
 
 CRITICAL RULES:
 - Every claim you make MUST come from the atoms provided. Do NOT invent facts.
-- Reference specific atoms by weaving their claims naturally into your output.
+- Weave atom claims naturally into your prose — but NEVER put atom IDs, bracket references, or citation markers inline in the text. The output must read as clean, professional copy with zero visible references.
 - Cross-reference sender atoms with customer atoms to find specific overlaps.
 - This should be dramatically more specific and targeted than what a generic AI would produce.
 - Do NOT use markdown formatting. Write in plain text with clear paragraph breaks.
@@ -2217,7 +2217,7 @@ CUSTOMER ATOMS ({CUSTOMER_NAME}):
 
 TASK: {TASK_DESCRIPTION}
 
-After writing the main output, add a section at the end labeled "---ATOMS_USED---" followed by a JSON array of the atom_ids you referenced (from both sender and customer atoms). Example:
+After writing the main output, add a section at the end labeled "---ATOMS_USED---" followed by a JSON array of EVERY atom_id whose content you drew on (from both sender and customer atoms). This is how we track provenance — keep it thorough. Example:
 ---ATOMS_USED---
 ["atom-id-1", "atom-id-2", "atom-id-3"]`;
 
