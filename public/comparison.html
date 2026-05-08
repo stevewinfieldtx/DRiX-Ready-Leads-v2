@@ -755,11 +755,11 @@ async function runComparison() {
                 stopTimer(standardTimerInterval, 'standardTimer');
               }
             }
-            if (eventType === 'tde_done' || eventType === 'tde_error') {
+            if (eventType === 'tde_done' || eventType === 'tde_error' || eventType === 'error') {
               if (!tdeDone) {
                 tdeDone = true;
                 stopTimer(tdeTimerInterval, 'tdeTimer');
-                allPhasesDone();
+                if (eventType === 'tde_done') allPhasesDone();
               }
             }
           } catch (e) {

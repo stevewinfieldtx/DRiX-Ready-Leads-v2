@@ -2345,13 +2345,17 @@ app.post('/api/comparison', async (req, res) => {
     send('tde_phase', { phase: 'tag', message: `All atoms tagged across 9 dimensions` });
     send('tde_phase', { phase: 'cross', message: `Cross-referencing ${Object.keys(sourceMap).length} sources...` });
 
-    // Build synthesis prompt with real atoms
-    const senderAtomText = (sender.atoms || []).map(a =>
-      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}${a.evidence ? ' — ' + a.evidence : ''}`
+    // Build synthesis prompt — cap at 20 atoms per side to keep prompt manageable
+    const MAX_SYNTH_ATOMS = 20;
+    const senderAtomsForSynth = (sender.atoms || []).slice(0, MAX_SYNTH_ATOMS);
+    const customerAtomsForSynth = (customer.atoms || []).slice(0, MAX_SYNTH_ATOMS);
+
+    const senderAtomText = senderAtomsForSynth.map(a =>
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}`
     ).join('\n');
 
-    const customerAtomText = (customer.atoms || []).map(a =>
-      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}${a.evidence ? ' — ' + a.evidence : ''}`
+    const customerAtomText = customerAtomsForSynth.map(a =>
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}`
     ).join('\n');
 
     const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName);
@@ -2362,9 +2366,10 @@ app.post('/api/comparison', async (req, res) => {
       .replace('{CUSTOMER_ATOMS}', customerAtomText)
       .replace('{TASK_DESCRIPTION}', taskDesc);
 
-    send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${(customer.atoms?.length || 0) + (sender.atoms?.length || 0)} atoms...` });
+    const totalSynthAtoms = senderAtomsForSynth.length + customerAtomsForSynth.length;
+    send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${totalSynthAtoms} atoms...` });
 
-    // Call LLM for synthesis (use the configured TDE model, NOT the comparison model)
+    // Call LLM for synthesis — 90s timeout to prevent hanging
     const synthesisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -2379,8 +2384,9 @@ app.post('/api/comparison', async (req, res) => {
           { role: 'user', content: synthesisPrompt }
         ],
         temperature: 0.4,
-        max_tokens: 3000
-      })
+        max_tokens: 2000
+      }),
+      signal: AbortSignal.timeout(90000)
     });
 
     if (!synthesisResponse.ok) {
@@ -2402,23 +2408,26 @@ app.post('/api/comparison', async (req, res) => {
     }
 
     // Find the actual atom objects that were used
-    const allAtoms = [...(sender.atoms || []), ...(customer.atoms || [])];
+    const allAtoms = [...senderAtomsForSynth, ...customerAtomsForSynth];
+    const senderIds = new Set((sender.atoms || []).map(a => a.atom_id || a.id));
     const atomsUsed = atomsUsedIds.length > 0
       ? allAtoms.filter(a => atomsUsedIds.includes(a.atom_id || a.id))
-      : allAtoms.slice(0, 6); // fallback: show first 6 if parsing failed
+      : allAtoms.slice(0, 8); // fallback: show first 8 if parsing failed
 
     // Send TDE result with atoms and source provenance
     send('tde_done', {
       text: synthesisText,
-      atoms_used: atomsUsed.map(a => ({
+      atoms_used: atomsUsed.map(a => {
+        const isSender = senderIds.has(a.atom_id || a.id);
+        return {
         atom_id: a.atom_id || a.id,
         type: a.type,
         claim: a.claim,
         evidence: a.evidence,
         confidence: a.confidence,
-        source_url: a.source_url || (a.type && sender.atoms?.includes(a) ? (sender.source_url || 'wintech.partners') : (customer.source_url || company_url)),
-        source_name: sender.atoms?.includes(a) ? (sender.target?.name || 'WinTech Partners') : (customer.target?.name || displayName),
-        source_role: sender.atoms?.includes(a) ? 'sender' : 'customer',
+        source_url: a.source_url || (isSender ? (sender.source_url || 'wintechpartners.com') : (customer.source_url || company_url)),
+        source_name: isSender ? (sender.target?.name || 'WinTech Partners') : (customer.target?.name || displayName),
+        source_role: isSender ? 'sender' : 'customer',
         d_persona: a.d_persona,
         d_buying_stage: a.d_buying_stage,
         d_emotional_driver: a.d_emotional_driver,
@@ -2428,7 +2437,7 @@ app.post('/api/comparison', async (req, res) => {
         d_economic_driver: a.d_economic_driver,
         d_status_quo_pressure: a.d_status_quo_pressure,
         d_industry: a.d_industry
-      })),
+      };}),
       sources: Object.values(sourceMap),
       total_atoms: allAtoms.length
     });
@@ -2440,11 +2449,9 @@ app.post('/api/comparison', async (req, res) => {
 
   } catch (err) {
     console.error('[comparison]', err.message);
-    send('error', { message: err.message });
-    // Try to still deliver the standard side if TDE failed
-    try {
-      // standardPromise may already be resolved or rejected
-    } catch {}
+    send('tde_error', { message: err.message });
+    // Standard side sends its own events, just make sure it finishes
+    await standardPromise.catch(() => {});
   } finally {
     clearInterval(keepAlive);
     res.end();
