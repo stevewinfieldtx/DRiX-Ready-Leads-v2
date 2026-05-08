@@ -26,11 +26,15 @@ const TDE_API_KEY         = process.env.TDE_API_KEY || '';
 // Minimum atoms in a TDE collection to treat it as a real cache hit. Below this
 // we'd rather do a fresh demo-lightweight ingest than reconstruct from thin air.
 const TDE_MIN_ATOMS       = parseInt(process.env.TDE_MIN_ATOMS || '15', 10);
+const FIRECRAWL_API_KEY   = process.env.FIRECRAWL_API_KEY || '';
+const APOLLO_API_KEY      = process.env.APOLLO_API_KEY || '';
 
 if (!OPENROUTER_API_KEY) console.warn('⚠️  OPENROUTER_API_KEY not set.');
 if (!LEADHYDRATION_URL)  console.warn('⚠️  LEADHYDRATION_URL not set — hydration step will fail loud.');
 if (!RESEND_API_KEY)     console.warn('⚠️  RESEND_API_KEY not set — email report step will fail loud.');
 if (!TDE_API_KEY)        console.warn('⚠️  TDE_API_KEY not set — TDE cache lookups will be skipped (fresh ingest every time).');
+if (!FIRECRAWL_API_KEY)  console.warn('⚠️  FIRECRAWL_API_KEY not set — fetches use basic HTTP (SPAs may return empty content).');
+if (!APOLLO_API_KEY)     console.warn('⚠️  APOLLO_API_KEY not set — decision-maker lookup will be skipped.');
 
 // ─── 9D TAXONOMY ─────────────────────────────────────────────────────────────
 // Dimensions 1-6 mirror TargetedDecomposition/src/config.js canonical taxonomy.
@@ -302,7 +306,103 @@ async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperatur
   }
 }
 
+// ─── FIRECRAWL — JS-rendering scraper for SPAs and modern sites ─────────────
+// When FIRECRAWL_API_KEY is set, fetch via Firecrawl which executes JavaScript
+// and returns clean markdown — far richer than regex-stripped HTML for SPAs.
+// Returns the same shape as the basic fetch: {url, title, description, text}
+// or null on missing key / failure / thin content (caller falls back).
+async function firecrawlScrape(url) {
+  if (!FIRECRAWL_API_KEY) return null;
+  try {
+    const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true }),
+      signal: AbortSignal.timeout(25000)
+    });
+    if (!res.ok) {
+      console.log(`[Firecrawl] ${res.status} for ${url} — falling back to basic fetch`);
+      return null;
+    }
+    const data = await res.json();
+    const md = data?.data?.markdown || data?.markdown || '';
+    if (!md || md.length < 50) {
+      console.log(`[Firecrawl] thin content (${md.length} chars) for ${url} — falling back`);
+      return null;
+    }
+    const meta = data?.data?.metadata || {};
+    console.log(`[Firecrawl] Scraped ${md.length} chars from ${url}`);
+    return {
+      url,
+      title: meta.title || meta.ogTitle || null,
+      description: meta.description || meta.ogDescription || null,
+      text: md.slice(0, 40000)
+    };
+  } catch (e) {
+    console.log(`[Firecrawl] ${url}: ${e.message} — falling back to basic fetch`);
+    return null;
+  }
+}
+
+// ─── APOLLO — decision-maker lookup ─────────────────────────────────────────
+// Given a customer domain and a target persona/title (the AI-identified role
+// from a strategy's target_persona), returns the best matching person from
+// Apollo's database. Returns null on missing key, no domain, or no matches.
+async function apolloFindContact(domain, persona) {
+  if (!APOLLO_API_KEY) return null;
+  const cleanDomain = String(domain || '')
+    .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').trim();
+  if (!cleanDomain) return null;
+  try {
+    const body = {
+      api_key: APOLLO_API_KEY,
+      q_organization_domains: cleanDomain,
+      per_page: 5,
+      page: 1
+    };
+    if (persona) body.person_titles = [persona];
+    const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!res.ok) {
+      console.log(`[Apollo] ${res.status} for ${cleanDomain} (${persona || 'any'}) — no decision maker returned`);
+      return null;
+    }
+    const data = await res.json();
+    const people = Array.isArray(data?.people) ? data.people : [];
+    if (!people.length) {
+      console.log(`[Apollo] No people found for ${cleanDomain} matching "${persona || 'any'}"`);
+      return null;
+    }
+    const best = people[0];
+    const name = `${best.first_name || ''} ${best.last_name || ''}`.trim();
+    const result = {
+      name: name || null,
+      title: best.title || null,
+      email: best.email || null,
+      linkedin: best.linkedin_url || null,
+      organization: best.organization?.name || null,
+      persona: persona || null,
+      source: 'apollo'
+    };
+    console.log(`[Apollo] Found ${name || '(unnamed)'} (${result.title || 'no title'}) for ${cleanDomain} — persona: ${persona || 'any'}`);
+    return result;
+  } catch (e) {
+    console.log(`[Apollo] ${cleanDomain} (${persona || 'any'}): ${e.message}`);
+    return null;
+  }
+}
+
 async function fetchAndStrip(url) {
+  // Try Firecrawl first — JS-rendering, clean markdown. Falls through on miss.
+  const fc = await firecrawlScrape(url);
+  if (fc) return fc;
   try {
     const res = await fetch(url, {
       headers: {
@@ -858,10 +958,27 @@ app.post('/api/demo-flow', async (req, res) => {
     }
     send('strategies', strategies);
 
+    // ── PHASE 5: Decision-maker lookup — Apollo against the AI-identified
+    //    target_persona of the top-pick strategy. One Apollo call per demo;
+    //    additional calls fire lazily in /api/hydrate when the user picks a
+    //    different (non-top-pick) strategy.
+    const decisionMakers = {}; // strategy_id → contact object
+    const customerDomain = String(customer?.target?.url || customer?.source_url || customer_url || '')
+      .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').trim();
+    const topPickId = strategies?.top_pick_id;
+    const topPick   = (strategies?.strategies || []).find(s => s.id === topPickId);
+    if (APOLLO_API_KEY && customerDomain && topPick?.target_persona) {
+      send('phase', { phase: 'decision_maker', message: `Identifying ${topPick.target_persona} at ${customerDomain}…` });
+      const contact = await apolloFindContact(customerDomain, topPick.target_persona);
+      if (contact) decisionMakers[topPickId] = contact;
+      send('decision_maker', { strategy_id: topPickId, persona: topPick.target_persona, contact: contact || null });
+    }
+
     // ── Persist the run so /api/hydrate can retrieve it by run_id ────────
     runStore.set(run_id, {
       email, sender, solution, customer,
       pain_points, pain_groups, strategies,
+      decisionMakers,
       industry, subindustry, region,
       recipient_role,
       created_at: new Date().toISOString()
@@ -961,6 +1078,23 @@ app.post('/api/hydrate', async (req, res) => {
     const customerWebsite = run.customer?.source_url || run.customer?.target?.url || '';
     const industryName = run.customer?.industry || run.industry || solutionIntel.targetMarket || '';
 
+    // Apollo: look up the decision maker for this strategy's persona, if not
+    // already cached from the demo-flow top-pick lookup. One call per unique
+    // (strategy_id, persona) pair within the run's lifetime.
+    const cacheKeyDM = chosenStrategy.id || 'custom';
+    let decisionMaker = run.decisionMakers?.[cacheKeyDM] || null;
+    if (!decisionMaker && APOLLO_API_KEY && chosenStrategy.target_persona) {
+      const dmDomain = String(customerWebsite || '')
+        .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').trim();
+      if (dmDomain) {
+        decisionMaker = await apolloFindContact(dmDomain, chosenStrategy.target_persona);
+        if (decisionMaker) {
+          run.decisionMakers = run.decisionMakers || {};
+          run.decisionMakers[cacheKeyDM] = decisionMaker;
+        }
+      }
+    }
+
     // Pass the strategy's persona × pain anchor as a hint so questions/emails
     // align to the chosen angle, not some other persona/pain.
     const strategyHint = chosenStrategy.target_persona && chosenStrategy.pain_anchor
@@ -1018,7 +1152,8 @@ app.post('/api/hydrate', async (req, res) => {
       chosen_strategy: chosenStrategy,
       solution_intel: solutionIntel,
       solution_source: 'tde_atoms', // so the UI can show "reused from TDE"
-      hydration
+      hydration,
+      decision_maker: decisionMaker || null
     });
   } catch (err) {
     console.error('[hydrate]', err.message);
