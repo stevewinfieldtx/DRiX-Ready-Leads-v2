@@ -2335,17 +2335,18 @@ app.post('/api/comparison', async (req, res) => {
     send('tde_phase', { phase: 'tag', message: `All atoms tagged across 9 dimensions` });
     send('tde_phase', { phase: 'cross', message: `Cross-referencing ${Object.keys(sourceMap).length} sources...` });
 
-    // Build synthesis prompt — cap at 20 atoms per side to keep prompt manageable
-    const MAX_SYNTH_ATOMS = 20;
+    // Build synthesis prompt — cap at 15 atoms per side, truncate claims
+    const MAX_SYNTH_ATOMS = 15;
     const senderAtomsForSynth = (sender.atoms || []).slice(0, MAX_SYNTH_ATOMS);
     const customerAtomsForSynth = (customer.atoms || []).slice(0, MAX_SYNTH_ATOMS);
 
+    const truncClaim = (c) => c && c.length > 150 ? c.slice(0, 150) + '...' : (c || '');
     const senderAtomText = senderAtomsForSynth.map(a =>
-      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}`
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}`
     ).join('\n');
 
     const customerAtomText = customerAtomsForSynth.map(a =>
-      `[${a.atom_id || a.id || '?'}] (${a.type}) ${a.claim}`
+      `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}`
     ).join('\n');
 
     const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName);
@@ -2359,33 +2360,51 @@ app.post('/api/comparison', async (req, res) => {
     const totalSynthAtoms = senderAtomsForSynth.length + customerAtomsForSynth.length;
     send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${totalSynthAtoms} atoms...` });
 
-    // Call LLM for synthesis — 90s timeout to prevent hanging
-    const synthesisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
-        'X-Title': 'TDE Comparison Synthesis'
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL_ID,
-        messages: [
-          { role: 'user', content: synthesisPrompt }
-        ],
-        temperature: 0.4,
-        max_tokens: 2000
-      }),
-      signal: AbortSignal.timeout(90000)
-    });
+    // Use Gemini Flash for synthesis — fast, cheap, reliable
+    const SYNTH_MODEL = 'google/gemini-2.5-flash';
+    console.log(`[comparison] Synthesis call: ${SYNTH_MODEL}, prompt ~${synthesisPrompt.length} chars`);
+    const synthT0 = Date.now();
 
-    if (!synthesisResponse.ok) {
-      const err = await synthesisResponse.text();
-      throw new Error(`TDE synthesis LLM error: ${err.slice(0, 200)}`);
+    let synthesisText = '';
+    try {
+      const synthesisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
+          'X-Title': 'TDE Comparison Synthesis'
+        },
+        body: JSON.stringify({
+          model: SYNTH_MODEL,
+          messages: [
+            { role: 'user', content: synthesisPrompt }
+          ],
+          temperature: 0.4,
+          max_tokens: 1500
+        }),
+        signal: AbortSignal.timeout(60000)
+      });
+
+      console.log(`[comparison] Synthesis response: ${synthesisResponse.status} in ${Date.now() - synthT0}ms`);
+
+      if (!synthesisResponse.ok) {
+        const errBody = await synthesisResponse.text();
+        console.error(`[comparison] Synthesis error body: ${errBody.slice(0, 300)}`);
+        throw new Error(`Synthesis LLM ${synthesisResponse.status}`);
+      }
+
+      const synthesisData = await synthesisResponse.json();
+      synthesisText = synthesisData?.choices?.[0]?.message?.content || '';
+      console.log(`[comparison] Synthesis text length: ${synthesisText.length}`);
+
+      if (!synthesisText) {
+        throw new Error('Empty synthesis response from LLM');
+      }
+    } catch (synthErr) {
+      console.error(`[comparison] Synthesis failed: ${synthErr.message}`);
+      throw new Error(`Synthesis failed: ${synthErr.message}`);
     }
-
-    const synthesisData = await synthesisResponse.json();
-    let synthesisText = synthesisData?.choices?.[0]?.message?.content || '';
 
     // Parse out the atoms_used section
     let atomsUsedIds = [];
