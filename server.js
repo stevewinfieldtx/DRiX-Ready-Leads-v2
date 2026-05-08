@@ -2288,7 +2288,7 @@ app.post('/api/comparison', async (req, res) => {
 
     // Ingest WinTech (sender) — will be cached after first run
     const senderPromise = ingestOne({
-      url: normUrl('wintech.partners'),
+      url: normUrl('wintechpartners.com'),
       role: 'sender',
       hint_name: 'WinTech Partners',
       demoMode: true
