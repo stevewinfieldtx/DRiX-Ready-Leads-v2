@@ -2152,6 +2152,25 @@ const REGIONS = [
 ];
 
 // ─── COMPARISON ENDPOINT (live TDE vs Standard AI) ──────────────────────────
+
+// Pre-loaded WinTech atoms from seed file — no scraping needed for sender
+const WINTECH_SEED = (() => {
+  try {
+    const raw = require('./seed-wintech.json');
+    return {
+      target: { name: 'WinTech Partners', url: 'https://wintechpartners.com', role: 'sender' },
+      summary: raw.summary,
+      atoms: raw.atoms || [],
+      source_url: 'wintechpartners.com',
+      source: 'seed_file'
+    };
+  } catch (e) {
+    console.error('Failed to load seed-wintech.json:', e.message);
+    return { target: { name: 'WinTech Partners' }, summary: '', atoms: [], source_url: 'wintechpartners.com', source: 'seed_file' };
+  }
+})();
+console.log(`   WinTech seed: ${WINTECH_SEED.atoms.length} atoms loaded`);
+
 // Model IDs available through OpenRouter for the "standard" side
 const COMPARISON_MODELS = {
   chatgpt: 'openai/gpt-4o',
@@ -2278,54 +2297,25 @@ app.post('/api/comparison', async (req, res) => {
     // ── TDE SIDE — full pipeline ────────────────────────────────────────
     send('tde_phase', { phase: 'fetch', message: `Fetching ${displayName}...` });
 
-    // Ingest customer
-    const customerPromise = ingestOne({
-      url: normUrl(company_url),
-      role: 'customer',
-      hint_name: company_name,
-      demoMode: true
-    });
-
-    // Ingest WinTech (sender) — will be cached after first run
-    const senderPromise = ingestOne({
-      url: normUrl('wintechpartners.com'),
-      role: 'sender',
-      hint_name: 'WinTech Partners',
-      demoMode: true
-    });
-
-    // Wait for both ingests
-    const [customerRes, senderRes] = await Promise.allSettled([customerPromise, senderPromise]);
-
-    if (customerRes.status === 'rejected') {
-      send('tde_error', { message: `Customer ingest failed: ${customerRes.reason.message}` });
-      // Still wait for standard side
-      try {
-        const standardText = await standardPromise;
-        send('standard_done', { text: standardText });
-      } catch (e) {
-        send('standard_error', { message: e.message });
-      }
+    // Ingest customer (live scrape + decompose, cached after first run)
+    let customer;
+    try {
+      customer = await ingestOne({
+        url: normUrl(company_url),
+        role: 'customer',
+        hint_name: company_name,
+        demoMode: true
+      });
+    } catch (ingestErr) {
+      send('tde_error', { message: `Customer ingest failed: ${ingestErr.message}` });
+      await standardPromise.catch(() => {});
       send('done', {});
       clearInterval(keepAlive);
       return res.end();
     }
 
-    if (senderRes.status === 'rejected') {
-      send('tde_error', { message: `Sender ingest failed: ${senderRes.reason.message}` });
-      try {
-        const standardText = await standardPromise;
-        send('standard_done', { text: standardText });
-      } catch (e) {
-        send('standard_error', { message: e.message });
-      }
-      send('done', {});
-      clearInterval(keepAlive);
-      return res.end();
-    }
-
-    const customer = customerRes.value;
-    const sender = senderRes.value;
+    // WinTech sender atoms — loaded from seed file (always available, no scraping)
+    const sender = WINTECH_SEED;
 
     send('tde_phase', { phase: 'decompose', message: `Decomposed ${customer.atoms?.length || 0} customer atoms + ${sender.atoms?.length || 0} sender atoms` });
 
@@ -2337,7 +2327,7 @@ app.post('/api/comparison', async (req, res) => {
       sourceMap[src].count++;
     });
     (sender.atoms || []).forEach(a => {
-      const src = a.source_url || sender.source_url || 'wintech.partners';
+      const src = a.source_url || sender.source_url || 'wintechpartners.com';
       if (!sourceMap[src]) sourceMap[src] = { url: src, name: sender.target?.name || 'WinTech Partners', role: 'sender', count: 0 };
       sourceMap[src].count++;
     });
