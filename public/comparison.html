@@ -415,30 +415,33 @@
   }
   .atoms-tray summary:hover { color: var(--text); }
 
-  /* ── 9D ATOM CARDS ── */
+  /* ── 9D ATOM CARDS (compact 3x3) ── */
   .atom-card-9d {
-    background: var(--surface);
+    background: var(--surface2);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    margin-bottom: 10px;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
     animation: fadeUp 0.3s ease-out;
+    font-size: 0.7rem;
+    line-height: 1.4;
   }
   .atom-card-9d .atom-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    gap: 8px;
+    margin-bottom: 4px;
   }
   .atom-card-9d .atom-type-label {
-    font-size: 0.7rem;
+    font-size: 9px;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
+    letter-spacing: 1.3px;
     font-weight: 800;
     color: var(--accent);
   }
   .atom-card-9d .atom-confidence {
-    font-size: 0.62rem;
+    font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 700;
@@ -447,78 +450,77 @@
   .atom-card-9d .atom-confidence.medium { color: var(--orange); }
   .atom-card-9d .atom-confidence.low { color: var(--red); }
   .atom-card-9d .atom-text {
-    font-size: 0.82rem;
-    line-height: 1.5;
+    font-size: 12px;
+    line-height: 1.4;
     color: var(--text);
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
   .atom-card-9d .atom-source {
-    font-size: 0.68rem;
+    font-size: 7px;
     color: var(--text-dim);
-    margin-bottom: 10px;
-    padding: 4px 8px;
-    background: var(--surface2);
-    border-radius: 4px;
+    margin-bottom: 6px;
+    padding: 1px 6px;
+    background: var(--surface);
+    border-radius: 3px;
     display: inline-block;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
   }
   .atom-card-9d .atom-source.sender { color: var(--green); }
   .atom-card-9d .atom-source.customer { color: var(--accent); }
-  .atom-card-9d .dim-grid {
+  .atom-card-9d .d9 {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1px;
-    background: var(--border);
-    border-radius: 6px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .atom-card-9d .d9-cell {
+    background: rgba(255,255,255,0.03);
+    border-radius: 3px;
+    padding: 3px 5px;
+    font-size: 8px;
+    line-height: 1.2;
+    text-align: left;
     overflow: hidden;
+    min-height: 32px;
   }
-  .atom-card-9d .dim-cell {
-    background: var(--surface2);
-    padding: 6px 8px;
-    position: relative;
-  }
-  .atom-card-9d .dim-cell .dim-label {
-    font-size: 0.55rem;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
+  .atom-card-9d .d9-cell-label {
+    font-size: 7px;
     color: var(--text-dim);
-    font-weight: 600;
-    margin-bottom: 2px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-weight: 700;
   }
-  .atom-card-9d .dim-cell .dim-value {
-    font-size: 0.72rem;
-    font-weight: 600;
+  .atom-card-9d .d9-cell-val {
+    font-size: 9px;
     color: var(--text);
+    font-weight: 600;
+    margin-top: 1px;
   }
-  .atom-card-9d .dim-cell::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 8px;
-    right: 8px;
-    height: 2px;
-    border-radius: 1px;
-  }
-  .atom-card-9d .dim-cell.d-persona::after    { background: #6366f1; }
-  .atom-card-9d .dim-cell.d-stage::after      { background: #8b5cf6; }
-  .atom-card-9d .dim-cell.d-emotion::after    { background: #ec4899; }
-  .atom-card-9d .dim-cell.d-evidence::after   { background: #f59e0b; }
-  .atom-card-9d .dim-cell.d-cred::after       { background: #22c55e; }
-  .atom-card-9d .dim-cell.d-recency::after    { background: #06b6d4; }
-  .atom-card-9d .dim-cell.d-econ::after       { background: #a855f7; }
-  .atom-card-9d .dim-cell.d-inertia::after    { background: #f97316; }
-  .atom-card-9d .dim-cell.d-industry::after   { background: #64748b; }
+  .atom-card-9d .d9-cell.d-persona     { border-left: 2px solid #6366f1; }
+  .atom-card-9d .d9-cell.d-stage       { border-left: 2px solid #06b6d4; }
+  .atom-card-9d .d9-cell.d-emotion     { border-left: 2px solid #ec4899; }
+  .atom-card-9d .d9-cell.d-evidence    { border-left: 2px solid #f59e0b; }
+  .atom-card-9d .d9-cell.d-credibility { border-left: 2px solid #22c55e; }
+  .atom-card-9d .d9-cell.d-recency     { border-left: 2px solid #facc15; }
+  .atom-card-9d .d9-cell.d-econ        { border-left: 2px solid #22c55e; background: rgba(34,197,94,0.06); }
+  .atom-card-9d .d9-cell.d-inertia     { border-left: 2px solid #ef4444; background: rgba(239,68,68,0.05); }
+  .atom-card-9d .d9-cell.d-industry    { border-left: 2px solid #a855f7; background: rgba(168,85,247,0.06); }
+  .atom-card-9d .d9-cell.d-industry .d9-cell-val { font-size: 8px; line-height: 1.25; }
   .cred-bar {
-    display: flex;
-    gap: 2px;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    margin-top: 3px;
+    overflow: hidden;
     margin-top: 2px;
   }
-  .cred-bar .cred-dot {
-    width: 16px;
-    height: 3px;
-    border-radius: 1px;
-    background: var(--border);
+  .cred-bar-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 2px;
   }
-  .cred-bar .cred-dot.filled { background: var(--green); }
 
   /* ── TIMER ── */
   .timer {
@@ -758,19 +760,17 @@ function stopTimer(intervalId, timerId) {
   document.getElementById(timerId).classList.add('done-timer');
 }
 
-// ── RENDER ATOM CARD ──
+// ── RENDER ATOM CARD (compact 3x3) ──
 function renderAtomCard(atom) {
   const conf = atom.confidence || 'high';
   const confClass = conf === 'high' ? '' : conf === 'medium' ? ' medium' : ' low';
   const cred = parseInt(atom.d_credibility) || 3;
-  const credDots = Array.from({length: 5}, (_, i) =>
-    `<div class="cred-dot${i < cred ? ' filled' : ''}"></div>`
-  ).join('');
+  const credPct = (cred / 5 * 100);
 
   const industry = atom.d_industry;
-  const industryText = typeof industry === 'object'
-    ? (industry.naics || '').replace(/^\d+\s*/, '').slice(0, 20)
-    : (industry || 'N/A');
+  const indVal = typeof industry === 'object'
+    ? (industry.naics || 'N/A')
+    : short9(industry || 'N/A');
 
   const sourceClass = atom.source_role === 'sender' ? 'sender' : 'customer';
   const sourceLabel = atom.source_name || (atom.source_role === 'sender' ? 'WinTech' : 'Customer');
@@ -781,20 +781,22 @@ function renderAtomCard(atom) {
       <span class="atom-confidence${confClass}">${conf}</span>
     </div>
     <div class="atom-text">${escHtml(atom.claim || atom.text || '')}</div>
-    <div class="atom-source ${sourceClass}">Source: ${escHtml(sourceLabel)}</div>
-    <div class="dim-grid">
-      <div class="dim-cell d-persona"><div class="dim-label">Persona</div><div class="dim-value">${escHtml(atom.d_persona || 'General')}</div></div>
-      <div class="dim-cell d-stage"><div class="dim-label">Stage</div><div class="dim-value">${escHtml(atom.d_buying_stage || 'Awareness')}</div></div>
-      <div class="dim-cell d-emotion"><div class="dim-label">Emotion</div><div class="dim-value">${escHtml(atom.d_emotional_driver || 'Curiosity')}</div></div>
-      <div class="dim-cell d-evidence"><div class="dim-label">Evidence</div><div class="dim-value">${escHtml(atom.d_evidence_type || 'Anecdote')}</div></div>
-      <div class="dim-cell d-cred"><div class="dim-label">Credibility</div><div class="cred-bar">${credDots}</div></div>
-      <div class="dim-cell d-recency"><div class="dim-label">Recency</div><div class="dim-value">${escHtml(atom.d_recency || 'Evergreen')}</div></div>
-      <div class="dim-cell d-econ"><div class="dim-label">Economic</div><div class="dim-value">${escHtml(atom.d_economic_driver || 'None')}</div></div>
-      <div class="dim-cell d-inertia"><div class="dim-label">Inertia</div><div class="dim-value">${escHtml(atom.d_status_quo_pressure || 'None')}</div></div>
-      <div class="dim-cell d-industry"><div class="dim-label">Industry</div><div class="dim-value">${escHtml(industryText)}</div></div>
+    <div class="atom-source ${sourceClass}">${escHtml(sourceLabel)}</div>
+    <div class="d9">
+      <div class="d9-cell d-persona"><div class="d9-cell-label">Persona</div><div class="d9-cell-val">${escHtml(short9(atom.d_persona || 'General'))}</div></div>
+      <div class="d9-cell d-stage"><div class="d9-cell-label">Stage</div><div class="d9-cell-val">${escHtml(short9(atom.d_buying_stage || 'Awareness'))}</div></div>
+      <div class="d9-cell d-emotion"><div class="d9-cell-label">Emotion</div><div class="d9-cell-val">${escHtml(short9(atom.d_emotional_driver || 'Curiosity'))}</div></div>
+      <div class="d9-cell d-evidence"><div class="d9-cell-label">Evidence</div><div class="d9-cell-val">${escHtml(short9(atom.d_evidence_type || 'Anecdote'))}</div></div>
+      <div class="d9-cell d-credibility"><div class="d9-cell-label">Credibility</div><div class="d9-cell-val">${cred}/5</div><div class="cred-bar"><div class="cred-bar-fill" style="width:${credPct}%"></div></div></div>
+      <div class="d9-cell d-recency"><div class="d9-cell-label">Recency</div><div class="d9-cell-val">${escHtml(short9(atom.d_recency || 'Evergreen'))}</div></div>
+      <div class="d9-cell d-econ"><div class="d9-cell-label">Econ Pull</div><div class="d9-cell-val">${escHtml(short9(atom.d_economic_driver || 'None'))}</div></div>
+      <div class="d9-cell d-inertia"><div class="d9-cell-label">Inertia</div><div class="d9-cell-val">${escHtml(short9(atom.d_status_quo_pressure || 'None'))}</div></div>
+      <div class="d9-cell d-industry"><div class="d9-cell-label">Industry</div><div class="d9-cell-val">${escHtml(indVal)}</div></div>
     </div>
   </div>`;
 }
+
+function short9(s) { if (!s) return '—'; return String(s).length > 16 ? String(s).slice(0, 14) + '..' : String(s); }
 
 function escHtml(s) {
   if (!s) return '';
