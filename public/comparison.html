@@ -23,6 +23,10 @@
     --cyan: #06b6d4;
     --purple: #a855f7;
     --pink: #ec4899;
+    --pill-red: #ef4444;
+    --pill-yellow: #eab308;
+    --pill-green: #22c55e;
+    --pill-blue: #3b82f6;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -85,13 +89,20 @@
     transition: all 0.2s;
     white-space: nowrap;
   }
-  .pill:hover { border-color: var(--accent); color: var(--text); }
-  .pill.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-    font-weight: 600;
-  }
+  .pill:hover { border-color: var(--text-dim); color: var(--text); }
+  .pill.active { font-weight: 600; color: #fff; }
+  /* Red — Target Company */
+  #companyPills .pill.active  { background: #ef4444; border-color: #ef4444; }
+  #companyPills .pill:hover   { border-color: #ef4444; }
+  /* Yellow — Scenario */
+  #scenarioPills .pill.active { background: #eab308; border-color: #eab308; color: #0a0a0f; }
+  #scenarioPills .pill:hover  { border-color: #eab308; }
+  /* Green — Compare Against */
+  #modelPills .pill.active    { background: #22c55e; border-color: #22c55e; color: #0a0a0f; }
+  #modelPills .pill:hover     { border-color: #22c55e; }
+  /* Blue — Writer Voice (CPP) */
+  #cppPills .pill.active      { background: #3b82f6; border-color: #3b82f6; }
+  #cppPills .pill:hover       { border-color: #3b82f6; }
   .run-btn {
     padding: 10px 28px;
     border-radius: 8px;
@@ -107,6 +118,63 @@
   }
   .run-btn:hover { background: #5558e6; transform: translateY(-1px); }
   .run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .voice-compare-btn {
+    background: linear-gradient(135deg, var(--pill-blue), var(--purple));
+  }
+  .voice-compare-btn:hover {
+    background: linear-gradient(135deg, #2563eb, #9333ea);
+  }
+
+  /* ── 3-VOICE COMPARISON ── */
+  .voice-comparison {
+    display: none;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    min-height: 60vh;
+  }
+  .voice-comparison.active { display: grid; }
+  .voice-panel {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+  .voice-panel-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .voice-panel-header .voice-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .voice-panel-header .voice-subtitle {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-left: auto;
+    font-style: italic;
+  }
+  .voice-panel-header .voice-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .voice-panel-body {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .voice-timer {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-family: 'Consolas', monospace;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
 
   /* ── PROMPT DISPLAY ── */
   .prompt-display {
@@ -287,8 +355,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(236,72,153,0.08));
-    border: 1px solid rgba(168,85,247,0.3);
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.3);
     border-radius: 8px;
     padding: 10px 16px;
     margin-bottom: 12px;
@@ -302,8 +370,8 @@
     text-transform: uppercase;
     letter-spacing: 0.8px;
     font-weight: 700;
-    color: var(--purple);
-    background: rgba(168,85,247,0.15);
+    color: #3b82f6;
+    background: rgba(59,130,246,0.18);
     padding: 3px 10px;
     border-radius: 10px;
   }
@@ -511,7 +579,10 @@
       <div class="pill" data-cpp="ninjio" title="The Security Authority — measured, threat-aware, compliance-grounded">NINJIO</div>
     </div>
   </div>
-  <button class="run-btn" id="runBtn" onclick="runComparison()">Run Comparison</button>
+  <div class="control-group" style="display:flex;gap:8px;align-self:flex-end;">
+    <button class="run-btn" id="runBtn" onclick="runComparison()">Run Comparison</button>
+    <button class="run-btn voice-compare-btn" id="voiceBtn" onclick="runVoiceCompare()">Compare All Voices</button>
+  </div>
 </div>
 
 <!-- ── PROMPT DISPLAY ── -->
@@ -553,6 +624,43 @@
     </div>
     <div class="panel-body" id="tdeBody">
       <div class="placeholder">TDE will fetch real content, atomize it, tag across 9 dimensions, then cross-reference with WinTech's atoms to produce targeted output.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 3-VOICE COMPARISON ── -->
+<div class="voice-comparison" id="voiceComparison">
+  <div class="voice-panel" id="voicePanel-steve">
+    <div class="voice-panel-header">
+      <div class="voice-dot" style="background:#3b82f6;"></div>
+      <span class="voice-name">Steve Winfield</span>
+      <span class="voice-subtitle">The Educator</span>
+    </div>
+    <div class="voice-timer" id="voiceTimer-steve"></div>
+    <div class="voice-panel-body" id="voiceBody-steve">
+      <div class="placeholder">Waiting...</div>
+    </div>
+  </div>
+  <div class="voice-panel" id="voicePanel-hormozi">
+    <div class="voice-panel-header">
+      <div class="voice-dot" style="background:#ef4444;"></div>
+      <span class="voice-name">Alex Hormozi</span>
+      <span class="voice-subtitle">The Closer</span>
+    </div>
+    <div class="voice-timer" id="voiceTimer-hormozi"></div>
+    <div class="voice-panel-body" id="voiceBody-hormozi">
+      <div class="placeholder">Waiting...</div>
+    </div>
+  </div>
+  <div class="voice-panel" id="voicePanel-ninjio">
+    <div class="voice-panel-header">
+      <div class="voice-dot" style="background:#22c55e;"></div>
+      <span class="voice-name">NINJIO</span>
+      <span class="voice-subtitle">The Security Authority</span>
+    </div>
+    <div class="voice-timer" id="voiceTimer-ninjio"></div>
+    <div class="voice-panel-body" id="voiceBody-ninjio">
+      <div class="placeholder">Waiting...</div>
     </div>
   </div>
 </div>
@@ -699,6 +807,7 @@ const PHASE_MAP = {
   'ingest':     'decompose',
   'tag':        'tag',
   'cross':      'cross',
+  'cpp':        'cpp',
   'synthesize': 'synthesize'
 };
 
@@ -728,8 +837,15 @@ async function runComparison() {
   if (isRunning) return;
   isRunning = true;
   const btn = document.getElementById('runBtn');
+  const vBtn = document.getElementById('voiceBtn');
   btn.disabled = true;
+  vBtn.disabled = true;
   btn.textContent = 'Running...';
+
+  // Show regular 2-column, hide 3-voice if it was showing
+  document.querySelector('.comparison').style.display = '';
+  document.getElementById('voiceComparison').classList.remove('active');
+  document.getElementById('promptDisplay').style.display = '';
 
   const standardBody = document.getElementById('standardBody');
   const tdeBody = document.getElementById('tdeBody');
@@ -839,6 +955,7 @@ async function runComparison() {
   if (!tdeDone) stopTimer(tdeTimerInterval, 'tdeTimer');
   isRunning = false;
   btn.disabled = false;
+  vBtn.disabled = false;
   btn.textContent = 'Run Comparison';
 }
 
@@ -869,7 +986,7 @@ function handleSSE(event, data, standardBody, tdeBody) {
       let cppHtml = '';
       if (cpp && cpp.name) {
         cppHtml = `<div class="cpp-badge">
-          <span class="cpp-icon">&#x1f5e3;</span>
+          <span class="cpp-icon">&#x1f399;</span>
           <span class="cpp-label">Voice: <strong>${escHtml(cpp.name)}</strong></span>
           <span class="cpp-tag">${escHtml(cpp.label)}</span>
         </div>`;
@@ -915,6 +1032,151 @@ function handleSSE(event, data, standardBody, tdeBody) {
 
     case 'error':
       tdeBody.innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(data.message)}</div>`;
+      break;
+  }
+}
+
+// ── 3-VOICE COMPARISON ─────────────────────────────────────────────────────
+const VOICE_KEYS = ['steve', 'hormozi', 'ninjio'];
+let voiceTimerIntervals = {};
+
+async function runVoiceCompare() {
+  if (isRunning) return;
+  isRunning = true;
+  const btn = document.getElementById('runBtn');
+  const vBtn = document.getElementById('voiceBtn');
+  btn.disabled = true;
+  vBtn.disabled = true;
+  vBtn.textContent = 'Running...';
+
+  // Show voice panel, hide regular comparison
+  document.querySelector('.comparison').style.display = 'none';
+  const vc = document.getElementById('voiceComparison');
+  vc.classList.add('active');
+
+  // Hide prompt display (it's the same for all 3)
+  document.getElementById('promptDisplay').style.display = 'none';
+
+  // Clear all panels and timers
+  VOICE_KEYS.forEach(key => {
+    document.getElementById(`voiceBody-${key}`).innerHTML =
+      '<div class="placeholder typing-cursor">Initializing pipeline...</div>';
+    clearInterval(voiceTimerIntervals[key]);
+    document.getElementById(`voiceTimer-${key}`).textContent = '';
+    voiceTimerIntervals[key] = startTimer(`voiceTimer-${key}`);
+  });
+
+  const company = COMPANIES[selectedCompany];
+
+  // Fire all 3 in parallel
+  const promises = VOICE_KEYS.map(cppKey => runSingleVoice(cppKey, company));
+  await Promise.allSettled(promises);
+
+  isRunning = false;
+  btn.disabled = false;
+  vBtn.disabled = false;
+  vBtn.textContent = 'Compare All Voices';
+}
+
+async function runSingleVoice(cppKey, company) {
+  const body = document.getElementById(`voiceBody-${cppKey}`);
+
+  try {
+    const response = await fetch('/api/comparison', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_url: company.url,
+        company_name: company.name,
+        scenario: selectedScenario,
+        model: selectedModel,
+        cpp: cppKey
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      let eventType = null;
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ') && eventType) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            handleVoiceSSE(eventType, data, cppKey, body);
+            if (eventType === 'tde_done' || eventType === 'tde_error' || eventType === 'error') {
+              clearInterval(voiceTimerIntervals[cppKey]);
+            }
+          } catch {}
+          eventType = null;
+        }
+      }
+    }
+  } catch (err) {
+    body.innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(err.message)}</div>`;
+    clearInterval(voiceTimerIntervals[cppKey]);
+  }
+}
+
+function handleVoiceSSE(event, data, cppKey, bodyEl) {
+  switch (event) {
+    case 'tde_phase':
+      bodyEl.innerHTML = `<div class="placeholder typing-cursor">${escHtml(data.message)}</div>`;
+      break;
+
+    case 'tde_done': {
+      const { text, atoms_used, sources, total_atoms, cpp } = data;
+
+      let cppHtml = '';
+      if (cpp && cpp.name) {
+        cppHtml = `<div class="cpp-badge">
+          <span class="cpp-icon">&#x1f399;</span>
+          <span class="cpp-label">Voice: <strong>${escHtml(cpp.name)}</strong></span>
+          <span class="cpp-tag">${escHtml(cpp.label)}</span>
+        </div>`;
+      }
+
+      let sourceHtml = '';
+      if (sources && sources.length > 0) {
+        const chips = sources.map(s => {
+          const cls = s.role === 'sender' ? 'sender' : 'customer';
+          return `<span class="source-chip ${cls}">${escHtml(s.name)} (${s.count})</span>`;
+        }).join('');
+        sourceHtml = `<div class="source-banner" style="padding:8px 12px;">
+          <div class="source-summary" style="font-size:0.75rem;margin:0;">${atoms_used ? atoms_used.length : '?'} atoms from ${sources.length} sources</div>
+          <div class="source-chips" style="margin-top:4px;">${chips}</div>
+        </div>`;
+      }
+
+      bodyEl.innerHTML = `<div class="response">
+        ${cppHtml}
+        ${sourceHtml}
+        <div class="tde-response-text">${escHtml(text)}</div>
+      </div>`;
+      break;
+    }
+
+    case 'tde_error':
+      bodyEl.innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(data.message)}</div>`;
+      break;
+
+    // Ignore standard_done/standard_error in voice mode
+    default:
       break;
   }
 }
