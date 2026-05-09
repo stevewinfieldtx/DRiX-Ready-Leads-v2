@@ -105,6 +105,10 @@
   .side-header h2 { font-size: 0.95rem; font-weight: 600; }
   .side-header .side-tag { font-size: 0.72rem; color: var(--text-dim); margin-left: auto; }
   .side-body { padding: 20px; flex: 1; overflow-y: auto; }
+  .atom-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px;
+  }
 
   /* ── PHASE LABEL ── */
   .phase-label {
@@ -152,7 +156,7 @@
     display: flex; flex-direction: column;
     background: var(--surface2); border: 1px solid var(--border);
     border-left: 3px solid var(--atom-color, var(--accent));
-    border-radius: 6px; padding: 8px 10px; margin-bottom: 6px;
+    border-radius: 6px; padding: 8px 10px;
     font-size: 0.7rem; line-height: 1.4;
     opacity: 0; transform: scale(0.95); transition: all 0.35s ease-out;
   }
@@ -661,6 +665,11 @@ async function renderAtoms(atoms, bySource) {
     body.appendChild(breakdown);
   }
 
+  // Create grid container for compact card layout
+  const grid = document.createElement('div');
+  grid.className = 'atom-grid';
+  body.appendChild(grid);
+
   for (let i = 0; i < atoms.length; i++) {
     const a = atoms[i];
     const typeClass = 't-' + (a.type || 'mission');
@@ -698,7 +707,7 @@ async function renderAtoms(atoms, bySource) {
         <div class="d9-cell d-industry"><div class="d9-cell-label">Industry</div><div class="d9-cell-val">${escHtml(indVal)}</div></div>
       </div>
     `;
-    body.appendChild(div);
+    grid.appendChild(div);
 
     await sleep(60);
     div.classList.add('visible');

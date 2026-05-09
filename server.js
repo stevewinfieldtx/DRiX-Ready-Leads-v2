@@ -2156,7 +2156,7 @@ const REGIONS = [
 // ─── COMPARISON ENDPOINT (live DRiX vs Standard AI) ─────────────────────────
 
 // Retry helper — single retry with backoff for flaky API calls
-async function fetchWithRetry(url, options, { label = 'fetch', retries = 1, backoffMs = 2000 } = {}) {
+async function fetchWithRetry(url, options, { label = 'fetch', retries = 2, backoffMs = 2000 } = {}) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const resp = await fetch(url, options);
@@ -2164,10 +2164,17 @@ async function fetchWithRetry(url, options, { label = 'fetch', retries = 1, back
         const body = await resp.text();
         const err = new Error(`${label} ${resp.status}: ${body.slice(0, 200)}`);
         err.status = resp.status;
-        // Don't retry 4xx errors (auth, bad request) — only 5xx and network failures
+        // 429 = rate limit — ALWAYS retry with longer backoff
+        if (resp.status === 429 && attempt < retries) {
+          const wait = backoffMs * (attempt + 1) * 2; // escalating: 4s, 8s, ...
+          console.warn(`[${label}] Rate limited (429), waiting ${wait}ms before retry ${attempt + 1}/${retries}...`);
+          await new Promise(r => setTimeout(r, wait));
+          continue;
+        }
+        // Don't retry other 4xx errors (auth, bad request) — only 5xx and network failures
         if (resp.status >= 400 && resp.status < 500) throw err;
         if (attempt < retries) {
-          console.warn(`[comparison] ${label} attempt ${attempt + 1} failed (${resp.status}), retrying in ${backoffMs}ms...`);
+          console.warn(`[${label}] attempt ${attempt + 1} failed (${resp.status}), retrying in ${backoffMs}ms...`);
           await new Promise(r => setTimeout(r, backoffMs));
           continue;
         }
@@ -2175,15 +2182,79 @@ async function fetchWithRetry(url, options, { label = 'fetch', retries = 1, back
       }
       return resp;
     } catch (e) {
-      if (e.status && e.status >= 400 && e.status < 500) throw e; // don't retry 4xx
+      if (e.status === 429 && attempt < retries) {
+        const wait = backoffMs * (attempt + 1) * 2;
+        console.warn(`[${label}] Rate limited (429), waiting ${wait}ms before retry ${attempt + 1}/${retries}...`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      if (e.status && e.status >= 400 && e.status < 500) throw e;
       if (attempt < retries) {
-        console.warn(`[comparison] ${label} attempt ${attempt + 1} error: ${e.message}, retrying in ${backoffMs}ms...`);
+        console.warn(`[${label}] attempt ${attempt + 1} error: ${e.message}, retrying in ${backoffMs}ms...`);
         await new Promise(r => setTimeout(r, backoffMs));
         continue;
       }
       throw e;
     }
   }
+}
+
+// Cerebras-first synthesis with OpenRouter fallback
+async function synthesizeWithFallback(prompt, { label = 'Synth', temperature = 0.5, max_tokens = 2000 } = {}) {
+  // Primary: Cerebras
+  if (CEREBRAS_API_KEY) {
+    try {
+      const resp = await fetchWithRetry('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-oss-120b',
+          messages: [{ role: 'user', content: prompt }],
+          temperature, max_tokens
+        }),
+        signal: AbortSignal.timeout(45000)
+      }, { label: `${label}/Cerebras`, retries: 2, backoffMs: 2000 });
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) {
+        console.log(`[${label}] Cerebras OK (${text.length} chars)`);
+        return text;
+      }
+    } catch (e) {
+      console.warn(`[${label}] Cerebras failed: ${e.message}, falling back to OpenRouter...`);
+    }
+  }
+
+  // Fallback: OpenRouter
+  if (OPENROUTER_API_KEY) {
+    try {
+      const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
+          'X-Title': `DRiX ${label}`
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [{ role: 'user', content: prompt }],
+          temperature, max_tokens
+        }),
+        signal: AbortSignal.timeout(45000)
+      }, { label: `${label}/OpenRouter`, retries: 2, backoffMs: 3000 });
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) {
+        console.log(`[${label}] OpenRouter fallback OK (${text.length} chars)`);
+        return text;
+      }
+    } catch (e) {
+      console.warn(`[${label}] OpenRouter fallback also failed: ${e.message}`);
+    }
+  }
+
+  throw new Error(`${label}: All providers failed (Cerebras + OpenRouter)`);
 }
 
 // Pre-loaded WinTech atoms from seed file — no scraping needed for sender
@@ -2856,48 +2927,51 @@ EVERY sentence must be wrapped in exactly ONE marker. If a sentence blends sourc
 NEVER use em dashes. Use commas, periods, or ellipsis (...) instead.
 Do NOT include atom IDs, brackets, or source numbers in the readable text.`;
 
+    // ── CHUNK SIDE: OpenRouter only (slower "normal AI") ──
+    // Try primary model, fallback to a second model if it fails
+    const CHUNK_MODELS = ['google/gemini-2.5-flash', 'anthropic/claude-sonnet-4', 'meta-llama/llama-4-maverick'];
+
+    async function chunkSynthesize() {
+      for (const model of CHUNK_MODELS) {
+        try {
+          const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
+              'X-Title': 'DRiX Atomize - Chunk Side'
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: chunkPrompt }],
+              temperature: 0.7, max_tokens: 2000
+            }),
+            signal: AbortSignal.timeout(50000)
+          }, { label: `ChunkSynth/${model}`, retries: 2, backoffMs: 3000 });
+          const data = await resp.json();
+          const text = data?.choices?.[0]?.message?.content;
+          if (text) {
+            console.log(`[ChunkSynth] OK via ${model} (${text.length} chars)`);
+            return text;
+          }
+        } catch (e) {
+          console.warn(`[ChunkSynth] ${model} failed: ${e.message}, trying next...`);
+        }
+      }
+      throw new Error('All chunk models failed');
+    }
+
+    // ── ATOM SIDE: Cerebras ALWAYS (fast TDE), OpenRouter fallback ──
+    async function atomSynthesize() {
+      return synthesizeWithFallback(atomSynthPrompt, {
+        label: 'AtomSynth', temperature: 0.4, max_tokens: 2500
+      }).then(text => text.replace(/—/g, '...').replace(/–/g, ', '));
+    }
+
     const [chunkResult, atomResult] = await Promise.allSettled([
-      (async () => {
-        const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
-            'X-Title': 'DRiX Atomize - Chunk Side'
-          },
-          body: JSON.stringify({
-            model: 'openai/gpt-4o',
-            messages: [{ role: 'user', content: chunkPrompt }],
-            temperature: 0.7, max_tokens: 2000
-          }),
-          signal: AbortSignal.timeout(45000)
-        }, { label: 'ChunkSynth', retries: 1, backoffMs: 2000 });
-        const data = await resp.json();
-        return data?.choices?.[0]?.message?.content || '(No response)';
-      })(),
-      (async () => {
-        const useCerebras = !!CEREBRAS_API_KEY;
-        const synthUrl = useCerebras ? 'https://api.cerebras.ai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
-        const model = useCerebras ? 'gpt-oss-120b' : 'google/gemini-2.5-flash';
-        const headers = useCerebras
-          ? { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' }
-          : { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json',
-              'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app', 'X-Title': 'DRiX Atomize - Atom Side' };
-        const resp = await fetchWithRetry(synthUrl, {
-          method: 'POST', headers,
-          body: JSON.stringify({
-            model,
-            messages: [{ role: 'user', content: atomSynthPrompt }],
-            temperature: 0.4, max_tokens: 2500
-          }),
-          signal: AbortSignal.timeout(45000)
-        }, { label: 'AtomSynth', retries: 1, backoffMs: 1500 });
-        const data = await resp.json();
-        let text = data?.choices?.[0]?.message?.content || '(No response)';
-        text = text.replace(/—/g, '...').replace(/–/g, ', ');
-        return text;
-      })()
+      chunkSynthesize(),
+      atomSynthesize()
     ]);
 
     if (chunkResult.status === 'fulfilled') {
