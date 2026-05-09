@@ -2280,9 +2280,9 @@ console.log(`   WinTech seed: ${WINTECH_SEED.atoms.length} atoms loaded`);
 const DEMO_DOCS = {
   'AIAIVN': [
     { url: 'https://www.aiaivn.com/', label: 'Homepage' },
-    { url: 'https://www.aiaivn.com/about', label: 'About' },
-    { url: 'https://www.aiaivn.com/services', label: 'Services' },
-    { url: 'https://www.aiaivn.com/contact', label: 'Contact' }
+    { url: 'https://www.aiaivn.com/about-us', label: 'About Us' },
+    { url: 'https://www.aiaivn.com/our-services', label: 'Services' },
+    { url: 'https://www.aiaivn.com/about', label: 'About' }
   ],
   'Techcombank': [
     { url: 'https://www.techcombank.com.vn/', label: 'Homepage' },
@@ -2298,6 +2298,10 @@ const DEMO_DOCS = {
   ]
 };
 const DOC_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#06b6d4'];
+
+// TDE atom pipeline cache — atomize once, use forever. Key = company name.
+// Stores: { sources, atoms, bySource, crossRefs, synthesis, timestamp }
+const ATOM_CACHE = {};
 
 async function prewarmDemoDocs() {
   console.log('[PREWARM] Starting demo doc pre-warm...');
@@ -2733,13 +2737,19 @@ app.post('/api/atomize', async (req, res) => {
   const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {} };
 
   try {
+    // ── CHECK TDE CACHE — atoms persist, chunks regenerate ──
+    const cached = ATOM_CACHE[company_name];
+    const hasCachedTDE = cached && cached.sources && cached.atoms && cached.synthesis;
+
     // ── STEP 1: Send source list with colors ──
     const sources = docs.map((d, i) => ({
       index: i, url: d.url, label: d.label, color: DOC_COLORS[i]
     }));
     send('sources', { sources });
 
-    // ── STEP 2: Fetch raw text from all docs (for soup visual) ──
+    let allAtoms, crossRefs, senderAtoms, atomSynthText;
+
+    // ── STEP 2: ALWAYS fetch raw text (chunks need it every time) ──
     send('phase', { step: 'fetch', message: `Fetching ${docs.length} pages from ${company_name}...` });
 
     const fetchResults = await Promise.allSettled(
@@ -2762,16 +2772,45 @@ app.post('/api/atomize', async (req, res) => {
       }
     }
 
-    if (fetched.length < 2) {
-      throw new Error(`Only ${fetched.length} doc(s) had enough content. Need at least 2.`);
+    if (fetched.length < 1) {
+      throw new Error(`No documents had enough content to process.`);
     }
 
-    // Confirm which sources actually worked
     send('sources_final', {
       sources: fetched.map(f => ({ index: f.index, label: f.label, color: f.color, chars: f.text.length }))
     });
 
-    // ── STEP 3: CHUNK SIDE — concatenate into soup, then split ──
+    // ── If TDE cached, replay atom side instantly ──
+    if (hasCachedTDE) {
+      console.log(`[atomize] TDE CACHE HIT for ${company_name} (${cached.atoms.length} atoms, cached ${((Date.now() - cached.timestamp) / 1000).toFixed(0)}s ago)`);
+
+      allAtoms = cached.atoms;
+      crossRefs = cached.crossRefs;
+      senderAtoms = cached.senderAtoms;
+      atomSynthText = cached.synthesis;
+
+      send('phase', { step: 'decompose', message: `TDE: ${allAtoms.length} atoms loaded from persistent knowledge base (cached)` });
+      await new Promise(r => setTimeout(r, 400));
+
+      send('atoms', {
+        atoms: allAtoms, total: allAtoms.length,
+        by_source: fetched.map(f => ({
+          index: f.index, label: f.label, color: f.color,
+          count: allAtoms.filter(a => a.source_index === f.index).length
+        })),
+        cached: true
+      });
+
+      send('phase', { step: 'cross_ref', message: `${crossRefs.length} cross-references loaded from knowledge base` });
+      await new Promise(r => setTimeout(r, 300));
+      send('cross_refs', { refs: crossRefs.slice(0, 10), total_checked: allAtoms.length * senderAtoms.length });
+
+      // TDE synthesis already done — send it now
+      send('atom_synthesis', { text: atomSynthText, cached: true });
+      send('phase', { step: 'decompose', message: `TDE complete. Waiting for chunk side...` });
+    }
+
+    // ── STEP 3: CHUNK SIDE — concatenate into soup, then split (ALWAYS fresh) ──
     send('phase', { step: 'soup', message: `${fetched.length} pages fetched. Building the soup...` });
 
     // Clean raw text for display — strip URLs, image refs, markdown artifacts
@@ -2822,10 +2861,11 @@ app.post('/api/atomize', async (req, res) => {
 
     send('chunks', { chunks, total: chunks.length });
 
-    // ── STEP 4: DRiX SIDE — real decomposition from all docs ──
+    // ── STEP 4: DRiX SIDE — real decomposition (skip if cached) ──
+    if (!hasCachedTDE) {
     send('phase', { step: 'decompose', message: `DRiX: Decomposing ${fetched.length} sources into atomic claims...` });
 
-    const allAtoms = [];
+    allAtoms = [];
     for (let fi = 0; fi < fetched.length; fi++) {
       const f = fetched[fi];
       try {
@@ -2864,8 +2904,8 @@ app.post('/api/atomize', async (req, res) => {
     // ── STEP 5: Cross-reference with WinTech atoms ──
     send('phase', { step: 'cross_ref', message: `Cross-referencing ${allAtoms.length} customer atoms with ${WINTECH_SEED.atoms.length} WinTech atoms...` });
 
-    const crossRefs = [];
-    const senderAtoms = WINTECH_SEED.atoms || [];
+    crossRefs = [];
+    senderAtoms = WINTECH_SEED.atoms || [];
     for (const custAtom of allAtoms.slice(0, 30)) {
       for (const sendAtom of senderAtoms) {
         const tagOverlap = (custAtom.tags || []).filter(t => (sendAtom.tags || []).includes(t));
@@ -2889,9 +2929,10 @@ app.post('/api/atomize', async (req, res) => {
       refs: crossRefs.slice(0, 10),
       total_checked: allAtoms.length * senderAtoms.length
     });
+    } // end if (!hasCachedTDE)
 
-    // ── STEP 6: Parallel synthesis — chunks vs atoms ──
-    send('phase', { step: 'synthesize', message: 'Synthesizing outputs from both sides...' });
+    // ── STEP 6: Synthesis — chunk side always fresh, atom side cached or fresh ──
+    send('phase', { step: 'synthesize', message: hasCachedTDE ? 'Chunk side regenerating (TDE already complete)...' : 'Synthesizing outputs from both sides...' });
 
     const sourceLabels = fetched.map(f => `Source ${f.index}: ${f.label} (${f.url})`).join('\n');
 
@@ -2956,11 +2997,10 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
     // Send prompts to client so audience can see what each side was given
     send('prompts', {
       chunk_prompt: chunkPrompt,
-      atom_prompt: atomSynthPrompt
+      atom_prompt: hasCachedTDE ? '(TDE output loaded from persistent knowledge base — no re-synthesis needed)\n\n' + atomSynthPrompt : atomSynthPrompt
     });
 
-    // ── CHUNK SIDE: OpenRouter only (slower "normal AI") ──
-    // Try primary model, fallback to a second model if it fails
+    // ── CHUNK SIDE: OpenRouter only (slower "normal AI") — ALWAYS runs fresh ──
     const CHUNK_MODELS = ['google/gemini-2.5-flash', 'anthropic/claude-sonnet-4', 'meta-llama/llama-4-maverick'];
 
     async function chunkSynthesize() {
@@ -2994,28 +3034,88 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
       throw new Error('All chunk models failed');
     }
 
-    // ── ATOM SIDE: Cerebras ALWAYS (fast TDE), OpenRouter fallback ──
-    async function atomSynthesize() {
-      return synthesizeWithFallback(atomSynthPrompt, {
-        label: 'AtomSynth', temperature: 0.4, max_tokens: 2500
-      }).then(text => text.replace(/—/g, '...').replace(/–/g, ', '));
+    // Run chunk synthesis (always fresh) + atom synthesis (only if not cached)
+    let chunkResult, atomResultFresh;
+
+    if (hasCachedTDE) {
+      // Only run chunk side — TDE already sent from cache above
+      chunkResult = await chunkSynthesize().then(t => ({ status: 'fulfilled', value: t })).catch(e => ({ status: 'rejected', reason: e }));
+    } else {
+      // Run both in parallel
+      const results = await Promise.allSettled([
+        chunkSynthesize(),
+        synthesizeWithFallback(atomSynthPrompt, {
+          label: 'AtomSynth', temperature: 0.4, max_tokens: 2500
+        }).then(text => text.replace(/—/g, '...').replace(/–/g, ', '))
+      ]);
+      chunkResult = results[0];
+      atomResultFresh = results[1];
     }
 
-    const [chunkResult, atomResult] = await Promise.allSettled([
-      chunkSynthesize(),
-      atomSynthesize()
-    ]);
-
+    // Handle chunk result — retroactive source attribution
     if (chunkResult.status === 'fulfilled') {
-      send('chunk_synthesis', { text: chunkResult.value });
+      const chunkTextRaw = chunkResult.value;
+      const sentences = chunkTextRaw.split(/(?<=[.!?])\s+/).filter(s => s.length > 20);
+      const chunkSentences = sentences.map(sentence => {
+        const words = sentence.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 4);
+        if (words.length < 3) return { text: sentence, source_index: -1, confidence: 0 };
+
+        let bestMatch = -1;
+        let bestScore = 0;
+        for (const f of fetched) {
+          const srcLower = f.text.toLowerCase();
+          let hits = 0;
+          for (const w of words) {
+            if (srcLower.includes(w)) hits++;
+          }
+          const score = hits / words.length;
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = f.index;
+          }
+        }
+        return {
+          text: sentence,
+          source_index: bestScore > 0.4 ? bestMatch : -1,
+          confidence: Math.round(bestScore * 100)
+        };
+      });
+
+      const attributed = chunkSentences.filter(s => s.source_index >= 0).length;
+      const total = chunkSentences.length;
+
+      send('chunk_synthesis', {
+        text: chunkTextRaw,
+        sentences: chunkSentences,
+        attribution_stats: {
+          total, attributed,
+          unattributed: total - attributed,
+          pct_attributed: total > 0 ? Math.round(attributed / total * 100) : 0
+        }
+      });
     } else {
       send('chunk_synthesis', { text: `(Chunk synthesis failed: ${chunkResult.reason?.message || 'unknown'})` });
     }
 
-    if (atomResult.status === 'fulfilled') {
-      send('atom_synthesis', { text: atomResult.value });
-    } else {
-      send('atom_synthesis', { text: `(Atom synthesis failed: ${atomResult.reason?.message || 'unknown'})` });
+    // Handle atom result — only if freshly generated (not cached)
+    if (!hasCachedTDE) {
+      if (atomResultFresh && atomResultFresh.status === 'fulfilled') {
+        atomSynthText = atomResultFresh.value;
+        send('atom_synthesis', { text: atomSynthText });
+
+        // ── SAVE TO TDE CACHE ──
+        ATOM_CACHE[company_name] = {
+          sources: fetched.map(f => ({ index: f.index, label: f.label, color: f.color, chars: f.text.length })),
+          atoms: allAtoms,
+          crossRefs: crossRefs.slice(0, 10),
+          senderAtoms: senderAtoms,
+          synthesis: atomSynthText,
+          timestamp: Date.now()
+        };
+        console.log(`[atomize] TDE CACHED for ${company_name}: ${allAtoms.length} atoms, ${crossRefs.length} xrefs`);
+      } else {
+        send('atom_synthesis', { text: `(Atom synthesis failed: ${atomResultFresh?.reason?.message || 'unknown'})` });
+      }
     }
 
     // ── STEP 7: Blind spots detection ──

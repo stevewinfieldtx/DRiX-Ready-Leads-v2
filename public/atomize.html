@@ -363,10 +363,12 @@
       <div class="placeholder">Select a company and hit Run to see live chunking vs atomization.</div>
     </div>
     <div class="recon-section" id="chunkRecon" style="display:none;">
-      <div class="recon-label">Reconstructed Output (from chunks)</div>
+      <div class="recon-label">Reconstructed Output (from chunks) ... best-effort source attribution</div>
       <div class="prompt-toggle" id="chunkPromptToggle" onclick="togglePrompt('chunk')"><span class="arrow">&#9654;</span> Show the prompt this AI was given</div>
       <div class="prompt-box" id="chunkPromptBox"></div>
+      <div id="chunkProvLegend" class="prov-legend"></div>
       <div class="recon-text" id="chunkReconText"></div>
+      <div class="chunk-attribution-stats" id="chunkAttrStats" style="display:none; text-align:center; font-size:0.7rem; color:var(--red); padding:8px; margin-top:8px; background:rgba(239,68,68,0.06); border-radius:6px; border:1px solid rgba(239,68,68,0.15);"></div>
     </div>
   </div>
 
@@ -499,6 +501,8 @@ async function runAtomize() {
   $('atomPromptBox').classList.remove('open');
   $('chunkPromptBox').textContent = '';
   $('atomPromptBox').textContent = '';
+  $('chunkProvLegend').innerHTML = '';
+  $('chunkAttrStats').style.display = 'none';
 
   startTimer();
 
@@ -570,6 +574,10 @@ async function handleEvent(event, data) {
       break;
 
     case 'atoms':
+      if (data.cached) {
+        $('atomPhase').textContent = `${data.total} atoms loaded from persistent knowledge base (instant)`;
+        $('atomPhase').classList.remove('pulsing');
+      }
       await renderAtoms(data.atoms, data.by_source);
       break;
 
@@ -589,13 +597,13 @@ async function handleEvent(event, data) {
       $('chunkPhase').textContent = 'Reconstruction complete';
       $('chunkPhase').classList.remove('pulsing');
       $('chunkRecon').style.display = 'block';
-      $('chunkReconText').innerHTML = escHtml(stripMarkdown(data.text));
+      renderChunkProvenance(data);
       await sleep(100);
       $('chunkReconText').classList.add('visible');
       break;
 
     case 'atom_synthesis':
-      $('atomPhase').textContent = 'Reconstruction complete';
+      $('atomPhase').textContent = data.cached ? 'Loaded from persistent knowledge base' : 'Reconstruction complete';
       $('atomPhase').classList.remove('pulsing');
       $('atomRecon').style.display = 'block';
       renderProvenance(data.text);
@@ -837,6 +845,53 @@ function renderProvenance(rawText) {
   html = html.replace(/\{\{\/?(S\d|WT)\}\}/g, '');
 
   $('atomReconText').innerHTML = html;
+}
+
+function renderChunkProvenance(data) {
+  // Build legend (same sources as TDE side, plus "Unattributable")
+  const legend = $('chunkProvLegend');
+  let legendHtml = '';
+  activeSources.forEach(s => {
+    legendHtml += `<div class="prov-legend-item"><span class="prov-legend-dot" style="background:${s.color}"></span>${escHtml(s.label)}</div>`;
+  });
+  legendHtml += `<div class="prov-legend-item"><span class="prov-legend-dot" style="background:#555; opacity:0.4;"></span>Unattributable</div>`;
+  legend.innerHTML = legendHtml;
+
+  if (!data.sentences || data.sentences.length === 0) {
+    // Fallback: no sentence data, just show plain text
+    $('chunkReconText').innerHTML = escHtml(stripMarkdown(data.text));
+    return;
+  }
+
+  // Build color map from activeSources
+  const colorByIndex = {};
+  activeSources.forEach(s => { colorByIndex[s.index] = s.color; });
+
+  // Render each sentence with spotty coloring
+  let html = '';
+  for (const s of data.sentences) {
+    const clean = escHtml(stripMarkdown(s.text));
+    if (s.source_index >= 0 && colorByIndex[s.source_index]) {
+      const color = colorByIndex[s.source_index];
+      // Low confidence = more transparent, dashed border
+      const opacity = s.confidence > 60 ? '25' : '15';
+      const borderStyle = s.confidence > 60 ? 'solid' : 'dashed';
+      html += `<span class="prov" style="border-left-color:${color}; border-left-style:${borderStyle}; background:${color}${opacity};" title="~${s.confidence}% match to source">${clean}</span> `;
+    } else {
+      // Unattributable — grey, dim, no border
+      html += `<span style="opacity:0.55;" title="Cannot determine source">${clean}</span> `;
+    }
+  }
+
+  $('chunkReconText').innerHTML = html;
+
+  // Show attribution stats
+  if (data.attribution_stats) {
+    const stats = data.attribution_stats;
+    const statsEl = $('chunkAttrStats');
+    statsEl.innerHTML = `&#9888; Best-effort retroactive attribution: only ${stats.pct_attributed}% of sentences could be matched to a source document. ${stats.unattributed} of ${stats.total} sentences are unattributable. <strong>Chunks destroy source provenance.</strong>`;
+    statsEl.style.display = 'block';
+  }
 }
 
 async function renderBlindSpots(data) {
