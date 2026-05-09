@@ -3165,9 +3165,10 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
     // Chunk stats: show what they actually produce (raw text metrics)
     const chunkWordCount = chunkText ? chunkText.split(/\s+/).length : 0;
     const chunkSentenceCount = chunkText ? chunkText.split(/(?<=[.!?])\s+/).filter(s => s.length > 10).length : 0;
-    // TDE synthesis stats: its own word/sentence counts
-    const tdeWordCount = atomSynthText ? atomSynthText.split(/\s+/).length : 0;
-    const tdeSentenceCount = atomSynthText ? atomSynthText.split(/(?<=[.!?])\s+/).filter(s => s.length > 10).length : 0;
+    // TDE synthesis stats: strip source markers before counting
+    const tdeCleanText = atomSynthText ? atomSynthText.replace(/\{\{\/?(?:S\d+|WT)\}\}/g, '') : '';
+    const tdeWordCount = tdeCleanText ? tdeCleanText.split(/\s+/).filter(w => w.length > 0).length : 0;
+    const tdeSentenceCount = tdeCleanText ? tdeCleanText.split(/(?<=[.!?])\s+/).filter(s => s.length > 10).length : 0;
     // How many of the TDE atoms can be found in chunk output?
     const chunkFactsFound = blindSpots.length > 0 ? (allAtoms.length - blindSpots.length) : allAtoms.length;
     const chunkPctCoverage = allAtoms.length > 0 ? Math.round(chunkFactsFound / allAtoms.length * 100) : 0;
