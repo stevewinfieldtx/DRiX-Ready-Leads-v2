@@ -2695,7 +2695,21 @@ app.post('/api/atomize', async (req, res) => {
     // ── STEP 3: CHUNK SIDE — concatenate into soup, then split ──
     send('phase', { step: 'soup', message: `${fetched.length} pages fetched. Building the soup...` });
 
-    const soupText = fetched.map(f => f.text).join('\n\n');
+    // Clean raw text for display — strip URLs, image refs, markdown artifacts
+    function cleanForDisplay(text) {
+      return text
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')            // markdown images
+        .replace(/\[([^\]]*)\]\(https?:\/\/[^)]+\)/g, '$1')  // markdown links
+        .replace(/https?:\/\/\S+/g, '')                       // bare URLs
+        .replace(/\{[^}]*\}/g, '')                             // curly brace artifacts
+        .replace(/\|[|\s-]+\|/g, '')                           // markdown table borders
+        .replace(/[*#]{2,}/g, '')                              // markdown bold/heading markers
+        .replace(/\s{3,}/g, '  ')                              // collapse whitespace
+        .replace(/\n{3,}/g, '\n\n')                            // collapse newlines
+        .trim();
+    }
+
+    const soupText = fetched.map(f => cleanForDisplay(f.text)).join('\n\n');
     send('soup', {
       text: soupText.slice(0, 3000),
       total_chars: soupText.length,
@@ -2803,39 +2817,44 @@ app.post('/api/atomize', async (req, res) => {
     const sourceLabels = fetched.map(f => `Source ${f.index}: ${f.label} (${f.url})`).join('\n');
 
     // CHUNK SIDE: standard LLM gets the soup chunks, no structure
-    const chunkPrompt = `You have the following content chunks from ${company_name}. These chunks were created by splitting ${fetched.length} web pages into arbitrary text blocks. Write a unified summary that a sales person could use. Simply merge the information.
+    const chunkPrompt = `You are a sales rep preparing for a call with ${company_name}. You were given these text chunks scraped from their website. Write a sales brief covering: what this company does, who their customers are, potential pain points, and how you might sell to them.
 
 ${chunks.map((c, i) => `--- Chunk ${i + 1} ---\n${c.text}`).join('\n\n')}
 
-Write a clear, professional 3-4 paragraph summary. You have NO information about where any fact came from ... no source attribution, no structure.`;
+Write 3-4 paragraphs. Focus on: company overview, pain points and challenges, buying triggers, and sales angles. You have NO source attribution ... all chunks are anonymous text.`;
 
     // ATOM SIDE: DRiX synthesis with source attribution markers
-    const atomSynthPrompt = `You are synthesizing a targeted intelligence brief using ONLY the atomic facts below. Each atom is a verified, tagged claim extracted by DRiX from multiple source documents.
+    const sourceSlots = fetched.map(f => `{{S${f.index}}}...{{/S${f.index}}} = ${f.label}`).join('\n');
+
+    const atomSynthPrompt = `You are a DRiX intelligence engine producing a targeted sales brief. You have structured atomic facts from ${fetched.length} source documents about ${company_name}, plus WinTech's own capability atoms.
 
 SOURCES:
 ${sourceLabels}
 
-CUSTOMER ATOMS (${allAtoms.length} total, from ${fetched.length} sources):
+CUSTOMER ATOMS (${allAtoms.length} total):
 ${allAtoms.slice(0, 40).map(a => `[S${a.source_index}] (${a.type}) ${a.claim}`).join('\n')}
 
-WINTECH ATOMS (${senderAtoms.length}):
+WINTECH CAPABILITY ATOMS:
 ${senderAtoms.slice(0, 15).map(a => `[WT] (${a.type}) ${a.claim}`).join('\n')}
 
-CROSS-REFERENCES:
-${crossRefs.slice(0, 5).map(r => `${r.customer_claim} <-> ${r.sender_claim} (${r.match_type})`).join('\n')}
+CROSS-REFERENCES (customer need <-> WinTech capability):
+${crossRefs.slice(0, 5).map(r => `${r.customer_claim} <-> ${r.sender_claim}`).join('\n')}
 
-Write a 3-4 paragraph intelligence brief that weaves customer facts with WinTech capabilities.
+Write a 4-paragraph sales intelligence brief structured as:
+PARAGRAPH 1: Company overview and strategic direction (from customer atoms)
+PARAGRAPH 2: Pain points, challenges, and buying triggers you identified
+PARAGRAPH 3: How WinTech's DRiX platform maps to their specific needs (use cross-references)
+PARAGRAPH 4: Recommended approach and conversation starters for a first meeting
 
-CRITICAL FORMATTING RULE: Wrap each sentence with source markers showing where the information came from:
-{{S0}}sentence using source 0 info{{/S0}}
-{{S1}}sentence using source 1 info{{/S1}}
-{{S2}}sentence using source 2 info{{/S2}}
-{{S3}}sentence using source 3 info{{/S3}}
-{{WT}}sentence using WinTech info{{/WT}}
+SOURCE ATTRIBUTION FORMAT: Wrap each sentence with the source it came from:
+${sourceSlots}
+{{WT}}...{{/WT}} = WinTech intelligence
 
-Every sentence MUST be wrapped in exactly one source marker. Use the PRIMARY source if a sentence combines multiple.
-NEVER use em dashes. Use periods, commas, or ellipsis (...) instead.
-NEVER include atom IDs or bracket references in the readable text.`;
+Example: {{S0}}Techcombank serves over 10 million customers across Vietnam.{{/S0}} {{WT}}DRiX Ready Lead could enrich their customer segmentation at scale.{{/WT}}
+
+EVERY sentence must be wrapped in exactly ONE marker. If a sentence blends sources, use the primary one.
+NEVER use em dashes. Use commas, periods, or ellipsis (...) instead.
+Do NOT include atom IDs, brackets, or source numbers in the readable text.`;
 
     const [chunkResult, atomResult] = await Promise.allSettled([
       (async () => {
@@ -2894,17 +2913,24 @@ NEVER include atom IDs or bracket references in the readable text.`;
     }
 
     // ── STEP 7: Blind spots detection ──
+    // A blind spot = an atom whose KEY CONCEPT is absent from the chunk synthesis.
+    // We use distinctive words (>5 chars, not stopwords) and require that fewer than
+    // 30% of them appear in the chunk output. This catches facts the chunks lost.
     const chunkText = chunkResult.status === 'fulfilled' ? chunkResult.value.toLowerCase() : '';
+    const stopWords = new Set(['about','which','their','these','those','where','would','could','should',
+      'being','other','after','before','through','between','during','against','under','there','having']);
     const blindSpots = [];
     if (chunkText) {
       for (const atom of allAtoms) {
-        const words = atom.claim.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        const keyPhrases = [];
-        for (let w = 0; w < words.length - 2; w++) {
-          keyPhrases.push(words.slice(w, w + 3).join(' '));
-        }
-        const found = keyPhrases.some(phrase => chunkText.includes(phrase));
-        if (!found && atom.claim.length > 30) {
+        const distinctWords = atom.claim.toLowerCase()
+          .split(/\s+/)
+          .filter(w => w.length > 5 && !stopWords.has(w))
+          .map(w => w.replace(/[^a-z0-9]/g, ''));
+        if (distinctWords.length < 2) continue;
+        const matched = distinctWords.filter(w => chunkText.includes(w)).length;
+        const matchPct = matched / distinctWords.length;
+        // If fewer than 30% of distinctive words found, it's a blind spot
+        if (matchPct < 0.3 && atom.claim.length > 30) {
           blindSpots.push({
             claim: atom.claim, type: atom.type,
             source_index: atom.source_index,

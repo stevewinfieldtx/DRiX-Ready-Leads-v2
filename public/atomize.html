@@ -237,13 +237,17 @@
   .recon-text.visible { opacity: 1; }
 
   /* Provenance highlights in DRiX output */
-  .prov { padding: 1px 0; border-left: 3px solid transparent; padding-left: 6px; margin-left: -6px; display: inline; }
-  .prov-legend {
-    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
-    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
+  .prov {
+    padding: 2px 4px; border-left: 4px solid transparent; padding-left: 8px;
+    margin: 1px 0; display: inline; border-radius: 0 3px 3px 0;
   }
-  .prov-legend-item { display: flex; align-items: center; gap: 4px; }
-  .prov-legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .prov-legend {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; padding: 8px 12px;
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
+    background: var(--surface2); border-radius: 6px; border: 1px solid var(--border);
+  }
+  .prov-legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-dim); }
+  .prov-legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
   /* ── BLIND SPOTS ── */
   .blind-spots {
@@ -753,7 +757,7 @@ function renderProvenance(rawText) {
   for (const [key, color] of Object.entries(colorMap)) {
     // Build regex to match {{S0}}text{{/S0}} etc. Double-escape braces for RegExp constructor.
     const regex = new RegExp(`\\{\\{${key}\\}\\}(.*?)\\{\\{\\/${key}\\}\\}`, 'gs');
-    html = html.replace(regex, `<span class="prov" style="border-left-color:${color}; background: ${color}18;">$1</span>`);
+    html = html.replace(regex, `<span class="prov" style="border-left-color:${color}; background: ${color}30;">$1</span>`);
   }
 
   // Clean up any remaining unmatched markers
