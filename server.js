@@ -2204,6 +2204,48 @@ const WINTECH_SEED = (() => {
 })();
 console.log(`   WinTech seed: ${WINTECH_SEED.atoms.length} atoms loaded`);
 
+// ─── DEMO DOC SETS (multi-source atomize) ────────────────────────────────────
+// Each company has 4 URLs to ingest. Pre-warmed at boot for instant demo runs.
+const DEMO_DOCS = {
+  'AIAIVN': [
+    { url: 'https://www.aiaivn.com/', label: 'Homepage' },
+    { url: 'https://www.aiaivn.com/about', label: 'About' },
+    { url: 'https://www.aiaivn.com/services', label: 'Services' },
+    { url: 'https://www.aiaivn.com/contact', label: 'Contact' }
+  ],
+  'Techcombank': [
+    { url: 'https://www.techcombank.com.vn/', label: 'Homepage' },
+    { url: 'https://www.techcombank.com.vn/personal-banking', label: 'Personal Banking' },
+    { url: 'https://www.techcombank.com.vn/investors', label: 'Investors' },
+    { url: 'https://www.techcombank.com.vn/about-us/press-media/news', label: 'News & Media' }
+  ],
+  'FPT Software': [
+    { url: 'https://www.fpt-software.com/', label: 'Homepage' },
+    { url: 'https://www.fpt-software.com/about-fpt-software/', label: 'About Us' },
+    { url: 'https://www.fpt-software.com/service/', label: 'Services' },
+    { url: 'https://www.fpt-software.com/newsroom/news/', label: 'News' }
+  ]
+};
+const DOC_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#06b6d4'];
+
+async function prewarmDemoDocs() {
+  console.log('[PREWARM] Starting demo doc pre-warm...');
+  for (const [company, docs] of Object.entries(DEMO_DOCS)) {
+    for (const doc of docs) {
+      try {
+        const result = await ingestOne({ url: doc.url, role: 'customer', hint_name: company, demoMode: true });
+        doc._cached = true;
+        doc._atomCount = result.atoms?.length || 0;
+        console.log(`[PREWARM] OK ${company} / ${doc.label}: ${doc._atomCount} atoms`);
+      } catch (e) {
+        doc._cached = false;
+        console.log(`[PREWARM] SKIP ${company} / ${doc.label}: ${e.message}`);
+      }
+    }
+  }
+  console.log('[PREWARM] Complete.');
+}
+
 // ─── CPP (Communication Personality Profiles) ──────────────────────────────
 // Each profile shapes HOW the TDE synthesis writes — same atoms, different voice.
 const CPP_PROFILES = {
@@ -2588,13 +2630,14 @@ Now, using that exact voice, complete the following task using ONLY the atoms pr
   }
 });
 
-// ─── ATOMIZE ENDPOINT (live Chunking vs DRiX decomposition) ─────────────────
+// ─── ATOMIZE ENDPOINT (multi-doc Chunking vs DRiX decomposition) ─────────────
 
 app.post('/api/atomize', async (req, res) => {
-  const { company_url, company_name } = req.body || {};
+  const { company_name } = req.body || {};
 
-  if (!company_url) {
-    return res.status(400).json({ error: 'Require company_url' });
+  const docs = DEMO_DOCS[company_name];
+  if (!docs) {
+    return res.status(400).json({ error: `Unknown company: ${company_name}. Use: ${Object.keys(DEMO_DOCS).join(', ')}` });
   }
   if (!OPENROUTER_API_KEY) {
     return res.status(500).json({ error: 'Server not configured' });
@@ -2610,41 +2653,67 @@ app.post('/api/atomize', async (req, res) => {
   const keepAlive = setInterval(() => { try { res.write(':keepalive\n\n'); } catch {} }, 15000);
   const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {} };
 
-  const displayName = company_name || company_url;
-
   try {
-    // ── STEP 1: Fetch the raw content ──
-    send('phase', { step: 'fetch', message: `Fetching ${displayName}...` });
+    // ── STEP 1: Send source list with colors ──
+    const sources = docs.map((d, i) => ({
+      index: i, url: d.url, label: d.label, color: DOC_COLORS[i]
+    }));
+    send('sources', { sources });
 
-    const fetched = await fetchAndStrip(normUrl(company_url));
-    if (!fetched.text || fetched.text.length < 200) {
-      throw new Error(`Fetched ${company_url} had too little text (${fetched.text?.length || 0} chars). Try a richer page.`);
+    // ── STEP 2: Fetch raw text from all docs (for soup visual) ──
+    send('phase', { step: 'fetch', message: `Fetching ${docs.length} pages from ${company_name}...` });
+
+    const fetchResults = await Promise.allSettled(
+      docs.map(d => fetchAndStrip(d.url))
+    );
+
+    const fetched = [];
+    for (let i = 0; i < fetchResults.length; i++) {
+      if (fetchResults[i].status === 'fulfilled' && fetchResults[i].value?.text?.length > 100) {
+        fetched.push({
+          index: i,
+          label: docs[i].label,
+          url: docs[i].url,
+          color: DOC_COLORS[i],
+          text: fetchResults[i].value.text,
+          title: fetchResults[i].value.title || docs[i].label
+        });
+      } else {
+        console.log(`[atomize] Skip ${docs[i].label}: ${fetchResults[i].reason?.message || 'too little content'}`);
+      }
     }
 
-    const rawText = fetched.text;
-    const pageTitle = fetched.title || displayName;
+    if (fetched.length < 2) {
+      throw new Error(`Only ${fetched.length} doc(s) had enough content. Need at least 2.`);
+    }
 
-    send('content', {
-      title: pageTitle,
-      text_length: rawText.length,
-      preview: rawText.slice(0, 500)
+    // Confirm which sources actually worked
+    send('sources_final', {
+      sources: fetched.map(f => ({ index: f.index, label: f.label, color: f.color, chars: f.text.length }))
     });
 
-    // ── STEP 2: CHUNK SIDE — split into paragraph chunks ──
-    send('phase', { step: 'chunking', message: 'Splitting content into chunks...' });
+    // ── STEP 3: CHUNK SIDE — concatenate into soup, then split ──
+    send('phase', { step: 'soup', message: `${fetched.length} pages fetched. Building the soup...` });
 
-    // Split by double-newlines or long single breaks; produce 3-6 chunks
-    let paragraphs = rawText.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 80);
-    if (paragraphs.length < 3) {
-      // If not enough paragraph breaks, split by sentences into ~4 groups
-      const sentences = rawText.match(/[^.!?]+[.!?]+/g) || [rawText];
-      const chunkSize = Math.ceil(sentences.length / 4);
+    const soupText = fetched.map(f => f.text).join('\n\n');
+    send('soup', {
+      text: soupText.slice(0, 3000),
+      total_chars: soupText.length,
+      doc_count: fetched.length
+    });
+
+    send('phase', { step: 'chunking', message: 'Splitting soup into arbitrary chunks...' });
+
+    // Split soup into 4-6 chunks at arbitrary boundaries
+    let paragraphs = soupText.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 80);
+    if (paragraphs.length < 4) {
+      const sentences = soupText.match(/[^.!?]+[.!?]+/g) || [soupText];
+      const chunkSize = Math.ceil(sentences.length / 5);
       paragraphs = [];
       for (let i = 0; i < sentences.length; i += chunkSize) {
         paragraphs.push(sentences.slice(i, i + chunkSize).join(' ').trim());
       }
     }
-    // Cap at 6 chunks for visual clarity
     if (paragraphs.length > 6) {
       const merged = [];
       const mergeSize = Math.ceil(paragraphs.length / 6);
@@ -2655,115 +2724,120 @@ app.post('/api/atomize', async (req, res) => {
     }
 
     const chunks = paragraphs.map((text, i) => ({
-      id: `chunk-${i}`,
-      index: i,
-      text: text.slice(0, 600), // cap display length
-      char_count: text.length
+      id: `chunk-${i}`, index: i, text: text.slice(0, 600), char_count: text.length
     }));
 
     send('chunks', { chunks, total: chunks.length });
 
-    // ── STEP 3: DRiX SIDE — real decomposition ──
-    send('phase', { step: 'decompose', message: 'DRiX: Decomposing into atomic claims...' });
+    // ── STEP 4: DRiX SIDE — real decomposition from all docs ──
+    send('phase', { step: 'decompose', message: `DRiX: Decomposing ${fetched.length} sources into atomic claims...` });
 
-    let customer;
-    try {
-      customer = await ingestOne({
-        url: normUrl(company_url),
-        role: 'customer',
-        hint_name: company_name,
-        demoMode: true
-      });
-    } catch (ingestErr) {
-      send('error', { side: 'drix', message: `Decomposition failed: ${ingestErr.message}` });
-      send('done', {});
-      clearInterval(keepAlive);
-      return res.end();
+    const allAtoms = [];
+    for (let fi = 0; fi < fetched.length; fi++) {
+      const f = fetched[fi];
+      try {
+        const result = await ingestOne({
+          url: f.url, role: 'customer', hint_name: company_name, demoMode: true
+        });
+        const docAtoms = (result.atoms || []).map(a => ({
+          atom_id: a.atom_id || a.id,
+          type: a.type, claim: a.claim, evidence: a.evidence, confidence: a.confidence,
+          tags: a.tags || [],
+          d_persona: a.d_persona, d_buying_stage: a.d_buying_stage,
+          d_emotional_driver: a.d_emotional_driver, d_evidence_type: a.d_evidence_type,
+          d_credibility: a.d_credibility, d_recency: a.d_recency,
+          d_economic_driver: a.d_economic_driver, d_status_quo_pressure: a.d_status_quo_pressure,
+          d_industry: a.d_industry,
+          source_index: f.index,
+          source_label: f.label,
+          source_color: f.color
+        }));
+        allAtoms.push(...docAtoms);
+        send('phase', { step: 'decompose_progress', message: `Source ${fi + 1}/${fetched.length}: ${docAtoms.length} atoms from ${f.label}` });
+      } catch (e) {
+        console.log(`[atomize] Ingest failed for ${f.label}: ${e.message}`);
+        send('phase', { step: 'decompose_progress', message: `Source ${fi + 1}/${fetched.length}: ${f.label} skipped` });
+      }
     }
 
-    const atoms = (customer.atoms || []).map(a => ({
-      atom_id: a.atom_id || a.id,
-      type: a.type,
-      claim: a.claim,
-      evidence: a.evidence,
-      confidence: a.confidence,
-      tags: a.tags || [],
-      d_persona: a.d_persona,
-      d_buying_stage: a.d_buying_stage,
-      d_evidence_type: a.d_evidence_type,
-      d_industry: a.d_industry
-    }));
-
     send('atoms', {
-      atoms,
-      total: atoms.length,
-      source: customer.source || 'fresh'
+      atoms: allAtoms, total: allAtoms.length,
+      by_source: fetched.map(f => ({
+        index: f.index, label: f.label, color: f.color,
+        count: allAtoms.filter(a => a.source_index === f.index).length
+      }))
     });
 
-    // ── STEP 4: Cross-reference with WinTech atoms ──
-    send('phase', { step: 'cross_ref', message: `Cross-referencing ${atoms.length} customer atoms with ${WINTECH_SEED.atoms.length} WinTech atoms...` });
+    // ── STEP 5: Cross-reference with WinTech atoms ──
+    send('phase', { step: 'cross_ref', message: `Cross-referencing ${allAtoms.length} customer atoms with ${WINTECH_SEED.atoms.length} WinTech atoms...` });
 
-    // Find real cross-references: customer atoms that share tags/dimensions with sender atoms
     const crossRefs = [];
     const senderAtoms = WINTECH_SEED.atoms || [];
-    for (const custAtom of atoms.slice(0, 20)) {
+    for (const custAtom of allAtoms.slice(0, 30)) {
       for (const sendAtom of senderAtoms) {
-        // Match on persona + industry overlap, or shared tags
-        const personaMatch = custAtom.d_persona && sendAtom.d_persona === custAtom.d_persona;
-        const tagOverlap = (custAtom.tags || []).filter(t =>
-          (sendAtom.tags || []).includes(t)
-        );
-        if ((personaMatch && tagOverlap.length > 0) || tagOverlap.length >= 2) {
+        const tagOverlap = (custAtom.tags || []).filter(t => (sendAtom.tags || []).includes(t));
+        if (tagOverlap.length >= 2) {
           crossRefs.push({
             customer_atom: custAtom.atom_id,
             customer_claim: custAtom.claim,
+            customer_source: custAtom.source_label,
+            customer_color: custAtom.source_color,
             sender_atom: sendAtom.atom_id,
             sender_claim: sendAtom.claim,
-            match_type: personaMatch ? 'persona + tags' : 'shared tags',
+            match_type: 'shared tags',
             shared_tags: tagOverlap
           });
-          break; // one match per customer atom to keep it clean
+          break;
         }
       }
     }
 
     send('cross_refs', {
-      refs: crossRefs.slice(0, 8),
-      total_checked: atoms.length * senderAtoms.length
+      refs: crossRefs.slice(0, 10),
+      total_checked: allAtoms.length * senderAtoms.length
     });
 
-    // ── STEP 5: Parallel synthesis — chunks vs atoms ──
+    // ── STEP 6: Parallel synthesis — chunks vs atoms ──
     send('phase', { step: 'synthesize', message: 'Synthesizing outputs from both sides...' });
 
-    // CHUNK SIDE: standard LLM summarizes the chunks
-    const chunkPrompt = `You have the following content chunks from ${pageTitle}. Write a unified summary that a sales person could use to understand this company. Simply merge and present the information from these chunks.
+    const sourceLabels = fetched.map(f => `Source ${f.index}: ${f.label} (${f.url})`).join('\n');
+
+    // CHUNK SIDE: standard LLM gets the soup chunks, no structure
+    const chunkPrompt = `You have the following content chunks from ${company_name}. These chunks were created by splitting ${fetched.length} web pages into arbitrary text blocks. Write a unified summary that a sales person could use. Simply merge the information.
 
 ${chunks.map((c, i) => `--- Chunk ${i + 1} ---\n${c.text}`).join('\n\n')}
 
-Write a clear, professional 3-4 paragraph summary covering the key points.`;
+Write a clear, professional 3-4 paragraph summary. You have NO information about where any fact came from ... no source attribution, no structure.`;
 
-    // ATOM SIDE: DRiX synthesis from real atoms
-    const atomSynthPrompt = `You are synthesizing a targeted intelligence brief using ONLY the atomic facts below. Each atom is a verified, tagged claim extracted by DRiX.
+    // ATOM SIDE: DRiX synthesis with source attribution markers
+    const atomSynthPrompt = `You are synthesizing a targeted intelligence brief using ONLY the atomic facts below. Each atom is a verified, tagged claim extracted by DRiX from multiple source documents.
 
-CUSTOMER ATOMS (${atoms.length} from ${pageTitle}):
-${atoms.slice(0, 25).map(a => `[${a.atom_id}] (${a.type}) ${a.claim}`).join('\n')}
+SOURCES:
+${sourceLabels}
+
+CUSTOMER ATOMS (${allAtoms.length} total, from ${fetched.length} sources):
+${allAtoms.slice(0, 40).map(a => `[S${a.source_index}] (${a.type}) ${a.claim}`).join('\n')}
 
 WINTECH ATOMS (${senderAtoms.length}):
-${senderAtoms.slice(0, 15).map(a => `[${a.atom_id}] (${a.type}) ${a.claim}`).join('\n')}
+${senderAtoms.slice(0, 15).map(a => `[WT] (${a.type}) ${a.claim}`).join('\n')}
 
-CROSS-REFERENCES FOUND:
+CROSS-REFERENCES:
 ${crossRefs.slice(0, 5).map(r => `${r.customer_claim} <-> ${r.sender_claim} (${r.match_type})`).join('\n')}
 
-Write a 3-4 paragraph intelligence brief that:
-1. Weaves customer facts with WinTech capabilities naturally
-2. References specific cross-references to show how WinTech maps to their needs
-3. Reads as seamless flowing prose, NOT as a list of facts
-4. NEVER uses em dashes. Use periods, commas, or ellipsis (...) instead.
-5. NEVER puts atom IDs or bracket references in the text.`;
+Write a 3-4 paragraph intelligence brief that weaves customer facts with WinTech capabilities.
 
-    // Fire both in parallel
+CRITICAL FORMATTING RULE: Wrap each sentence with source markers showing where the information came from:
+{{S0}}sentence using source 0 info{{/S0}}
+{{S1}}sentence using source 1 info{{/S1}}
+{{S2}}sentence using source 2 info{{/S2}}
+{{S3}}sentence using source 3 info{{/S3}}
+{{WT}}sentence using WinTech info{{/WT}}
+
+Every sentence MUST be wrapped in exactly one source marker. Use the PRIMARY source if a sentence combines multiple.
+NEVER use em dashes. Use periods, commas, or ellipsis (...) instead.
+NEVER include atom IDs or bracket references in the readable text.`;
+
     const [chunkResult, atomResult] = await Promise.allSettled([
-      // Chunk synthesis (standard LLM)
       (async () => {
         const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -2776,55 +2850,77 @@ Write a 3-4 paragraph intelligence brief that:
           body: JSON.stringify({
             model: 'openai/gpt-4o',
             messages: [{ role: 'user', content: chunkPrompt }],
-            temperature: 0.7,
-            max_tokens: 2000
+            temperature: 0.7, max_tokens: 2000
           }),
           signal: AbortSignal.timeout(45000)
         }, { label: 'ChunkSynth', retries: 1, backoffMs: 2000 });
         const data = await resp.json();
         return data?.choices?.[0]?.message?.content || '(No response)';
       })(),
-      // Atom synthesis (Cerebras or OpenRouter)
       (async () => {
         const useCerebras = !!CEREBRAS_API_KEY;
-        const url = useCerebras ? 'https://api.cerebras.ai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
+        const synthUrl = useCerebras ? 'https://api.cerebras.ai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
         const model = useCerebras ? 'gpt-oss-120b' : 'google/gemini-2.5-flash';
         const headers = useCerebras
           ? { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' }
           : { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json',
               'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app', 'X-Title': 'DRiX Atomize - Atom Side' };
-        const resp = await fetchWithRetry(url, {
-          method: 'POST',
-          headers,
+        const resp = await fetchWithRetry(synthUrl, {
+          method: 'POST', headers,
           body: JSON.stringify({
             model,
             messages: [{ role: 'user', content: atomSynthPrompt }],
-            temperature: 0.4,
-            max_tokens: 2000
+            temperature: 0.4, max_tokens: 2500
           }),
-          signal: AbortSignal.timeout(30000)
+          signal: AbortSignal.timeout(45000)
         }, { label: 'AtomSynth', retries: 1, backoffMs: 1500 });
         const data = await resp.json();
         let text = data?.choices?.[0]?.message?.content || '(No response)';
-        // Nuclear em-dash removal
         text = text.replace(/—/g, '...').replace(/–/g, ', ');
         return text;
       })()
     ]);
 
-    // Send chunk reconstruction
     if (chunkResult.status === 'fulfilled') {
       send('chunk_synthesis', { text: chunkResult.value });
     } else {
       send('chunk_synthesis', { text: `(Chunk synthesis failed: ${chunkResult.reason?.message || 'unknown'})` });
     }
 
-    // Send atom reconstruction
     if (atomResult.status === 'fulfilled') {
       send('atom_synthesis', { text: atomResult.value });
     } else {
       send('atom_synthesis', { text: `(Atom synthesis failed: ${atomResult.reason?.message || 'unknown'})` });
     }
+
+    // ── STEP 7: Blind spots detection ──
+    const chunkText = chunkResult.status === 'fulfilled' ? chunkResult.value.toLowerCase() : '';
+    const blindSpots = [];
+    if (chunkText) {
+      for (const atom of allAtoms) {
+        const words = atom.claim.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        const keyPhrases = [];
+        for (let w = 0; w < words.length - 2; w++) {
+          keyPhrases.push(words.slice(w, w + 3).join(' '));
+        }
+        const found = keyPhrases.some(phrase => chunkText.includes(phrase));
+        if (!found && atom.claim.length > 30) {
+          blindSpots.push({
+            claim: atom.claim, type: atom.type,
+            source_index: atom.source_index,
+            source_label: atom.source_label,
+            source_color: atom.source_color
+          });
+        }
+      }
+    }
+
+    send('blind_spots', {
+      spots: blindSpots.slice(0, 8),
+      total_missed: blindSpots.length,
+      total_atoms: allAtoms.length,
+      pct_missed: allAtoms.length ? Math.round(blindSpots.length / allAtoms.length * 100) : 0
+    });
 
     send('done', {});
 
@@ -2845,4 +2941,6 @@ app.listen(PORT, async () => {
   console.log(`   database: ${db.isConfigured() ? 'connected' : '(not configured — set DATABASE_URL)'}`);
   console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();
+  // Pre-warm demo docs in background (non-blocking)
+  prewarmDemoDocs().catch(e => console.error('[PREWARM] error:', e.message));
 });
