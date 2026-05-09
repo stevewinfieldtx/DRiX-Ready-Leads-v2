@@ -1,5 +1,5 @@
-// server.js — TDE Demo v3
-// Three-URL ingest → 6D-tagged atoms → pain points → 5 strategies → (on-select) real LeadHydration
+// server.js — DRiX Demo v3
+// Three-URL ingest → 6D-tagged atoms → pain points → 5 strategies → (on-select) DRiX Ready Lead
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -1059,7 +1059,7 @@ app.post('/api/hydrate', async (req, res) => {
 
   if (!LEADHYDRATION_URL) {
     return res.status(503).json({
-      error: 'LeadHydration not connected',
+      error: 'DRiX Ready Lead not connected',
       detail: 'Set LEADHYDRATION_URL env var to enable this step. Demo cannot proceed without the real service.'
     });
   }
@@ -1178,8 +1178,8 @@ app.post('/api/clearsignals', async (req, res) => {
 
   if (!LEADHYDRATION_URL) {
     return res.status(503).json({
-      error: 'LeadHydration not connected',
-      detail: 'ClearSignals is hosted inside LeadHydration — set LEADHYDRATION_URL to enable.'
+      error: 'DRiX Ready Lead not connected',
+      detail: 'ClearSignals is hosted inside DRiX Ready Lead. Set LEADHYDRATION_URL to enable.'
     });
   }
 
@@ -1414,7 +1414,7 @@ app.post('/api/coach-voice/provision', async (req, res) => {
     const voicePrompt = COACH_SYSTEM_PROMPT + `\n---\nDEAL INTELLIGENCE:\n${context}\n---\n\nADDITIONAL VOICE RULES:\n- You are on a voice call. Keep responses spoken-length (2-3 sentences per turn unless they ask for more).\n- Leave room for back-and-forth. Don't monologue.\n- When giving scripts, say "Here's what I'd say:" and deliver it in a natural spoken cadence.\n- If they want to roleplay, commit to the character fully.\n`;
 
     const payload = {
-      name: `TDE Coach — ${custName}`,
+      name: `DRiX Coach - ${custName}`,
       conversation_config: {
         agent: {
           prompt: { prompt: voicePrompt, llm: 'gpt-4o', temperature: 0.6 },
@@ -1470,7 +1470,7 @@ function escHtml(s) {
 function buildReportHtml(run) {
   const esc = escHtml;
   const d = new Date(run.created_at || Date.now());
-  const title = `TDE report — ${esc(run.customer?.target?.name || run.industry || 'Customer')}`;
+  const title = `DRiX Report ... ${esc(run.customer?.target?.name || run.industry || 'Customer')}`;
 
   const atomMini = (a) => `
     <div class="atom">
@@ -1734,12 +1734,12 @@ app.post('/api/send-report', async (req, res) => {
     const html = buildReportHtml({ ...run, run_id });
     const attachment = Buffer.from(html, 'utf8').toString('base64');
     const customerLabel = run.customer?.target?.name || run.industry || 'customer';
-    const filename = `TDE-report-${String(customerLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}-${run_id}.html`;
+    const filename = `DRiX-report-${String(customerLabel).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}-${run_id}.html`;
 
     const emailBody = `
-      <p>Your TDE analysis for <b>${escHtml(customerLabel)}</b> is attached as an HTML file you can open in any browser. You can also download a Word document from the app.</p>
-      <p>The report includes: positioning atoms, pain points (company / sub-industry / industry), the 5 sales strategies generated, and — if you ran it — the lead hydration output (discovery questions, email drip) and ClearSignals thread analysis.</p>
-      <p>— TDE Demo</p>
+      <p>Your DRiX analysis for <b>${escHtml(customerLabel)}</b> is attached as an HTML file you can open in any browser. You can also download a Word document from the app.</p>
+      <p>The report includes: positioning atoms, pain points (company / sub-industry / industry), the 5 sales strategies generated, and if you ran it, the DRiX Ready Lead output (discovery questions, email drip) and ClearSignals analysis.</p>
+      <p>... WinTech Partners</p>
     `;
 
     const resendRes = await fetch('https://api.resend.com/emails', {
@@ -1751,7 +1751,7 @@ app.post('/api/send-report', async (req, res) => {
       body: JSON.stringify({
         from: REPORT_FROM_EMAIL,
         to: [recipient],
-        subject: `TDE report — ${customerLabel}`,
+        subject: `DRiX Report - ${customerLabel}`,
         html: emailBody,
         attachments: [{ filename, content: attachment }]
       })
@@ -1835,7 +1835,7 @@ app.get('/api/report/:run_id/doc', async (req, res) => {
       new Paragraph({
         alignment: AlignmentType.CENTER,
         spacing: { after: 200 },
-        children: [new TextRun({ text: 'TDE Analysis Report', font: 'Arial', size: 52, bold: true, color: '1B3A5C' })],
+        children: [new TextRun({ text: 'DRiX Analysis Report', font: 'Arial', size: 52, bold: true, color: '1B3A5C' })],
       }),
       new Paragraph({
         alignment: AlignmentType.CENTER,
@@ -2015,7 +2015,7 @@ app.get('/api/report/:run_id/doc', async (req, res) => {
           default: new Header({
             children: [new Paragraph({
               alignment: AlignmentType.RIGHT,
-              children: [new TextRun({ text: `TDE Report — ${customerName}`, font: 'Arial', size: 18, color: '999999' })],
+              children: [new TextRun({ text: `DRiX Report - ${customerName}`, font: 'Arial', size: 18, color: '999999' })],
             })],
           }),
         },
@@ -2037,7 +2037,7 @@ app.get('/api/report/:run_id/doc', async (req, res) => {
     const buf = await Packer.toBuffer(doc);
     const safeName = String(customerName).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="TDE-Report-${safeName}-${req.params.run_id}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="DRiX-Report-${safeName}-${req.params.run_id}.docx"`);
     res.send(buf);
   } catch (err) {
     console.error('[docx-report]', err);
@@ -2153,7 +2153,7 @@ const REGIONS = [
   { id: 'southeast_asia', name: 'Southeast Asia', countries: ['Indonesia', 'Malaysia', 'Philippines', 'Thailand', 'Vietnam', 'Singapore'] }
 ];
 
-// ─── COMPARISON ENDPOINT (live TDE vs Standard AI) ──────────────────────────
+// ─── COMPARISON ENDPOINT (live DRiX vs Standard AI) ─────────────────────────
 
 // Retry helper — single retry with backoff for flaky API calls
 async function fetchWithRetry(url, options, { label = 'fetch', retries = 1, backoffMs = 2000 } = {}) {
@@ -2284,19 +2284,19 @@ const COMPARISON_MODELS = {
 const COMPARISON_PROMPTS = {
   email: (companyName) => `You are a sales outreach specialist. Write a cold outreach email from Steve Winfield at WinTech Partners to ${companyName}.
 
-WinTech Partners offers AI-powered enterprise solutions including content intelligence (TDE), cybersecurity (Chimera Secured), and sales optimization (LeadHydration).
+WinTech Partners offers DRiX (Data Reimagined Experience), an AI-powered intelligence platform including content decomposition (TDE), voice profiling (CPP), relationship intelligence (TrueGraph), cybersecurity (Chimera Secured), and lead enrichment (DRiX Ready Lead).
 
 Research ${companyName} and write a personalized, compelling outreach email that would get a response from a senior decision-maker. Include specific details about the target company and explain why WinTech's solutions are relevant to them.`,
 
-  pitch: (companyName) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' AI products targeting ${companyName}.
+  pitch: (companyName) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' DRiX platform targeting ${companyName}.
 
-WinTech Partners offers: TDE (content intelligence engine), Chimera Secured (behavioral email security, $4/user/month), LeadHydration (B2B lead intelligence), and ClearSignals (sales coaching).
+WinTech Partners offers DRiX (Data Reimagined Experience) with: TDE (decomposition engine), CPP (voice profiling), TrueGraph (relationship intelligence), Chimera Secured (behavioral email security, $4/user/month), DRiX Ready Lead (batch lead enrichment), ClearSignals AI (sales coaching), DRiX Widgets (reseller mini-sites), and DRiX Agents (multichannel AI assistants).
 
 The pitch should include an opening hook, value proposition, differentiation, and call to action. Make it specific to ${companyName} and their industry.`,
 
   partnership: (companyName) => `You are a business development analyst. Analyze the potential partnership between WinTech Partners and ${companyName}.
 
-WinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Products include TDE, Chimera Secured, LeadHydration, and ClearSignals.
+WinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Their DRiX platform includes TDE, CPP, TrueGraph, Chimera Secured, DRiX Ready Lead, ClearSignals AI, DRiX Widgets, and DRiX Agents.
 
 Provide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`
 };
@@ -2590,9 +2590,9 @@ Now, using that exact voice, complete the following task using ONLY the atoms pr
 
 // ─── BOOT ────────────────────────────────────────────────────────────────────
 app.listen(PORT, async () => {
-  console.log(`✅ TDE Demo v3 listening on port ${PORT}`);
+  console.log(`✅ DRiX Demo v3 listening on port ${PORT}`);
   console.log(`   model: ${OPENROUTER_MODEL_ID}`);
-  console.log(`   leadhydration: ${LEADHYDRATION_URL || '(not configured)'}`);
+  console.log(`   drix-ready-lead: ${LEADHYDRATION_URL || '(not configured)'}`);
   console.log(`   database: ${db.isConfigured() ? 'connected' : '(not configured — set DATABASE_URL)'}`);
   console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();

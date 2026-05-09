@@ -3,52 +3,88 @@
     "name": "WinTech Partners",
     "url": "https://wintechpartners.com"
   },
-  "summary": "WinTech Partners is Steve Winfield's operating group, applying 25 years of enterprise technology sales methodology to AI product development. Its differentiator is the Educator's Advantage — treating sales as real-time reading comprehension — combined with a growing suite of AI products (TDE, CPP, LeadHydration, ClearSignals, Chimera Secured, LifeStages, TalkBridge) that other companies can deploy under joint go-to-market arrangements.",
+  "summary": "WinTech Partners is Steve Winfield's operating group, applying 25 years of enterprise technology sales methodology to AI product development. Its differentiator is the Educator's Advantage ... treating sales as real-time reading comprehension ... combined with DRiX (Data Reimagined Experience), an integrated intelligence platform built on three pillars: TDE (decomposition), CPP (voice profiling), and TrueGraph (relationship intelligence). The DRiX family includes DRiX Ready Lead, ClearSignals AI, Chimera Secured, DRiX Widgets, DRiX Agents, LifeStages, and TalkBridge.",
   "atoms": [
+    {
+      "atom_id": "wt-drix",
+      "type": "product",
+      "claim": "DRiX (Data Reimagined Experience) is WinTech's integrated intelligence platform that combines three core engines: TDE for decomposition, CPP for voice profiling, and TrueGraph for relationship intelligence. All WinTech products operate under the DRiX umbrella.",
+      "evidence": "DRiX is the unified brand and platform layer connecting TDE, CPP, and TrueGraph into a single intelligence stack.",
+      "tags": ["product", "drix", "platform", "umbrella", "intelligence"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 10, "investor": 10, "partner": 10, "general": 8 }
+    },
     {
       "atom_id": "wt-tde",
       "type": "product",
-      "claim": "TDE (Targeted Decomposition Engine) is a solution-intelligence backbone that ingests any company's public and private surface, decomposes it into atomic facts, and reconstructs recipient-specific outputs.",
-      "evidence": "Core platform for WinTech — decomposition plus multi-intent reconstruction.",
-      "tags": ["product", "tde", "research", "knowledge-layer", "vector"],
+      "claim": "TDE (Targeted Decomposition Engine) is the decomposition pillar of DRiX. It ingests any company's public and private surface, decomposes it into atomic facts tagged across 9 dimensions, and reconstructs recipient-specific outputs.",
+      "evidence": "Core decomposition engine within DRiX ... ingestion, atomization, tagging, and multi-intent reconstruction.",
+      "tags": ["product", "tde", "drix", "research", "knowledge-layer", "vector"],
       "confidence": "high",
       "audience_relevance": { "technical_buyer": 10, "business_buyer": 9, "investor": 9, "partner": 10, "general": 6 }
     },
     {
       "atom_id": "wt-cpp",
       "type": "product",
-      "claim": "CPP (Communication Personality Profile) is a behavioral impersonation-detection engine that builds per-person communication fingerprints and flags likely Business Email Compromise attempts.",
-      "evidence": "CPP engine generates vector profiles of senders and matches inbound messages to detect impersonation.",
-      "tags": ["product", "cpp", "bec", "security", "behavioral"],
+      "claim": "CPP (Communication Personality Profile) is the voice-profiling pillar of DRiX. It builds per-person communication fingerprints for two purposes: shaping output to match a writer's authentic voice, and flagging likely Business Email Compromise attempts by detecting impersonation.",
+      "evidence": "CPP generates vector profiles of senders for both voice-matched content generation and BEC detection within the DRiX platform.",
+      "tags": ["product", "cpp", "drix", "bec", "security", "behavioral", "voice"],
       "confidence": "high",
       "audience_relevance": { "technical_buyer": 10, "business_buyer": 8, "investor": 8, "partner": 9, "general": 6 }
     },
     {
+      "atom_id": "wt-truegraph",
+      "type": "product",
+      "claim": "TrueGraph is the relationship-intelligence pillar of DRiX. It takes extracted entities and builds a knowledge graph showing how topics, products, places, people, and themes interrelate across a body of content, surfacing power combinations, engagement multipliers, and content gaps.",
+      "evidence": "TrueGraph uses co-occurrence analysis, union-find clustering, and LLM-generated insights to map relationships across content sources.",
+      "tags": ["product", "truegraph", "drix", "knowledge-graph", "relationships", "analytics"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 10, "business_buyer": 8, "investor": 9, "partner": 9, "general": 5 }
+    },
+    {
       "atom_id": "wt-chimera",
       "type": "product",
-      "claim": "Chimera Secured is a packaged behavioral security product wrapping CPP for enterprise deployment, with optional DLP bolt-on, priced at $4/user/month with 30% channel margin.",
-      "evidence": "Chimera Secured is the commercialized security offering built on CPP with channel-ready pricing.",
-      "tags": ["product", "chimera", "security", "channel", "enterprise"],
+      "claim": "Chimera Secured is a DRiX-family packaged behavioral security product wrapping CPP for enterprise deployment, with optional DLP bolt-on, priced at $4/user/month with 30% channel margin.",
+      "evidence": "Chimera Secured is the commercialized security offering built on DRiX's CPP engine with channel-ready pricing.",
+      "tags": ["product", "chimera", "drix-family", "security", "channel", "enterprise"],
       "confidence": "high",
       "audience_relevance": { "technical_buyer": 9, "business_buyer": 10, "investor": 9, "partner": 10, "general": 7 }
     },
     {
-      "atom_id": "wt-leadhydration",
+      "atom_id": "wt-drix-ready-lead",
       "type": "product",
-      "claim": "LeadHydration is a batch lead-hydration engine that vendors plug into their existing sales pipelines to enrich raw lead lists with firmographic, technographic, and pain-scored intelligence at scale.",
-      "evidence": "LeadHydration processes vendor lead lists in batch, returning enriched records with pain-agent scoring and ready-to-run outbound sequences.",
-      "tags": ["product", "leadhydration", "sales", "b2b", "enrichment", "batch", "vendor"],
+      "claim": "DRiX Ready Lead is a DRiX-family batch lead-enrichment engine that vendors plug into their existing sales pipelines to enrich raw lead lists with firmographic, technographic, and pain-scored intelligence at scale.",
+      "evidence": "DRiX Ready Lead processes vendor lead lists in batch, returning enriched records with pain-agent scoring and ready-to-run outbound sequences powered by the DRiX platform.",
+      "tags": ["product", "drix-ready-lead", "drix-family", "sales", "b2b", "enrichment", "batch", "vendor"],
       "confidence": "high",
       "audience_relevance": { "technical_buyer": 6, "business_buyer": 10, "investor": 8, "partner": 10, "general": 5 }
     },
     {
       "atom_id": "wt-clearsignals",
       "type": "product",
-      "claim": "ClearSignals AI is a direction-aware sales coaching product that evaluates inbound emails as buyer-analysis opportunities and outbound as graded communications with pre-flight diagnostic gating.",
-      "evidence": "ClearSignals grades outbound and analyzes inbound, with pre-flight diagnostic before each send.",
-      "tags": ["product", "clearsignals", "sales", "coaching", "email"],
+      "claim": "ClearSignals AI is a DRiX-family direction-aware sales coaching product that evaluates inbound emails as buyer-analysis opportunities and outbound as graded communications with pre-flight diagnostic gating.",
+      "evidence": "ClearSignals grades outbound and analyzes inbound within the DRiX ecosystem, with pre-flight diagnostic before each send.",
+      "tags": ["product", "clearsignals", "drix-family", "sales", "coaching", "email"],
       "confidence": "high",
       "audience_relevance": { "technical_buyer": 7, "business_buyer": 9, "investor": 7, "partner": 9, "general": 5 }
+    },
+    {
+      "atom_id": "wt-drix-widgets",
+      "type": "product",
+      "claim": "DRiX Widgets are modular web components that create vendor-specific mini-sites for covered resellers. Changes are made once centrally and flow automatically to all adopting reseller sites, giving channel partners always-current product content without manual updates.",
+      "evidence": "DRiX Widgets solve the channel content-freshness problem by centralizing updates and distributing them to reseller mini-sites in real time.",
+      "tags": ["product", "drix-widgets", "drix-family", "channel", "reseller", "web", "modular"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 8, "business_buyer": 9, "investor": 8, "partner": 10, "general": 5 }
+    },
+    {
+      "atom_id": "wt-drix-agents",
+      "type": "product",
+      "claim": "DRiX Agents are subject-matter AI agents assigned at multiple levels (per sales rep, per solution, or per program resource) that can be interacted with via email, text, WhatsApp, and phone. They serve as always-available experts for reps and customers alike.",
+      "evidence": "DRiX Agents extend the DRiX platform into multichannel conversational access, putting solution intelligence at every rep's fingertips across their preferred communication channel.",
+      "tags": ["product", "drix-agents", "drix-family", "ai-agents", "multichannel", "sales", "support"],
+      "confidence": "high",
+      "audience_relevance": { "technical_buyer": 9, "business_buyer": 10, "investor": 9, "partner": 10, "general": 7 }
     },
     {
       "atom_id": "wt-talkbridge",
@@ -71,7 +107,7 @@
     {
       "atom_id": "wt-steve-methodology",
       "type": "differentiator",
-      "claim": "The Educator's Advantage is Steve Winfield's core methodology — treating enterprise sales as real-time reading comprehension and commercial teaching, derived from 9 years as a Texas public school teacher and principal.",
+      "claim": "The Educator's Advantage is Steve Winfield's core methodology, treating enterprise sales as real-time reading comprehension and commercial teaching, derived from 9 years as a Texas public school teacher and principal.",
       "evidence": "Steve's sales methodology reframes selling as applied teaching, drawn from his classroom years.",
       "tags": ["methodology", "educator-advantage", "sales-training", "differentiator"],
       "confidence": "high",
@@ -98,7 +134,7 @@
     {
       "atom_id": "wt-location-danang",
       "type": "stack_signal",
-      "claim": "Steve is resident in Da Nang, Vietnam — giving WinTech on-the-ground presence in the same city where AIAIVN operates its primary office.",
+      "claim": "Steve is resident in Da Nang, Vietnam, giving WinTech on-the-ground presence in the same city where AIAIVN operates its primary office.",
       "evidence": "Steve's Da Nang residency provides geographic overlap with AIAIVN for in-person collaboration.",
       "tags": ["location", "danang", "vietnam", "geographic-fit"],
       "confidence": "high",
@@ -116,8 +152,8 @@
     {
       "atom_id": "wt-honest-no-production",
       "type": "weakness",
-      "claim": "WinTech has no production TDE or Chimera Secured deployments and no revenue — the value proposition is built on methodology and IP, not installed base.",
-      "evidence": "TDE and Chimera are built but not yet in live customer production with revenue.",
+      "claim": "WinTech has no production DRiX or Chimera Secured deployments and no revenue. The value proposition is built on methodology and IP, not installed base.",
+      "evidence": "DRiX and Chimera are built but not yet in live customer production with revenue.",
       "tags": ["weakness", "stage", "early", "no-production"],
       "confidence": "high",
       "audience_relevance": { "technical_buyer": 8, "business_buyer": 9, "investor": 10, "partner": 9, "general": 4 }
@@ -125,7 +161,7 @@
     {
       "atom_id": "wt-honest-cold-network",
       "type": "weakness",
-      "claim": "WinTech's ~1,000 IT channel reseller contacts are mostly cold relationships — valuable as methodology-proven knowledge but not as an active warm network.",
+      "claim": "WinTech's ~1,000 IT channel reseller contacts are mostly cold relationships, valuable as methodology-proven knowledge but not as an active warm network.",
       "evidence": "The reseller contact base represents historical reach rather than current warm pipeline.",
       "tags": ["weakness", "network", "channel", "honest-framing"],
       "confidence": "high",
@@ -134,7 +170,7 @@
     {
       "atom_id": "wt-gtm-strength",
       "type": "differentiator",
-      "claim": "WinTech's strongest asymmetric asset is Western enterprise sales motion — the ability to design, deliver, and train channel programs at scale across countries.",
+      "claim": "WinTech's strongest asymmetric asset is Western enterprise sales motion, the ability to design, deliver, and train channel programs at scale across countries.",
       "evidence": "GTM design and channel enablement are WinTech's most differentiated capabilities vs. engineering-led competitors.",
       "tags": ["differentiator", "gtm", "sales-motion", "channel"],
       "confidence": "high",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TDE vs Standard AI — Live Side-by-Side Comparison</title>
+<title>DRiX vs Standard AI — Live Side-by-Side Comparison</title>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -538,8 +538,8 @@
 
 <!-- ── HERO ── -->
 <div class="hero">
-  <h1>Standard AI <span>vs</span> TDE</h1>
-  <p class="subtitle">Same prompt. Real API calls. Fundamentally different approach. Watch TDE decompose real content into atoms, then synthesize targeted output ... live.</p>
+  <h1>Standard AI <span>vs</span> DRiX</h1>
+  <p class="subtitle">Same prompt. Real API calls. Fundamentally different approach. Watch DRiX decompose real content into atoms, profile the writer's voice, then synthesize targeted output ... live.</p>
   <div class="edu-banner">
     <strong>This is live.</strong> The left side sends your prompt to a real LLM. The right side fetches the company's actual website, decomposes it into 9D-tagged atoms, cross-references with WinTech's atoms, and synthesizes from real intelligence ... not training data.
   </div>
@@ -588,7 +588,7 @@
 
 <!-- ── PROMPT DISPLAY ── -->
 <div class="prompt-display" id="promptDisplay">
-  <div class="prompt-label">PROMPT SENT TO STANDARD AI (TDE receives the same intent but works from decomposed atoms)</div>
+  <div class="prompt-label">PROMPT SENT TO STANDARD AI (DRiX receives the same intent but works from decomposed atoms)</div>
   <div class="prompt-text" id="promptText"></div>
 </div>
 
@@ -610,8 +610,8 @@
   <!-- RIGHT: TDE -->
   <div class="panel tde">
     <div class="panel-header">
-      <span class="badge">TDE</span>
-      <h2>TDE-Powered Response</h2>
+      <span class="badge">DRiX</span>
+      <h2>DRiX-Powered Response</h2>
       <span class="model-tag">Live Pipeline</span>
       <span class="timer" id="tdeTimer"></span>
     </div>
@@ -624,7 +624,7 @@
       <div class="phase" data-phase="synthesize">Synthesize</div>
     </div>
     <div class="panel-body" id="tdeBody">
-      <div class="placeholder">TDE will fetch real content, atomize it, tag across 9 dimensions, then cross-reference with WinTech's atoms to produce targeted output.</div>
+      <div class="placeholder">DRiX will fetch real content, atomize it, tag across 9 dimensions, then cross-reference with WinTech's atoms to produce targeted output.</div>
     </div>
   </div>
 </div>
@@ -679,9 +679,9 @@ const COMPANIES = {
 };
 
 const PROMPTS = {
-  email: (name) => `You are a sales outreach specialist. Write a cold outreach email from Steve Winfield at WinTech Partners to ${name}.\n\nWinTech Partners offers AI-powered enterprise solutions including content intelligence (TDE), cybersecurity (Chimera Secured), and sales optimization (LeadHydration).\n\nResearch ${name} and write a personalized, compelling outreach email that would get a response from a senior decision-maker. Include specific details about the target company and explain why WinTech's solutions are relevant to them.`,
-  pitch: (name) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' AI products targeting ${name}.\n\nWinTech Partners offers: TDE (content intelligence engine), Chimera Secured (behavioral email security, $4/user/month), LeadHydration (B2B lead intelligence), and ClearSignals (sales coaching).\n\nThe pitch should include an opening hook, value proposition, differentiation, and call to action. Make it specific to ${name} and their industry.`,
-  partnership: (name) => `You are a business development analyst. Analyze the potential partnership between WinTech Partners and ${name}.\n\nWinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Products include TDE, Chimera Secured, LeadHydration, and ClearSignals.\n\nProvide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`
+  email: (name) => `You are a sales outreach specialist. Write a cold outreach email from Steve Winfield at WinTech Partners to ${name}.\n\nWinTech Partners offers DRiX (Data Reimagined Experience), an AI-powered intelligence platform including content decomposition (TDE), voice profiling (CPP), relationship intelligence (TrueGraph), cybersecurity (Chimera Secured), and lead enrichment (DRiX Ready Lead).\n\nResearch ${name} and write a personalized, compelling outreach email that would get a response from a senior decision-maker. Include specific details about the target company and explain why WinTech's solutions are relevant to them.`,
+  pitch: (name) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' DRiX platform targeting ${name}.\n\nWinTech Partners offers DRiX (Data Reimagined Experience) with: TDE (decomposition engine), CPP (voice profiling), TrueGraph (relationship intelligence), Chimera Secured (behavioral email security, $4/user/month), DRiX Ready Lead (batch lead enrichment), and ClearSignals AI (sales coaching).\n\nThe pitch should include an opening hook, value proposition, differentiation, and call to action. Make it specific to ${name} and their industry.`,
+  partnership: (name) => `You are a business development analyst. Analyze the potential partnership between WinTech Partners and ${name}.\n\nWinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Their DRiX platform includes TDE, CPP, TrueGraph, Chimera Secured, DRiX Ready Lead, ClearSignals AI, DRiX Widgets, and DRiX Agents.\n\nProvide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`
 };
 
 const MODEL_NAMES = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' };
@@ -1028,7 +1028,7 @@ function handleSSE(event, data, standardBody, tdeBody) {
     }
 
     case 'tde_error':
-      tdeBody.innerHTML = `<div class="placeholder" style="color:var(--red)">TDE Error: ${escHtml(data.message)}</div>`;
+      tdeBody.innerHTML = `<div class="placeholder" style="color:var(--red)">DRiX Error: ${escHtml(data.message)}</div>`;
       break;
 
     case 'error':

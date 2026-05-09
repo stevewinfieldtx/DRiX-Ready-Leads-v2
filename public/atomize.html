@@ -413,9 +413,9 @@
   <!-- RIGHT: ATOMIZATION -->
   <div class="side atom-side">
     <div class="side-header">
-      <span class="badge">TDE</span>
+      <span class="badge">DRiX</span>
       <h2>Targeted Decomposition</h2>
-      <span class="side-tag">How TDE processes documents</span>
+      <span class="side-tag">How DRiX processes documents</span>
     </div>
     <div class="phase-label" id="atomPhase"></div>
     <div class="side-body" id="atomBody"></div>
@@ -467,7 +467,7 @@ const DOCS = [
   }
 ];
 
-// ── ATOMS (what TDE extracts) ──
+// ── ATOMS (what DRiX extracts) ──
 const ATOMS = [
   { id: 'tcb-ecosystem', claim: 'Evolved from private bank to integrated financial ecosystem', tags: ['CTO', 'Awareness', 'Company Data', 'Banking'], source: 0, color: 'press' },
   { id: 'tcb-18m-customers', claim: '18M+ individual and corporate customers', tags: ['CFO', 'Evaluation', 'Metric', 'Banking'], source: 0, color: 'press' },
@@ -592,7 +592,7 @@ async function startDemo() {
 
   await sleep(500);
 
-  // ── STEP 4: Cross-reference (TDE only) ──
+  // ── STEP 4: Cross-reference (DRiX only) ──
   atomPhase.textContent = 'Step 3: Cross-referencing across sources...';
 
   // Add connection indicators
@@ -628,7 +628,7 @@ async function startDemo() {
 
   await sleep(600);
 
-  // ── STEP 5: Dedup/merge (TDE only) ──
+  // ── STEP 5: Dedup/merge (DRiX only) ──
   atomPhase.textContent = 'Step 4: Deduplicating overlapping claims...';
 
   for (const merge of MERGES) {

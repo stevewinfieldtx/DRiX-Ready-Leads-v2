@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TDE · Targeted Decomposition Engine · AI Sales Intelligence</title>
+<title>DRiX · Data Reimagined Experience · AI Sales Intelligence</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -855,10 +855,10 @@
 <div class="hero">
   <nav class="hero-nav">
     <div class="brand">
-      <div class="brand-mark">TDE</div>
+      <div class="brand-mark">DRiX</div>
       <div>
-        <div class="brand-name">Targeted Decomposition Engine</div>
-        <div class="brand-sub">by NYN Impact</div>
+        <div class="brand-name">Data Reimagined Experience</div>
+        <div class="brand-sub">by WinTech Partners</div>
       </div>
     </div>
     <div class="nav-right">
@@ -867,7 +867,7 @@
         <span id="status-text">Checking…</span>
       </div>
       <a href="#app-section" class="nav-cta">Launch App →</a>
-      <a href="/comparison.html" class="nav-cta" style="background:linear-gradient(135deg,var(--purple),var(--accent));color:#0a0e13;">TDE vs ChatGPT →</a>
+      <a href="/comparison.html" class="nav-cta" style="background:linear-gradient(135deg,var(--purple),var(--accent));color:#0a0e13;">DRiX vs ChatGPT →</a>
       <a href="/atomize.html" class="nav-cta" style="background:linear-gradient(135deg,var(--green),var(--cyan));color:#0a0e13;">Atomization Demo →</a>
     </div>
   </nav>
@@ -876,7 +876,7 @@
     <div class="hero-headline">
       <span class="hero-tag">AI-Powered Sales Intelligence</span>
       <h1>Know your buyer better<br>than they know themselves.</h1>
-      <p class="hero-sub">TDE decomposes any company into 9-dimensional intelligence atoms — then reconstructs them into pain points, sales strategies, discovery questions, and send-ready outreach. In seconds, not hours.</p>
+      <p class="hero-sub">DRiX decomposes any company into 9-dimensional intelligence atoms, profiles your voice with CPP, maps relationships with TrueGraph, then reconstructs everything into pain points, sales strategies, discovery questions, and send-ready outreach. In seconds, not hours.</p>
       <a href="#app-section" class="btn-primary hero-cta-btn">Start Building Intelligence →</a>
     </div>
 
@@ -919,7 +919,7 @@
     <div class="feature-card">
       <div class="feature-icon">✉</div>
       <div class="feature-title">Lead Hydration & Outreach</div>
-      <div class="feature-desc">Select your strategy, and TDE generates discovery questions with branching responses, plus a multi-step email campaign — ready to send.</div>
+      <div class="feature-desc">Select your strategy, and DRiX generates discovery questions with branching responses, plus a multi-step email campaign — ready to send.</div>
     </div>
   </div>
 </div>
@@ -931,7 +931,7 @@
 
   <div class="app-header">
     <h2 class="app-title">Build Your Intelligence</h2>
-    <p class="app-subtitle">Fill in what you know. Skip what you don't. TDE adapts to whatever depth you provide.</p>
+    <p class="app-subtitle">Fill in what you know. Skip what you don't. DRiX adapts to whatever depth you provide.</p>
   </div>
 
   <div class="live-demo">
@@ -1028,14 +1028,14 @@
   <div class="panel" id="strategies-panel"></div>
   <div class="panel" id="hydration-panel"></div>
 
-  <footer>TDE · Targeted Decomposition Engine · by NYN Impact</footer>
+  <footer>DRiX · Data Reimagined Experience · by WinTech Partners</footer>
 </div>
 
 <!-- Sales Advisor Storm modal -->
 <div class="modal-backdrop" id="storm-modal">
   <div class="modal">
     <h3>Sales Advisor Storm</h3>
-    <p>You selected <strong id="storm-count">multiple</strong> strategies. In production, TDE runs a <strong>modified Miro Fish</strong> multi-agent deliberation across our Sales Advisor panel — converging on a single top strategy with confidence levels for each alternative.</p>
+    <p>You selected <strong id="storm-count">multiple</strong> strategies. In production, DRiX runs a <strong>modified Miro Fish</strong> multi-agent deliberation across our Sales Advisor panel — converging on a single top strategy with confidence levels for each alternative.</p>
     <div class="note">
       <strong>For this demo</strong>, we'll proceed with your highest-confidence selection. The full Advisor Storm is coming in the next release.
     </div>
@@ -1074,8 +1074,8 @@ async function checkHealth() {
     const r = await fetch('/healthz');
     const d = await r.json();
     $('status-text').textContent = d.leadhydration_configured
-      ? `${d.model} · LeadHydration connected`
-      : `${d.model} · ⚠ LeadHydration not configured`;
+      ? `${d.model} · DRiX Ready Lead connected`
+      : `${d.model} · ⚠ DRiX Ready Lead not configured`;
     if (!d.leadhydration_configured) $('status-dot').classList.add('warn');
   } catch {
     $('status-text').textContent = 'Connection issue';
@@ -1181,7 +1181,7 @@ async function runFlow() {
 
   // Must have at least a customer URL OR an industry
   if (!body.customer_url && !body.industry) {
-    return showError('Provide at least a Company URL or an Industry so TDE has a target to analyze.');
+    return showError('Provide at least a Company URL or an Industry so DRiX has a target to analyze.');
   }
 
   // Reset UI
@@ -1309,9 +1309,9 @@ function renderAtomGroup(entry, g) {
   } else if (entry.source === 'db_cache') {
     sourceBadge = `<span class="atom-source src-tde" title="Served from Postgres cache (30-day TTL, no LLM call)" style="background:rgba(61,220,132,0.14);color:var(--green);border-color:rgba(61,220,132,0.35)">⚡ DB cache (30d)</span>`;
   } else if (entry.source === 'tde_cache') {
-    sourceBadge = `<span class="atom-source src-tde" title="Reused from TDE collection ${esc(entry.tde_collection || '')} (${esc(String(entry.tde_atom_count || ''))} atoms)">◈ TDE cache</span>`;
+    sourceBadge = `<span class="atom-source src-tde" title="Reused from DRiX collection ${esc(entry.tde_collection || '')} (${esc(String(entry.tde_atom_count || ''))} atoms)">◈ DRiX cache</span>`;
   } else if (entry.source === 'fresh') {
-    sourceBadge = `<span class="atom-source src-fresh" title="Fresh ingest — TDE warmup fired in background for next time">⌁ Fresh (warming TDE)</span>`;
+    sourceBadge = `<span class="atom-source src-fresh" title="Fresh ingest ... DRiX warmup fired in background for next time">⌁ Fresh (warming DRiX)</span>`;
   }
   // Group atoms by type for accordion
   const byType = {};
@@ -1667,7 +1667,7 @@ async function hydrate(strategyId) {
   panel.classList.add('active');
   panel.innerHTML = `
     <div class="section-title">Lead Hydration</div>
-    <div style="color:var(--text-dim);font-size:13px;display:flex;align-items:center;gap:10px"><span class="spinner"></span> Calling LeadHydration — researching solution, mapping pain, generating discovery questions…</div>
+    <div style="color:var(--text-dim);font-size:13px;display:flex;align-items:center;gap:10px"><span class="spinner"></span> Calling DRiX Ready Lead ... researching solution, mapping pain, generating discovery questions...</div>
   `;
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -1809,7 +1809,7 @@ function renderHydration(data) {
     <div class="cs-launcher">
       <div class="cs-launcher-head">
         <div>
-          <div class="cs-launcher-title">ClearSignals — email thread analyzer</div>
+          <div class="cs-launcher-title">ClearSignals AI ... email thread analyzer</div>
           <div class="cs-launcher-sub">Once the conversation starts, paste any reply thread here and get deal-health scoring plus next-step coaching.</div>
         </div>
         <button class="btn-primary" onclick="openClearSignals()">Analyze a thread</button>
@@ -1833,7 +1833,7 @@ function renderHydration(data) {
       <div class="report-launcher-head">
         <div>
           <div class="report-launcher-title">Save full report</div>
-          <div class="report-launcher-sub">Full report — atoms, pain points, all 5 strategies, hydration output, and ClearSignals analysis (if run). Opens in Word or any browser.</div>
+          <div class="report-launcher-sub">Full report ... atoms, pain points, all 5 strategies, DRiX Ready Lead output, and ClearSignals analysis (if run). Opens in Word or any browser.</div>
         </div>
         <button class="btn-success" onclick="downloadReport()" id="report-btn">Download Report</button>
       </div>
@@ -1857,7 +1857,7 @@ async function downloadReport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `TDE-Report-${state.runId}.docx`;
+    a.download = `DRiX-Report-${state.runId}.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1882,7 +1882,7 @@ function openClearSignals() {
     modal.innerHTML = `
       <div class="cs-modal-box">
         <div class="cs-modal-head">
-          <div class="cs-modal-title">ClearSignals — Email Thread Analysis</div>
+          <div class="cs-modal-title">ClearSignals AI ... Email Thread Analysis</div>
           <button class="cs-close" onclick="closeClearSignals()">×</button>
         </div>
         <div class="cs-modal-body">
@@ -1927,7 +1927,7 @@ async function submitClearSignals() {
   }
 }
 function renderClearSignals(a) {
-  // Unwrap: LeadHydration may return { result: {...} } or the object directly
+  // Unwrap: DRiX Ready Lead may return { result: {...} } or the object directly
   const d = a.result || a;
   console.log('[ClearSignals] Parsed keys:', Object.keys(d));
   const health = d.deal_health || {};
