@@ -352,7 +352,9 @@
   .comp-stat-row .stat-name { color: var(--text-dim); }
   .comp-stat-row .stat-val { font-weight: 700; font-size: 0.9rem; }
   .chunk-card .stat-val { color: var(--orange); }
+  .chunk-card .stat-val.red-val { color: #ef4444; }
   .tde-card .stat-val { color: var(--green); }
+  .tde-card .stat-val.green-val { color: var(--green); }
   .comp-stat-note {
     font-size: 0.68rem; color: var(--text-dim); margin-top: 10px;
     font-style: italic;
@@ -914,21 +916,21 @@ function renderComparisonStats(data) {
   grid.innerHTML = `
     <div class="comp-stat-card chunk-card">
       <div class="comp-label">Standard Chunking</div>
-      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val">${c.structured_facts}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val">${c.dimensions_per_fact}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${c.sources_tracked}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${c.cross_references}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val">${c.reusable ? 'Yes' : 'No'}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Output</span><span class="stat-val">${c.words_generated} words, ${c.sentences} sentences</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Facts surfaced</span><span class="stat-val">${c.facts_surfaced} of ${c.facts_available} (${c.pct_coverage}%)</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Source tracking</span><span class="stat-val red-val">None</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val red-val">None</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val red-val">No</span></div>
       <div class="comp-stat-note">${escHtml(c.label)}</div>
     </div>
     <div class="comp-stat-card tde-card">
       <div class="comp-label">DRiX Targeted Decomposition</div>
-      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val">${t.structured_facts}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val">${t.dimensions_per_fact}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Fact types discovered</span><span class="stat-val">${t.fact_types || 0}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${t.sources_tracked}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${t.cross_references}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val">${t.reusable ? 'Yes' : 'No'}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val green-val">${t.structured_facts}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val green-val">${t.dimensions_per_fact}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Fact types discovered</span><span class="stat-val green-val">${t.fact_types || 0}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val green-val">${t.sources_tracked}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val green-val">${t.cross_references}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val green-val">Yes</span></div>
       <div class="comp-stat-note">${escHtml(t.label)}</div>
     </div>
   `;

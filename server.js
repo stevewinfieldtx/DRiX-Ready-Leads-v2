@@ -2302,6 +2302,7 @@ const DOC_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#06b6d4'];
 // TDE atom pipeline cache — atomize once, use forever. Key = company name.
 // Stores: { sources, atoms, bySource, crossRefs, synthesis, timestamp }
 const ATOM_CACHE = {};
+const ATOM_CACHE_VERSION = 3; // Bump to invalidate all caches (e.g. after prompt changes)
 
 async function prewarmDemoDocs() {
   console.log('[PREWARM] Starting demo doc pre-warm...');
@@ -2716,7 +2717,7 @@ Now, using that exact voice, complete the following task using ONLY the atoms pr
 // ─── ATOMIZE ENDPOINT (multi-doc Chunking vs DRiX decomposition) ─────────────
 
 app.post('/api/atomize', async (req, res) => {
-  const { company_name } = req.body || {};
+  const { company_name, fresh } = req.body || {};
 
   const docs = DEMO_DOCS[company_name];
   if (!docs) {
@@ -2738,8 +2739,10 @@ app.post('/api/atomize', async (req, res) => {
 
   try {
     // ── CHECK TDE CACHE — atoms persist, chunks regenerate ──
+    // Invalidate if version mismatch or fresh=true requested
     const cached = ATOM_CACHE[company_name];
-    const hasCachedTDE = cached && cached.sources && cached.atoms && cached.synthesis;
+    const cacheValid = cached && cached.version === ATOM_CACHE_VERSION && !fresh;
+    const hasCachedTDE = cacheValid && cached.sources && cached.atoms && cached.synthesis;
 
     // ── STEP 1: Send source list with colors ──
     const sources = docs.map((d, i) => ({
@@ -3105,6 +3108,7 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
 
         // ── SAVE TO TDE CACHE ──
         ATOM_CACHE[company_name] = {
+          version: ATOM_CACHE_VERSION,
           sources: fetched.map(f => ({ index: f.index, label: f.label, color: f.color, chars: f.text.length })),
           atoms: allAtoms,
           crossRefs: crossRefs.slice(0, 10),
@@ -3155,18 +3159,27 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
     });
 
     // ── STEP 8: Information density comparison ──
-    // Chunks don't have structured facts. That's the point.
     const uniqueSources = new Set(allAtoms.map(a => a.source_index)).size;
     const uniqueTypes = new Set(allAtoms.map(a => a.type)).size;
 
+    // Chunk stats: show what they actually produce (raw text metrics)
+    const chunkWordCount = chunkText ? chunkText.split(/\s+/).length : 0;
+    const chunkSentenceCount = chunkText ? chunkText.split(/(?<=[.!?])\s+/).filter(s => s.length > 10).length : 0;
+    // How many of the TDE atoms can be found in chunk output?
+    const chunkFactsFound = blindSpots.length > 0 ? (allAtoms.length - blindSpots.length) : allAtoms.length;
+    const chunkPctCoverage = allAtoms.length > 0 ? Math.round(chunkFactsFound / allAtoms.length * 100) : 0;
+
     send('comparison_stats', {
       chunk: {
-        structured_facts: 0,
-        dimensions_per_fact: 0,
+        words_generated: chunkWordCount,
+        sentences: chunkSentenceCount,
+        facts_surfaced: chunkFactsFound,
+        facts_available: allAtoms.length,
+        pct_coverage: chunkPctCoverage,
         sources_tracked: 0,
         cross_references: 0,
         reusable: false,
-        label: 'Unstructured text. No atoms. No tags. No reuse.'
+        label: 'Unstructured text blob. No tagging, no source tracking, no reuse.'
       },
       tde: {
         structured_facts: allAtoms.length,
