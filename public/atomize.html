@@ -908,28 +908,28 @@ function renderComparisonStats(data) {
   const section = $('comparisonStats');
   const grid = $('compStatsGrid');
 
-  const chunkPct = data.chunk.total_atoms > 0
-    ? Math.round(data.chunk.facts_referenced / data.chunk.total_atoms * 100)
-    : 0;
+  const c = data.chunk;
+  const t = data.tde;
 
   grid.innerHTML = `
     <div class="comp-stat-card chunk-card">
       <div class="comp-label">Standard Chunking</div>
-      <div class="comp-stat-row"><span class="stat-name">Atomic facts captured</span><span class="stat-val">${data.chunk.facts_referenced} of ${data.chunk.total_atoms}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Information retained</span><span class="stat-val">${chunkPct}%</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${data.chunk.sources_tracked}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${data.chunk.cross_references}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Consistent across runs</span><span class="stat-val">No</span></div>
-      <div class="comp-stat-note">${escHtml(data.chunk.label)}</div>
+      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val">${c.structured_facts}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val">${c.dimensions_per_fact}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${c.sources_tracked}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${c.cross_references}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val">${c.reusable ? 'Yes' : 'No'}</span></div>
+      <div class="comp-stat-note">${escHtml(c.label)}</div>
     </div>
     <div class="comp-stat-card tde-card">
       <div class="comp-label">DRiX Targeted Decomposition</div>
-      <div class="comp-stat-row"><span class="stat-name">Atomic facts captured</span><span class="stat-val">${data.tde.facts_referenced} of ${data.tde.total_atoms}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Information retained</span><span class="stat-val">100%</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${data.tde.sources_tracked}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${data.tde.cross_references}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Consistent across runs</span><span class="stat-val">Yes</span></div>
-      <div class="comp-stat-note">${escHtml(data.tde.label)}</div>
+      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val">${t.structured_facts}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val">${t.dimensions_per_fact}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Fact types discovered</span><span class="stat-val">${t.fact_types || 0}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${t.sources_tracked}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${t.cross_references}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val">${t.reusable ? 'Yes' : 'No'}</span></div>
+      <div class="comp-stat-note">${escHtml(t.label)}</div>
     </div>
   `;
 
