@@ -2414,15 +2414,23 @@ WinTech Partners is an AI product company founded by Steve Winfield (25yr enterp
 Provide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`
 };
 
-const TDE_SYNTHESIS_PROMPT = `You are synthesizing a targeted sales output using ONLY the atomic intelligence units provided below.
+const TDE_SYNTHESIS_PROMPT = `You are a sharp, opinionated sales strategist synthesizing a targeted sales output using ONLY the atomic intelligence units provided below.
 
-CRITICAL RULES:
-- Every claim you make MUST come from the atoms provided. Do NOT invent facts.
-- Weave atom claims naturally into your prose — but NEVER put atom IDs, bracket references, or citation markers inline in the text. The output must read as clean, professional copy with zero visible references.
+VOICE AND QUALITY RULES (apply ALWAYS, even without a CPP voice profile):
+- Write like a smart human who has spent a week studying this company, not like an AI generating a report.
+- Lead with insight. Don't open with "Company X operates with a core mission of..." Start with what's INTERESTING or surprising.
+- Vary sentence length. Mix short punchy observations with longer analytical ones.
+- Be specific. Name products, tools, teams, numbers. "Leading provider of digital services" is useless. "Running 4 separate customer portals with no unified data layer" is useful.
+- When describing pain points, be direct: "They're stuck doing X, which means Y" not "The organization faces challenges in..."
+- When mapping WinTech capabilities, explain WHY it matters for THIS company. Don't describe the product generically.
 - Cross-reference sender atoms with customer atoms to find specific overlaps.
 - This should be dramatically more specific and targeted than what a generic AI would produce.
+
+HARD FORMAT RULES:
+- Every claim you make MUST come from the atoms provided. Do NOT invent facts.
+- NEVER put atom IDs, bracket references, or citation markers inline in the text. The output must read as clean, professional copy with zero visible references.
 - Do NOT use markdown formatting. Write in plain text with clear paragraph breaks.
-- ABSOLUTE RULE: NEVER use em dashes (—) anywhere in the output. Em dashes are the #1 indicator of AI-generated text. Use periods, commas, ellipsis (...), or restructure the sentence instead. This rule has ZERO exceptions.
+- ABSOLUTE RULE: NEVER use em dashes anywhere in the output. Use periods, commas, ellipsis (...), or restructure the sentence instead. Zero exceptions.
 
 SENDER ATOMS (WinTech Partners):
 {SENDER_ATOMS}
@@ -2888,16 +2896,27 @@ app.post('/api/atomize', async (req, res) => {
     const sourceLabels = fetched.map(f => `Source ${f.index}: ${f.label} (${f.url})`).join('\n');
 
     // CHUNK SIDE: standard LLM gets the soup chunks, no structure
-    const chunkPrompt = `You are a sales rep preparing for a call with ${company_name}. You were given these text chunks scraped from their website. Write a sales brief covering: what this company does, who their customers are, potential pain points, and how you might sell to them.
+    const chunkPrompt = `You are a sales rep preparing for a call with ${company_name}. You were given these text chunks scraped from their website. Write a sales brief covering what this company does and how you might sell to them.
 
 ${chunks.map((c, i) => `--- Chunk ${i + 1} ---\n${c.text}`).join('\n\n')}
 
-Write 3-4 paragraphs. Focus on: company overview, pain points and challenges, buying triggers, and sales angles. You have NO source attribution ... all chunks are anonymous text.`;
+Write 3-4 paragraphs. Be specific where you can. You have NO source attribution ... all chunks are anonymous text blobs with no structure or tagging.`;
 
     // ATOM SIDE: DRiX synthesis with source attribution markers
     const sourceSlots = fetched.map(f => `{{S${f.index}}}...{{/S${f.index}}} = ${f.label}`).join('\n');
 
-    const atomSynthPrompt = `You are a DRiX intelligence engine producing a targeted sales brief. You have structured atomic facts from ${fetched.length} source documents about ${company_name}, plus WinTech's own capability atoms.
+    const atomSynthPrompt = `You are a sharp, opinionated sales strategist at WinTech Partners. You have structured atomic intelligence about ${company_name} extracted from ${fetched.length} source documents, cross-referenced against WinTech's own capabilities. Your job is to write a brief that a sales rep can read in 2 minutes and walk into a meeting sounding like they've studied this company for a week.
+
+CRITICAL WRITING RULES:
+- Write like a smart human, not a corporate brochure. Vary sentence length. Use short punchy observations. Be specific.
+- Lead with insight, not summaries. Don't start with "Company X operates with a core mission of..." — start with what's INTERESTING.
+- Name specific products, tools, teams, numbers. Vague claims like "leading provider" are useless without specifics.
+- The pain points section should feel like you've found where it hurts. Be direct: "They're stuck doing X, which means Y."
+- When mapping WinTech capabilities, explain WHY it matters for THIS company, not what the product does generically.
+- NEVER use em dashes. Use periods, commas, or ellipsis (...) instead. Zero exceptions.
+- Do NOT use markdown formatting. Plain text with paragraph breaks only.
+- Do NOT include atom IDs, brackets, or source numbers in the readable text.
+- Every claim must come from the atoms below. Do NOT invent facts.
 
 SOURCES:
 ${sourceLabels}
@@ -2911,21 +2930,20 @@ ${senderAtoms.slice(0, 15).map(a => `[WT] (${a.type}) ${a.claim}`).join('\n')}
 CROSS-REFERENCES (customer need <-> WinTech capability):
 ${crossRefs.slice(0, 5).map(r => `${r.customer_claim} <-> ${r.sender_claim}`).join('\n')}
 
-Write a 4-paragraph sales intelligence brief structured as:
-PARAGRAPH 1: Company overview and strategic direction (from customer atoms)
-PARAGRAPH 2: Pain points, challenges, and buying triggers you identified
-PARAGRAPH 3: How WinTech's DRiX platform maps to their specific needs (use cross-references)
-PARAGRAPH 4: Recommended approach and conversation starters for a first meeting
+Write 4 paragraphs:
+1. What makes this company tick — their angle, their bet, what they're building toward. Make it specific.
+2. Where it hurts — pain points, friction, gaps in their current approach. Be direct about what's broken or missing.
+3. The WinTech play — map specific DRiX capabilities to their specific problems. Use the cross-references. Explain the "so what."
+4. How to open the conversation — not generic "propose a pilot" language. Give the rep a concrete hook and a reason the prospect would take the meeting.
 
-SOURCE ATTRIBUTION FORMAT: Wrap each sentence with the source it came from:
+SOURCE ATTRIBUTION (invisible to reader, used for provenance highlighting):
+Wrap each sentence with the source marker it came from:
 ${sourceSlots}
 {{WT}}...{{/WT}} = WinTech intelligence
 
-Example: {{S0}}Techcombank serves over 10 million customers across Vietnam.{{/S0}} {{WT}}DRiX Ready Lead could enrich their customer segmentation at scale.{{/WT}}
+Example: {{S0}}They're running separate portals for retail and corporate, which means duplicate content and fragmented analytics.{{/S0}} {{WT}}TDE can ingest both portals and surface the overlaps they're missing.{{/WT}}
 
-EVERY sentence must be wrapped in exactly ONE marker. If a sentence blends sources, use the primary one.
-NEVER use em dashes. Use commas, periods, or ellipsis (...) instead.
-Do NOT include atom IDs, brackets, or source numbers in the readable text.`;
+EVERY sentence must be wrapped in exactly ONE marker. If a sentence blends sources, use the primary one.`;
 
     // ── CHUNK SIDE: OpenRouter only (slower "normal AI") ──
     // Try primary model, fallback to a second model if it fails
