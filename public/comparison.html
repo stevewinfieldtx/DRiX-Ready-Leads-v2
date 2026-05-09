@@ -414,6 +414,11 @@
     margin-bottom: 10px;
   }
   .atoms-tray summary:hover { color: var(--text); }
+  .atom-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px;
+  }
 
   /* ── 9D ATOM CARDS (compact 3x3) ── */
   .atom-card-9d {
@@ -1016,7 +1021,7 @@ function handleSSE(event, data, standardBody, tdeBody) {
         const cards = atoms_used.map(a => renderAtomCard(a)).join('');
         atomsHtml = `<details class="atoms-tray" open>
           <summary>Show ${atoms_used.length} atoms used in this response</summary>
-          ${cards}
+          <div class="atom-grid">${cards}</div>
         </details>`;
       }
 
