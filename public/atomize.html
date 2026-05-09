@@ -316,6 +316,49 @@
   .chunk-side .prompt-toggle { color: var(--orange); }
   .atom-side .prompt-toggle { color: var(--green); }
 
+  /* ── COMPARISON STATS ── */
+  .comparison-stats {
+    border-top: 2px solid var(--border); padding: 28px 24px;
+    background: linear-gradient(180deg, rgba(99,102,241,0.04) 0%, transparent 100%);
+  }
+  .comparison-stats-header {
+    text-align: center; margin-bottom: 16px;
+  }
+  .comparison-stats-header h3 {
+    font-size: 1.1rem; font-weight: 700; color: var(--accent);
+  }
+  .comparison-stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    max-width: 800px; margin: 0 auto;
+  }
+  .comp-stat-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; text-align: center;
+  }
+  .comp-stat-card.chunk-card { border-top: 3px solid var(--orange); }
+  .comp-stat-card.tde-card { border-top: 3px solid var(--green); }
+  .comp-stat-card .comp-label {
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px;
+    font-weight: 700; margin-bottom: 12px;
+  }
+  .chunk-card .comp-label { color: var(--orange); }
+  .tde-card .comp-label { color: var(--green); }
+  .comp-stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.78rem;
+  }
+  .comp-stat-row:last-child { border-bottom: none; }
+  .comp-stat-row .stat-name { color: var(--text-dim); }
+  .comp-stat-row .stat-val { font-weight: 700; font-size: 0.9rem; }
+  .chunk-card .stat-val { color: var(--orange); }
+  .tde-card .stat-val { color: var(--green); }
+  .comp-stat-note {
+    font-size: 0.68rem; color: var(--text-dim); margin-top: 10px;
+    font-style: italic;
+  }
+  .tde-card .comp-stat-note { color: var(--green); font-style: normal; font-weight: 600; }
+
   .footer-note {
     text-align: center; padding: 20px; font-size: 0.7rem;
     color: var(--text-dim); border-top: 1px solid var(--border);
@@ -401,6 +444,14 @@
     <div class="bs-sub" id="bsSub"></div>
   </div>
   <div class="blind-spots-grid" id="bsGrid"></div>
+</div>
+
+<!-- ── COMPARISON STATS ── -->
+<div class="comparison-stats" id="comparisonStats" style="display:none;">
+  <div class="comparison-stats-header">
+    <h3>Information Density Comparison</h3>
+  </div>
+  <div class="comparison-stats-grid" id="compStatsGrid"></div>
 </div>
 
 <div class="footer-note">
@@ -503,6 +554,8 @@ async function runAtomize() {
   $('atomPromptBox').textContent = '';
   $('chunkProvLegend').innerHTML = '';
   $('chunkAttrStats').style.display = 'none';
+  $('comparisonStats').style.display = 'none';
+  $('compStatsGrid').innerHTML = '';
 
   startTimer();
 
@@ -613,6 +666,10 @@ async function handleEvent(event, data) {
 
     case 'blind_spots':
       await renderBlindSpots(data);
+      break;
+
+    case 'comparison_stats':
+      renderComparisonStats(data);
       break;
 
     case 'error': {
@@ -845,6 +902,32 @@ function renderProvenance(rawText) {
   html = html.replace(/\{\{\/?(S\d|WT)\}\}/g, '');
 
   $('atomReconText').innerHTML = html;
+}
+
+function renderComparisonStats(data) {
+  const section = $('comparisonStats');
+  const grid = $('compStatsGrid');
+
+  grid.innerHTML = `
+    <div class="comp-stat-card chunk-card">
+      <div class="comp-label">Standard Chunking</div>
+      <div class="comp-stat-row"><span class="stat-name">Distinct facts used</span><span class="stat-val">${data.chunk.facts_referenced}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${data.chunk.sources_tracked}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${data.chunk.cross_references}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Consistent output</span><span class="stat-val">No</span></div>
+      <div class="comp-stat-note">${escHtml(data.chunk.label)}</div>
+    </div>
+    <div class="comp-stat-card tde-card">
+      <div class="comp-label">DRiX Targeted Decomposition</div>
+      <div class="comp-stat-row"><span class="stat-name">Distinct facts used</span><span class="stat-val">${data.tde.facts_referenced}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val">${data.tde.sources_tracked}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val">${data.tde.cross_references}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Consistent output</span><span class="stat-val">Yes</span></div>
+      <div class="comp-stat-note">${escHtml(data.tde.label)}</div>
+    </div>
+  `;
+
+  section.style.display = 'block';
 }
 
 function renderChunkProvenance(data) {

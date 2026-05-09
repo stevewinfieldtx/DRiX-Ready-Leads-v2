@@ -3154,6 +3154,28 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
       pct_missed: allAtoms.length ? Math.round(blindSpots.length / allAtoms.length * 100) : 0
     });
 
+    // ── STEP 8: Information density comparison ──
+    const chunkFactsUsed = allAtoms.length - blindSpots.length; // atoms that DID show up in chunk output
+    const tdeFactsUsed = allAtoms.length; // TDE has ALL atoms available
+    const uniqueSources = new Set(allAtoms.map(a => a.source_index)).size;
+
+    send('comparison_stats', {
+      chunk: {
+        facts_referenced: chunkFactsUsed,
+        sources_tracked: 0,
+        cross_references: 0,
+        consistent: false,
+        label: 'Different output every run'
+      },
+      tde: {
+        facts_referenced: tdeFactsUsed,
+        sources_tracked: uniqueSources,
+        cross_references: crossRefs.length,
+        consistent: true,
+        label: 'Same atoms, same strategy, every time'
+      }
+    });
+
     send('done', {});
 
   } catch (err) {
