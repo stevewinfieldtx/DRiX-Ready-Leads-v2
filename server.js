@@ -2155,6 +2155,37 @@ const REGIONS = [
 
 // ─── COMPARISON ENDPOINT (live TDE vs Standard AI) ──────────────────────────
 
+// Retry helper — single retry with backoff for flaky API calls
+async function fetchWithRetry(url, options, { label = 'fetch', retries = 1, backoffMs = 2000 } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const resp = await fetch(url, options);
+      if (!resp.ok) {
+        const body = await resp.text();
+        const err = new Error(`${label} ${resp.status}: ${body.slice(0, 200)}`);
+        err.status = resp.status;
+        // Don't retry 4xx errors (auth, bad request) — only 5xx and network failures
+        if (resp.status >= 400 && resp.status < 500) throw err;
+        if (attempt < retries) {
+          console.warn(`[comparison] ${label} attempt ${attempt + 1} failed (${resp.status}), retrying in ${backoffMs}ms...`);
+          await new Promise(r => setTimeout(r, backoffMs));
+          continue;
+        }
+        throw err;
+      }
+      return resp;
+    } catch (e) {
+      if (e.status && e.status >= 400 && e.status < 500) throw e; // don't retry 4xx
+      if (attempt < retries) {
+        console.warn(`[comparison] ${label} attempt ${attempt + 1} error: ${e.message}, retrying in ${backoffMs}ms...`);
+        await new Promise(r => setTimeout(r, backoffMs));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 // Pre-loaded WinTech atoms from seed file — no scraping needed for sender
 const WINTECH_SEED = (() => {
   try {
@@ -2172,6 +2203,47 @@ const WINTECH_SEED = (() => {
   }
 })();
 console.log(`   WinTech seed: ${WINTECH_SEED.atoms.length} atoms loaded`);
+
+// ─── CPP (Communication Personality Profiles) ──────────────────────────────
+// Each profile shapes HOW the TDE synthesis writes — same atoms, different voice.
+const CPP_PROFILES = {
+  steve: {
+    name: 'Steve Winfield',
+    title: 'Founder, WinTech Partners',
+    label: 'The Educator',
+    voice: `COMMUNICATION PERSONALITY — Steve Winfield (The Educator):
+- Tone: Warm, direct, and confident. Speaks like a teacher who respects the student's intelligence.
+- Structure: Leads with a specific observation about the recipient that proves research depth. Builds from "here's what I noticed about you" to "here's what that means" to "here's what we should do about it."
+- Signature moves: Uses concrete numbers and named examples instead of vague claims. Draws analogies between the recipient's world and his own experience. References his 25 years in enterprise tech and 9 years as a Texas public school teacher/principal naturally — never as a brag, always as proof of methodology.
+- Vocabulary: Plain English, zero jargon unless the recipient uses it first. Says "here's the thing" and "let me be direct." Avoids corporate buzzwords like "synergy" or "leverage." Prefers "we built this because" over "our solution enables."
+- Closing style: Proposes a specific next step with a reason — never a generic "let's hop on a call." Example: "I'd like to show you what your reseller data looks like after decomposition — 20 minutes, and you'll know if this is worth pursuing."
+- What he NEVER does: Never flatters without substance. Never uses templated openings like "I hope this email finds you well." Never claims capabilities he can't demonstrate live.`
+  },
+  hormozi: {
+    name: 'Alex Hormozi',
+    title: 'CEO, Acquisition.com',
+    label: 'The Closer',
+    voice: `COMMUNICATION PERSONALITY — Alex Hormozi (The Closer):
+- Tone: High-energy, brutally direct, zero fluff. Every sentence either delivers value or drives toward a decision. Speaks with the confidence of someone who has built and sold multiple $100M+ businesses.
+- Structure: Opens with a provocative truth or counterintuitive insight that stops the reader. Quickly establishes credibility through specific outcomes ("we did X which resulted in Y"). Frames everything as "here's what you're leaving on the table" not "here's what we offer."
+- Signature moves: Uses dollar amounts and percentages constantly. Reframes problems as "you're not lacking X, you're doing Y wrong." Makes the cost of inaction feel more painful than the cost of action. Compresses complex ideas into punchy one-liners.
+- Vocabulary: Conversational and punchy. Short sentences. Sentence fragments for emphasis. Uses "Look," and "Here's the deal" and "The math is simple." Turns nouns into verbs. Says "print money" and "unlock" and "compound."
+- Closing style: Creates urgency through logic, not pressure. "You can keep doing it the old way and get the same results, or we can show you in 15 minutes why that's costing you $X/month. Either way, the math doesn't change."
+- What he NEVER does: Never apologizes for being direct. Never buries the lead. Never writes long paragraphs — if it takes more than 3 sentences to make a point, the point isn't clear enough.`
+  },
+  ninjio: {
+    name: 'NINJIO',
+    title: 'Cybersecurity Awareness',
+    label: 'The Security Authority',
+    voice: `COMMUNICATION PERSONALITY — NINJIO (The Security Authority):
+- Tone: Authoritative, measured, and mission-driven. Speaks as a trusted security advisor, not a vendor. Balances urgency about threats with calm confidence in solutions. The voice of "we've seen this before and here's how you handle it."
+- Structure: Opens by naming a specific, relevant threat or compliance gap the recipient faces. Grounds every claim in real-world incidents or regulatory requirements. Builds the case through risk quantification before presenting the solution. Always connects to business impact, not just technical risk.
+- Signature moves: References specific threat vectors, compliance frameworks (SOC 2, ISO 27001, GDPR), and breach statistics. Uses "the question isn't if, it's when" framing. Positions security as a business enabler, not a cost center. Cites industry-specific attack patterns relevant to the recipient's vertical.
+- Vocabulary: Professional and precise without being impenetrable. Uses security terminology accurately but explains impact in business terms. Says "attack surface" and "threat landscape" and "behavioral indicators." Avoids fear-mongering — prefers "exposure" to "vulnerability" and "resilience" to "defense."
+- Closing style: Proposes a specific assessment or audit as the logical first step. "We typically start with a 30-minute behavioral threat assessment — it shows you exactly where your human attack surface is exposed and what it would cost you if someone exploited it tomorrow."
+- What NINJIO NEVER does: Never oversimplifies threats. Never uses scare tactics without data. Never positions security as optional or negotiable. Never ignores the human element — always connects technical threats to human behavior.`
+  }
+};
 
 // Model IDs available through OpenRouter for the "standard" side
 const COMPARISON_MODELS = {
@@ -2222,15 +2294,15 @@ After writing the main output, add a section at the end labeled "---ATOMS_USED--
 ["atom-id-1", "atom-id-2", "atom-id-3"]`;
 
 const TDE_TASKS = {
-  email: (customerName) => `Write a cold outreach email from Steve Winfield at WinTech Partners to ${customerName}. The email should reference SPECIFIC facts about the customer that reveal you deeply understand their business — not generic compliments. Address the email to a specific person if a contact atom is available, otherwise to the most relevant persona. Include a specific, concrete proposal based on the overlap between WinTech's capabilities and the customer's needs or gaps.`,
+  email: (customerName, writerName) => `Write a cold outreach email from ${writerName} at WinTech Partners to ${customerName}. The email should reference SPECIFIC facts about the customer that reveal you deeply understand their business — not generic compliments. Address the email to a specific person if a contact atom is available, otherwise to the most relevant persona. Include a specific, concrete proposal based on the overlap between WinTech's capabilities and the customer's needs or gaps.`,
 
-  pitch: (customerName) => `Create a sales pitch for WinTech Partners targeting ${customerName}. The pitch must reference specific customer pain points, gaps, or opportunities found in their atoms, and map specific WinTech products/capabilities to each one. Include concrete proof points and differentiation that come from the atoms, not generic value propositions.`,
+  pitch: (customerName, writerName) => `Create a sales pitch from ${writerName} at WinTech Partners targeting ${customerName}. The pitch must reference specific customer pain points, gaps, or opportunities found in their atoms, and map specific WinTech products/capabilities to each one. Include concrete proof points and differentiation that come from the atoms, not generic value propositions.`,
 
-  partnership: (customerName) => `Analyze the potential partnership between WinTech Partners and ${customerName}. Use specific atoms from both sides to identify: concrete capability overlaps, specific gaps each side fills for the other, named team members and their relevant experience, specific products that complement each other, and honest risks or weaknesses from both sides' atoms. This should read like an analyst who has deeply studied both companies, not a template.`
+  partnership: (customerName, writerName) => `Analyze the potential partnership between WinTech Partners and ${customerName}, written by ${writerName}. Use specific atoms from both sides to identify: concrete capability overlaps, specific gaps each side fills for the other, named team members and their relevant experience, specific products that complement each other, and honest risks or weaknesses from both sides' atoms. This should read like an analyst who has deeply studied both companies, not a template.`
 };
 
 app.post('/api/comparison', async (req, res) => {
-  const { company_url, company_name, scenario, model } = req.body || {};
+  const { company_url, company_name, scenario, model, cpp } = req.body || {};
 
   if (!company_url || !scenario || !model) {
     return res.status(400).json({ error: 'Require company_url, scenario, model' });
@@ -2267,7 +2339,7 @@ app.post('/api/comparison', async (req, res) => {
       try {
         console.log(`[comparison] Standard side: calling ${COMPARISON_MODELS[model]} via OpenRouter...`);
         const stdT0 = Date.now();
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
@@ -2284,11 +2356,8 @@ app.post('/api/comparison', async (req, res) => {
             max_tokens: 2000
           }),
           signal: AbortSignal.timeout(45000)
-        });
-        if (!response.ok) {
-          const err = await response.text();
-          throw new Error(`${model} API error ${response.status}: ${err.slice(0, 200)}`);
-        }
+        }, { label: `Standard/${model}`, retries: 1, backoffMs: 2000 });
+        // fetchWithRetry guarantees response.ok — errors already thrown
         const data = await response.json();
         const text = data?.choices?.[0]?.message?.content || '(No response)';
         console.log(`[comparison] Standard side done: ${text.length} chars in ${Date.now() - stdT0}ms`);
@@ -2356,16 +2425,24 @@ app.post('/api/comparison', async (req, res) => {
       `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}${a.evidence ? ' | Evidence: ' + truncClaim(a.evidence) : ''}`
     ).join('\n');
 
-    const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName);
+    // Resolve CPP profile
+    const cppProfile = CPP_PROFILES[cpp] || CPP_PROFILES.steve;
+    const writerName = cppProfile.name;
+    const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName, writerName);
 
-    const synthesisPrompt = TDE_SYNTHESIS_PROMPT
+    // Build synthesis prompt with CPP voice injection
+    let synthesisPrompt = TDE_SYNTHESIS_PROMPT
       .replace('{SENDER_ATOMS}', senderAtomText)
       .replace('{CUSTOMER_NAME}', customer.target?.name || displayName)
       .replace('{CUSTOMER_ATOMS}', customerAtomText)
       .replace('{TASK_DESCRIPTION}', taskDesc);
 
+    // Inject CPP voice instructions before the task
+    synthesisPrompt += `\n\nWRITER VOICE PROFILE (CPP — Communication Personality Profile):\nYou MUST write in the voice and style described below. This is non-negotiable — the entire output must sound like this person wrote it.\n\n${cppProfile.voice}`;
+
     const totalSynthAtoms = senderAtomsForSynth.length + customerAtomsForSynth.length;
-    send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${totalSynthAtoms} atoms...` });
+    send('tde_phase', { phase: 'cpp', message: `Applying ${cppProfile.label} voice profile (${writerName})...` });
+    send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${totalSynthAtoms} atoms as ${writerName}...` });
 
     // Cerebras direct (~2000 tok/s) with OpenRouter fallback
     const useCerebras = !!CEREBRAS_API_KEY;
@@ -2383,7 +2460,7 @@ app.post('/api/comparison', async (req, res) => {
 
     let synthesisText = '';
     try {
-      const synthesisResponse = await fetch(synthUrl, {
+      const synthesisResponse = await fetchWithRetry(synthUrl, {
         method: 'POST',
         headers: synthHeaders,
         body: JSON.stringify({
@@ -2395,16 +2472,10 @@ app.post('/api/comparison', async (req, res) => {
           max_tokens: 3000
         }),
         signal: AbortSignal.timeout(30000)
-      });
+      }, { label: `Synthesis/${synthModel}`, retries: 1, backoffMs: 1500 });
 
       console.log(`[comparison] Synthesis response: ${synthesisResponse.status} in ${Date.now() - synthT0}ms`);
-
-      if (!synthesisResponse.ok) {
-        const errBody = await synthesisResponse.text();
-        console.error(`[comparison] Synthesis error body: ${errBody.slice(0, 300)}`);
-        throw new Error(`Synthesis LLM ${synthesisResponse.status}`);
-      }
-
+      // fetchWithRetry guarantees response.ok — errors already thrown
       const synthesisData = await synthesisResponse.json();
       synthesisText = synthesisData?.choices?.[0]?.message?.content || '';
       console.log(`[comparison] Synthesis done: ${synthesisText.length} chars in ${Date.now() - synthT0}ms`);
@@ -2459,7 +2530,8 @@ app.post('/api/comparison', async (req, res) => {
         d_industry: a.d_industry
       };}),
       sources: Object.values(sourceMap),
-      total_atoms: allAtoms.length
+      total_atoms: allAtoms.length,
+      cpp: { key: cpp || 'steve', name: cppProfile.name, label: cppProfile.label, title: cppProfile.title }
     });
 
     // Wait for standard side to finish (it sends its own events, just need to not close SSE early)

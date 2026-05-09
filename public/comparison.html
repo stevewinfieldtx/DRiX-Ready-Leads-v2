@@ -282,6 +282,32 @@
   .source-chip.customer { background: rgba(99,102,241,0.12); color: var(--accent); border-color: rgba(99,102,241,0.3); }
   .source-chip.sender { background: rgba(34,197,94,0.12); color: var(--green); border-color: rgba(34,197,94,0.3); }
 
+  /* ── CPP BADGE ── */
+  .cpp-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(236,72,153,0.08));
+    border: 1px solid rgba(168,85,247,0.3);
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    animation: fadeUp 0.3s ease-out;
+  }
+  .cpp-icon { font-size: 1.1rem; }
+  .cpp-label { font-size: 0.82rem; color: var(--text); }
+  .cpp-tag {
+    margin-left: auto;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 700;
+    color: var(--purple);
+    background: rgba(168,85,247,0.15);
+    padding: 3px 10px;
+    border-radius: 10px;
+  }
+
   /* ── RESPONSE TEXT ── */
   .tde-response-text {
     white-space: pre-wrap;
@@ -477,6 +503,14 @@
       <div class="pill" data-model="claude">Claude</div>
     </div>
   </div>
+  <div class="control-group">
+    <label>Writer Voice (CPP)</label>
+    <div class="pill-row" id="cppPills">
+      <div class="pill active" data-cpp="steve" title="The Educator — warm, direct, teaching-oriented">Steve Winfield</div>
+      <div class="pill" data-cpp="hormozi" title="The Closer — high-energy, ROI-driven, no fluff">Alex Hormozi</div>
+      <div class="pill" data-cpp="ninjio" title="The Security Authority — measured, threat-aware, compliance-grounded">NINJIO</div>
+    </div>
+  </div>
   <button class="run-btn" id="runBtn" onclick="runComparison()">Run Comparison</button>
 </div>
 
@@ -514,6 +548,7 @@
       <div class="phase" data-phase="decompose">Decompose</div>
       <div class="phase" data-phase="tag">9D Tag</div>
       <div class="phase" data-phase="cross">Cross-Ref</div>
+      <div class="phase" data-phase="cpp">CPP</div>
       <div class="phase" data-phase="synthesize">Synthesize</div>
     </div>
     <div class="panel-body" id="tdeBody">
@@ -543,10 +578,14 @@ const PROMPTS = {
 const MODEL_NAMES = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' };
 const MODEL_TAGS  = { chatgpt: 'GPT-4o', gemini: 'Gemini 2.5 Flash', claude: 'Claude Sonnet 4' };
 
+const CPP_LABELS = { steve: 'Steve Winfield', hormozi: 'Alex Hormozi', ninjio: 'NINJIO' };
+const CPP_TAGS   = { steve: 'The Educator', hormozi: 'The Closer', ninjio: 'The Security Authority' };
+
 // ── STATE ──
 let selectedCompany  = 'aiaivn';
 let selectedScenario = 'email';
 let selectedModel    = 'chatgpt';
+let selectedCpp      = 'steve';
 let isRunning        = false;
 
 // ── PILL HANDLERS ──
@@ -576,6 +615,14 @@ document.querySelectorAll('#modelPills .pill').forEach(pill => {
     document.getElementById('standardBadgeText').textContent = MODEL_NAMES[selectedModel];
     document.getElementById('standardTitle').textContent = MODEL_NAMES[selectedModel] + ' Response';
     document.getElementById('standardModelTag').textContent = MODEL_TAGS[selectedModel];
+  });
+});
+
+document.querySelectorAll('#cppPills .pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('#cppPills .pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    selectedCpp = pill.dataset.cpp;
   });
 });
 
@@ -658,7 +705,7 @@ const PHASE_MAP = {
 function setPhase(phaseName) {
   const mapped = PHASE_MAP[phaseName] || phaseName;
   // Mark all previous phases as done, current as active
-  const phaseOrder = ['fetch', 'decompose', 'tag', 'cross', 'synthesize'];
+  const phaseOrder = ['fetch', 'decompose', 'tag', 'cross', 'cpp', 'synthesize'];
   const idx = phaseOrder.indexOf(mapped);
   phaseOrder.forEach((p, i) => {
     const el = document.querySelector(`.phase[data-phase="${p}"]`);
@@ -719,7 +766,8 @@ async function runComparison() {
         company_url: company.url,
         company_name: company.name,
         scenario: selectedScenario,
-        model: selectedModel
+        model: selectedModel,
+        cpp: selectedCpp
       })
     });
 
@@ -815,7 +863,17 @@ function handleSSE(event, data, standardBody, tdeBody) {
       break;
 
     case 'tde_done': {
-      const { text, atoms_used, sources, total_atoms } = data;
+      const { text, atoms_used, sources, total_atoms, cpp } = data;
+
+      // Build CPP voice badge
+      let cppHtml = '';
+      if (cpp && cpp.name) {
+        cppHtml = `<div class="cpp-badge">
+          <span class="cpp-icon">&#x1f5e3;</span>
+          <span class="cpp-label">Voice: <strong>${escHtml(cpp.name)}</strong></span>
+          <span class="cpp-tag">${escHtml(cpp.label)}</span>
+        </div>`;
+      }
 
       // Build source provenance banner
       let sourceHtml = '';
@@ -843,6 +901,7 @@ function handleSSE(event, data, standardBody, tdeBody) {
       }
 
       tdeBody.innerHTML = `<div class="response">
+        ${cppHtml}
         ${sourceHtml}
         <div class="tde-response-text">${escHtml(text)}</div>
         ${atomsHtml}
