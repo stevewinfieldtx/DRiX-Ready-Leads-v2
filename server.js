@@ -3155,13 +3155,22 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
     });
 
     // ── STEP 8: Information density comparison ──
-    const chunkFactsUsed = allAtoms.length - blindSpots.length; // atoms that DID show up in chunk output
-    const tdeFactsUsed = allAtoms.length; // TDE has ALL atoms available
+    // Chunk side: count how many actual atomic facts made it into the output
+    // Use the blind spots data — atoms NOT in blind spots = atoms that showed up
+    const chunkFactsFound = allAtoms.length - blindSpots.length;
+    // But also count unique source-attributable sentences from retroactive matching
+    const chunkAttrSentences = chunkResult.status === 'fulfilled'
+      ? chunkResult.value.split(/(?<=[.!?])\s+/).filter(s => s.length > 20).length
+      : 0;
+
+    const tdeFactsUsed = allAtoms.length;
     const uniqueSources = new Set(allAtoms.map(a => a.source_index)).size;
 
     send('comparison_stats', {
       chunk: {
-        facts_referenced: chunkFactsUsed,
+        facts_referenced: chunkFactsFound,
+        total_atoms: allAtoms.length,
+        sentences: chunkAttrSentences,
         sources_tracked: 0,
         cross_references: 0,
         consistent: false,
@@ -3169,11 +3178,13 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
       },
       tde: {
         facts_referenced: tdeFactsUsed,
+        total_atoms: allAtoms.length,
         sources_tracked: uniqueSources,
         cross_references: crossRefs.length,
         consistent: true,
         label: 'Same atoms, same strategy, every time'
-      }
+      },
+      blind_spot_pct: allAtoms.length ? Math.round(blindSpots.length / allAtoms.length * 100) : 0
     });
 
     send('done', {});
