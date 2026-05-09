@@ -35,9 +35,9 @@
     {
       "atom_id": "wt-leadhydration",
       "type": "product",
-      "claim": "LeadHydration is a locale-aware B2B lead intelligence product covering 9 countries, producing pain-agent-scored opportunity cards with email sequences and ClearSignals-validated threads.",
-      "evidence": "LeadHydration enriches leads with pain scoring across 9 countries and produces ready-to-run email motions.",
-      "tags": ["product", "leadhydration", "sales", "b2b", "enrichment"],
+      "claim": "LeadHydration is a batch lead-hydration engine that vendors plug into their existing sales pipelines to enrich raw lead lists with firmographic, technographic, and pain-scored intelligence at scale.",
+      "evidence": "LeadHydration processes vendor lead lists in batch, returning enriched records with pain-agent scoring and ready-to-run outbound sequences.",
+      "tags": ["product", "leadhydration", "sales", "b2b", "enrichment", "batch", "vendor"],
       "confidence": "high",
       "audience_relevance": { "technical_buyer": 6, "business_buyer": 10, "investor": 8, "partner": 10, "general": 5 }
     },

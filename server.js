@@ -2258,7 +2258,7 @@ WHAT HE NEVER DOES:
 - Signature moves: Uses dollar amounts and percentages constantly. Reframes problems as "you're not lacking X, you're doing Y wrong." Makes the cost of inaction feel more painful than the cost of action. Compresses complex ideas into punchy one-liners.
 - Vocabulary: Conversational and punchy. Short sentences. Sentence fragments for emphasis. Uses "Look," and "Here's the deal" and "The math is simple." Turns nouns into verbs. Says "print money" and "unlock" and "compound."
 - Closing style: Creates urgency through logic, not pressure. "You can keep doing it the old way and get the same results, or we can show you in 15 minutes why that's costing you $X/month. Either way, the math doesn't change."
-- What he NEVER does: Never apologizes for being direct. Never buries the lead. Never writes long paragraphs — if it takes more than 3 sentences to make a point, the point isn't clear enough.`
+- What he NEVER does: Never apologizes for being direct. Never buries the lead. Never writes long paragraphs. If it takes more than 3 sentences to make a point, the point isn't clear enough. NEVER uses em dashes. Uses periods, commas, or sentence breaks instead.`
   },
   ninjio: {
     name: 'NINJIO',
@@ -2270,7 +2270,7 @@ WHAT HE NEVER DOES:
 - Signature moves: References specific threat vectors, compliance frameworks (SOC 2, ISO 27001, GDPR), and breach statistics. Uses "the question isn't if, it's when" framing. Positions security as a business enabler, not a cost center. Cites industry-specific attack patterns relevant to the recipient's vertical.
 - Vocabulary: Professional and precise without being impenetrable. Uses security terminology accurately but explains impact in business terms. Says "attack surface" and "threat landscape" and "behavioral indicators." Avoids fear-mongering — prefers "exposure" to "vulnerability" and "resilience" to "defense."
 - Closing style: Proposes a specific assessment or audit as the logical first step. "We typically start with a 30-minute behavioral threat assessment — it shows you exactly where your human attack surface is exposed and what it would cost you if someone exploited it tomorrow."
-- What NINJIO NEVER does: Never oversimplifies threats. Never uses scare tactics without data. Never positions security as optional or negotiable. Never ignores the human element — always connects technical threats to human behavior.`
+- What NINJIO NEVER does: Never oversimplifies threats. Never uses scare tactics without data. Never positions security as optional or negotiable. Never ignores the human element. Always connects technical threats to human behavior. NEVER uses em dashes. Uses periods, commas, or semicolons to separate clauses.`
   }
 };
 
@@ -2309,6 +2309,7 @@ CRITICAL RULES:
 - Cross-reference sender atoms with customer atoms to find specific overlaps.
 - This should be dramatically more specific and targeted than what a generic AI would produce.
 - Do NOT use markdown formatting. Write in plain text with clear paragraph breaks.
+- ABSOLUTE RULE: NEVER use em dashes (—) anywhere in the output. Em dashes are the #1 indicator of AI-generated text. Use periods, commas, ellipsis (...), or restructure the sentence instead. This rule has ZERO exceptions.
 
 SENDER ATOMS (WinTech Partners):
 {SENDER_ATOMS}
@@ -2521,6 +2522,9 @@ Now, using that exact voice, complete the following task using ONLY the atoms pr
       console.error(`[comparison] Synthesis failed: ${synthErr.message}`);
       throw new Error(`Synthesis failed: ${synthErr.message}`);
     }
+
+    // Nuclear em-dash removal — no matter what the LLM does, strip them
+    synthesisText = synthesisText.replace(/—/g, '...').replace(/–/g, ', ');
 
     // Parse out the atoms_used section
     let atomsUsedIds = [];
