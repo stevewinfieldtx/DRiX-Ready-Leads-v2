@@ -2588,6 +2588,255 @@ Now, using that exact voice, complete the following task using ONLY the atoms pr
   }
 });
 
+// ─── ATOMIZE ENDPOINT (live Chunking vs DRiX decomposition) ─────────────────
+
+app.post('/api/atomize', async (req, res) => {
+  const { company_url, company_name } = req.body || {};
+
+  if (!company_url) {
+    return res.status(400).json({ error: 'Require company_url' });
+  }
+  if (!OPENROUTER_API_KEY) {
+    return res.status(500).json({ error: 'Server not configured' });
+  }
+
+  // SSE setup
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none');
+  res.flushHeaders?.();
+  const keepAlive = setInterval(() => { try { res.write(':keepalive\n\n'); } catch {} }, 15000);
+  const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  const displayName = company_name || company_url;
+
+  try {
+    // ── STEP 1: Fetch the raw content ──
+    send('phase', { step: 'fetch', message: `Fetching ${displayName}...` });
+
+    const fetched = await fetchAndStrip(normUrl(company_url));
+    if (!fetched.text || fetched.text.length < 200) {
+      throw new Error(`Fetched ${company_url} had too little text (${fetched.text?.length || 0} chars). Try a richer page.`);
+    }
+
+    const rawText = fetched.text;
+    const pageTitle = fetched.title || displayName;
+
+    send('content', {
+      title: pageTitle,
+      text_length: rawText.length,
+      preview: rawText.slice(0, 500)
+    });
+
+    // ── STEP 2: CHUNK SIDE — split into paragraph chunks ──
+    send('phase', { step: 'chunking', message: 'Splitting content into chunks...' });
+
+    // Split by double-newlines or long single breaks; produce 3-6 chunks
+    let paragraphs = rawText.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 80);
+    if (paragraphs.length < 3) {
+      // If not enough paragraph breaks, split by sentences into ~4 groups
+      const sentences = rawText.match(/[^.!?]+[.!?]+/g) || [rawText];
+      const chunkSize = Math.ceil(sentences.length / 4);
+      paragraphs = [];
+      for (let i = 0; i < sentences.length; i += chunkSize) {
+        paragraphs.push(sentences.slice(i, i + chunkSize).join(' ').trim());
+      }
+    }
+    // Cap at 6 chunks for visual clarity
+    if (paragraphs.length > 6) {
+      const merged = [];
+      const mergeSize = Math.ceil(paragraphs.length / 6);
+      for (let i = 0; i < paragraphs.length; i += mergeSize) {
+        merged.push(paragraphs.slice(i, i + mergeSize).join('\n\n'));
+      }
+      paragraphs = merged;
+    }
+
+    const chunks = paragraphs.map((text, i) => ({
+      id: `chunk-${i}`,
+      index: i,
+      text: text.slice(0, 600), // cap display length
+      char_count: text.length
+    }));
+
+    send('chunks', { chunks, total: chunks.length });
+
+    // ── STEP 3: DRiX SIDE — real decomposition ──
+    send('phase', { step: 'decompose', message: 'DRiX: Decomposing into atomic claims...' });
+
+    let customer;
+    try {
+      customer = await ingestOne({
+        url: normUrl(company_url),
+        role: 'customer',
+        hint_name: company_name,
+        demoMode: true
+      });
+    } catch (ingestErr) {
+      send('error', { side: 'drix', message: `Decomposition failed: ${ingestErr.message}` });
+      send('done', {});
+      clearInterval(keepAlive);
+      return res.end();
+    }
+
+    const atoms = (customer.atoms || []).map(a => ({
+      atom_id: a.atom_id || a.id,
+      type: a.type,
+      claim: a.claim,
+      evidence: a.evidence,
+      confidence: a.confidence,
+      tags: a.tags || [],
+      d_persona: a.d_persona,
+      d_buying_stage: a.d_buying_stage,
+      d_evidence_type: a.d_evidence_type,
+      d_industry: a.d_industry
+    }));
+
+    send('atoms', {
+      atoms,
+      total: atoms.length,
+      source: customer.source || 'fresh'
+    });
+
+    // ── STEP 4: Cross-reference with WinTech atoms ──
+    send('phase', { step: 'cross_ref', message: `Cross-referencing ${atoms.length} customer atoms with ${WINTECH_SEED.atoms.length} WinTech atoms...` });
+
+    // Find real cross-references: customer atoms that share tags/dimensions with sender atoms
+    const crossRefs = [];
+    const senderAtoms = WINTECH_SEED.atoms || [];
+    for (const custAtom of atoms.slice(0, 20)) {
+      for (const sendAtom of senderAtoms) {
+        // Match on persona + industry overlap, or shared tags
+        const personaMatch = custAtom.d_persona && sendAtom.d_persona === custAtom.d_persona;
+        const tagOverlap = (custAtom.tags || []).filter(t =>
+          (sendAtom.tags || []).includes(t)
+        );
+        if ((personaMatch && tagOverlap.length > 0) || tagOverlap.length >= 2) {
+          crossRefs.push({
+            customer_atom: custAtom.atom_id,
+            customer_claim: custAtom.claim,
+            sender_atom: sendAtom.atom_id,
+            sender_claim: sendAtom.claim,
+            match_type: personaMatch ? 'persona + tags' : 'shared tags',
+            shared_tags: tagOverlap
+          });
+          break; // one match per customer atom to keep it clean
+        }
+      }
+    }
+
+    send('cross_refs', {
+      refs: crossRefs.slice(0, 8),
+      total_checked: atoms.length * senderAtoms.length
+    });
+
+    // ── STEP 5: Parallel synthesis — chunks vs atoms ──
+    send('phase', { step: 'synthesize', message: 'Synthesizing outputs from both sides...' });
+
+    // CHUNK SIDE: standard LLM summarizes the chunks
+    const chunkPrompt = `You have the following content chunks from ${pageTitle}. Write a unified summary that a sales person could use to understand this company. Simply merge and present the information from these chunks.
+
+${chunks.map((c, i) => `--- Chunk ${i + 1} ---\n${c.text}`).join('\n\n')}
+
+Write a clear, professional 3-4 paragraph summary covering the key points.`;
+
+    // ATOM SIDE: DRiX synthesis from real atoms
+    const atomSynthPrompt = `You are synthesizing a targeted intelligence brief using ONLY the atomic facts below. Each atom is a verified, tagged claim extracted by DRiX.
+
+CUSTOMER ATOMS (${atoms.length} from ${pageTitle}):
+${atoms.slice(0, 25).map(a => `[${a.atom_id}] (${a.type}) ${a.claim}`).join('\n')}
+
+WINTECH ATOMS (${senderAtoms.length}):
+${senderAtoms.slice(0, 15).map(a => `[${a.atom_id}] (${a.type}) ${a.claim}`).join('\n')}
+
+CROSS-REFERENCES FOUND:
+${crossRefs.slice(0, 5).map(r => `${r.customer_claim} <-> ${r.sender_claim} (${r.match_type})`).join('\n')}
+
+Write a 3-4 paragraph intelligence brief that:
+1. Weaves customer facts with WinTech capabilities naturally
+2. References specific cross-references to show how WinTech maps to their needs
+3. Reads as seamless flowing prose, NOT as a list of facts
+4. NEVER uses em dashes. Use periods, commas, or ellipsis (...) instead.
+5. NEVER puts atom IDs or bracket references in the text.`;
+
+    // Fire both in parallel
+    const [chunkResult, atomResult] = await Promise.allSettled([
+      // Chunk synthesis (standard LLM)
+      (async () => {
+        const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
+            'X-Title': 'DRiX Atomize - Chunk Side'
+          },
+          body: JSON.stringify({
+            model: 'openai/gpt-4o',
+            messages: [{ role: 'user', content: chunkPrompt }],
+            temperature: 0.7,
+            max_tokens: 2000
+          }),
+          signal: AbortSignal.timeout(45000)
+        }, { label: 'ChunkSynth', retries: 1, backoffMs: 2000 });
+        const data = await resp.json();
+        return data?.choices?.[0]?.message?.content || '(No response)';
+      })(),
+      // Atom synthesis (Cerebras or OpenRouter)
+      (async () => {
+        const useCerebras = !!CEREBRAS_API_KEY;
+        const url = useCerebras ? 'https://api.cerebras.ai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
+        const model = useCerebras ? 'gpt-oss-120b' : 'google/gemini-2.5-flash';
+        const headers = useCerebras
+          ? { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' }
+          : { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json',
+              'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app', 'X-Title': 'DRiX Atomize - Atom Side' };
+        const resp = await fetchWithRetry(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: atomSynthPrompt }],
+            temperature: 0.4,
+            max_tokens: 2000
+          }),
+          signal: AbortSignal.timeout(30000)
+        }, { label: 'AtomSynth', retries: 1, backoffMs: 1500 });
+        const data = await resp.json();
+        let text = data?.choices?.[0]?.message?.content || '(No response)';
+        // Nuclear em-dash removal
+        text = text.replace(/—/g, '...').replace(/–/g, ', ');
+        return text;
+      })()
+    ]);
+
+    // Send chunk reconstruction
+    if (chunkResult.status === 'fulfilled') {
+      send('chunk_synthesis', { text: chunkResult.value });
+    } else {
+      send('chunk_synthesis', { text: `(Chunk synthesis failed: ${chunkResult.reason?.message || 'unknown'})` });
+    }
+
+    // Send atom reconstruction
+    if (atomResult.status === 'fulfilled') {
+      send('atom_synthesis', { text: atomResult.value });
+    } else {
+      send('atom_synthesis', { text: `(Atom synthesis failed: ${atomResult.reason?.message || 'unknown'})` });
+    }
+
+    send('done', {});
+
+  } catch (err) {
+    console.error('[atomize]', err.message);
+    send('error', { message: err.message });
+  } finally {
+    clearInterval(keepAlive);
+    res.end();
+  }
+});
+
 // ─── BOOT ────────────────────────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`✅ DRiX Demo v3 listening on port ${PORT}`);

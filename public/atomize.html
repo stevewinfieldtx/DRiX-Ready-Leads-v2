@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Atomization vs Chunking — See the Difference</title>
+<title>Atomization vs Chunking ... See the Difference</title>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -36,87 +36,66 @@
     padding: 40px 24px 28px;
     border-bottom: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(99,102,241,0.06) 0%, transparent 100%);
+    position: relative;
   }
   .hero h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; }
   .hero h1 .chunk { color: var(--orange); }
   .hero h1 .atom { color: var(--green); }
   .hero .subtitle { color: var(--text-dim); font-size: 0.95rem; max-width: 700px; margin: 0 auto 20px; }
-  .start-btn {
-    padding: 12px 36px;
-    border-radius: 8px;
-    border: none;
-    background: var(--accent);
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .start-btn:hover { background: #5558e6; transform: translateY(-1px); }
-  .start-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .nav-back {
     position: absolute; top: 16px; left: 20px;
     color: var(--text-dim); text-decoration: none; font-size: 0.82rem;
   }
   .nav-back:hover { color: var(--text); }
 
-  /* ── DOCUMENTS ROW ── */
-  .docs-row {
+  /* ── CONTROLS ── */
+  .controls {
     display: flex;
-    gap: 12px;
-    padding: 24px 20px;
+    align-items: center;
     justify-content: center;
+    gap: 16px;
     flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .pill-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .pill {
+    padding: 7px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--text); }
+  .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .start-btn {
+    padding: 10px 28px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .start-btn:hover { background: #5558e6; transform: translateY(-1px); }
+  .start-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── CONTENT PREVIEW ── */
+  .content-preview {
+    text-align: center;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
+    display: none;
   }
-  .doc-card {
-    flex: 1;
-    min-width: 200px;
-    max-width: 280px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px;
-    opacity: 0;
-    transform: translateY(-20px);
-    transition: all 0.5s ease-out;
-  }
-  .doc-card.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .doc-card.processing {
-    border-color: var(--accent);
-    box-shadow: 0 0 12px rgba(99,102,241,0.2);
-  }
-  .doc-card .doc-type {
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    font-weight: 700;
-    margin-bottom: 6px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    display: inline-block;
-  }
-  .doc-card .doc-type.press { background: rgba(99,102,241,0.15); color: var(--accent); }
-  .doc-card .doc-type.report { background: rgba(34,197,94,0.15); color: var(--green); }
-  .doc-card .doc-type.job { background: rgba(245,158,11,0.15); color: var(--orange); }
-  .doc-card .doc-type.news { background: rgba(168,85,247,0.15); color: var(--purple); }
-  .doc-card .doc-title {
-    font-size: 0.82rem;
-    font-weight: 600;
-    margin-bottom: 6px;
-    line-height: 1.3;
-  }
-  .doc-card .doc-excerpt {
-    font-size: 0.72rem;
-    color: var(--text-dim);
-    line-height: 1.5;
-    max-height: 72px;
-    overflow: hidden;
-  }
+  .content-preview.visible { display: block; }
+  .content-preview .cp-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+  .content-preview .cp-meta { font-size: 0.72rem; color: var(--text-dim); }
 
   /* ── SPLIT PANELS ── */
   .split {
@@ -185,35 +164,15 @@
     transition: all 0.4s ease-out;
     position: relative;
   }
-  .chunk-piece.visible {
-    opacity: 1;
-    transform: scale(1);
-  }
+  .chunk-piece.visible { opacity: 1; transform: scale(1); }
   .chunk-piece .chunk-label {
-    position: absolute;
-    top: 4px;
-    right: 8px;
-    font-size: 0.55rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--orange);
-    font-weight: 700;
-    opacity: 0.6;
-  }
-  .chunk-piece .chunk-source {
-    font-size: 0.62rem;
-    color: var(--text-dim);
-    border-top: 1px solid var(--border);
-    margin-top: 8px;
-    padding-top: 6px;
+    position: absolute; top: 4px; right: 8px;
+    font-size: 0.55rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--orange); font-weight: 700; opacity: 0.6;
   }
   .chunk-seam {
-    text-align: center;
-    font-size: 0.65rem;
-    color: var(--red);
-    padding: 2px 0;
-    opacity: 0;
-    transition: opacity 0.3s;
+    text-align: center; font-size: 0.65rem; color: var(--red);
+    padding: 2px 0; opacity: 0; transition: opacity 0.3s;
   }
   .chunk-seam.visible { opacity: 1; }
 
@@ -234,86 +193,37 @@
     max-width: 260px;
     vertical-align: top;
   }
-  .atom-card.visible {
-    opacity: 1;
-    transform: scale(1) rotate(0);
-  }
+  .atom-card.visible { opacity: 1; transform: scale(1) rotate(0); }
   .atom-card.connected {
     border-color: var(--cyan);
     box-shadow: 0 0 8px rgba(6,182,212,0.2);
   }
-  .atom-card.merged {
-    border-color: var(--green);
-    box-shadow: 0 0 8px rgba(34,197,94,0.2);
-  }
-  .atom-card .atom-claim {
-    font-size: 0.7rem;
-    margin-bottom: 4px;
-  }
-  .atom-card .atom-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    margin-top: 4px;
-  }
+  .atom-card .atom-claim { font-size: 0.7rem; margin-bottom: 4px; }
+  .atom-card .atom-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
   .atom-card .atom-tag {
-    font-size: 0.5rem;
-    padding: 1px 5px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 600;
-    opacity: 0;
-    transform: scale(0.8);
-    transition: all 0.25s ease-out;
+    font-size: 0.5rem; padding: 1px 5px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+    opacity: 0; transform: scale(0.8); transition: all 0.25s ease-out;
   }
-  .atom-tag.visible {
-    opacity: 1;
-    transform: scale(1);
-  }
+  .atom-tag.visible { opacity: 1; transform: scale(1); }
   .atom-tag.persona { background: rgba(99,102,241,0.2); color: var(--accent); }
   .atom-tag.stage { background: rgba(245,158,11,0.2); color: var(--orange); }
   .atom-tag.evidence { background: rgba(34,197,94,0.2); color: var(--green); }
   .atom-tag.industry { background: rgba(168,85,247,0.2); color: var(--purple); }
   .atom-tag.credibility { background: rgba(6,182,212,0.2); color: var(--cyan); }
-  .atom-tag.emotion { background: rgba(236,72,153,0.2); color: var(--pink); }
-  .atom-source {
-    font-size: 0.5rem;
-    color: var(--text-dim);
-    margin-top: 3px;
-  }
+  .atom-tag.type { background: rgba(236,72,153,0.2); color: var(--pink); }
 
   /* ── CONNECTIONS ── */
   .connections-overlay {
-    position: relative;
-    text-align: center;
-    padding: 8px;
-    min-height: 30px;
+    position: relative; text-align: center; padding: 8px; min-height: 30px;
   }
   .connection-line {
-    display: inline-block;
-    font-size: 0.6rem;
-    color: var(--cyan);
-    padding: 2px 8px;
-    margin: 2px;
-    background: rgba(6,182,212,0.08);
-    border: 1px solid rgba(6,182,212,0.2);
-    border-radius: 4px;
-    opacity: 0;
-    transition: all 0.3s;
+    display: inline-block; font-size: 0.6rem; color: var(--cyan);
+    padding: 2px 8px; margin: 2px;
+    background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.2);
+    border-radius: 4px; opacity: 0; transition: all 0.3s;
   }
   .connection-line.visible { opacity: 1; }
-
-  /* ── MERGE INDICATOR ── */
-  .merge-indicator {
-    text-align: center;
-    font-size: 0.65rem;
-    color: var(--green);
-    padding: 4px;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  .merge-indicator.visible { opacity: 1; }
 
   /* ── RECONSTRUCTION ── */
   .recon-section {
@@ -321,43 +231,35 @@
     padding: 20px;
   }
   .recon-label {
-    font-size: 0.62rem;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    font-weight: 700;
-    margin-bottom: 10px;
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 1.5px;
+    font-weight: 700; margin-bottom: 10px;
   }
   .chunk-side .recon-label { color: var(--orange); }
   .atom-side .recon-label { color: var(--green); }
   .recon-text {
-    font-size: 0.85rem;
-    line-height: 1.7;
-    opacity: 0;
-    transition: opacity 0.6s;
+    font-size: 0.85rem; line-height: 1.7;
+    opacity: 0; transition: opacity 0.6s;
   }
   .recon-text.visible { opacity: 1; }
-  .recon-text .seam-mark {
-    background: rgba(239,68,68,0.12);
-    border-left: 2px solid var(--red);
-    padding: 2px 6px;
-    display: inline;
-  }
-  .recon-text .flow-mark {
-    background: rgba(34,197,94,0.06);
-    display: inline;
+
+  /* ── TIMER ── */
+  .timer {
+    font-size: 0.65rem; color: var(--text-dim); text-align: center;
+    padding: 4px 0; font-variant-numeric: tabular-nums;
   }
 
-  /* ── FOOTER ── */
   .footer-note {
-    text-align: center;
-    padding: 20px;
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    border-top: 1px solid var(--border);
+    text-align: center; padding: 20px; font-size: 0.7rem;
+    color: var(--text-dim); border-top: 1px solid var(--border);
   }
 
   @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
   .pulsing { animation: pulse 1s infinite; }
+
+  .placeholder {
+    text-align: center; color: var(--text-dim); font-size: 0.82rem;
+    padding: 40px 20px;
+  }
 </style>
 </head>
 <body>
@@ -365,32 +267,21 @@
 <div class="hero">
   <a href="/comparison.html" class="nav-back">&larr; Back to Comparison</a>
   <h1><span class="chunk">Chunking</span> vs <span class="atom">Atomization</span></h1>
-  <p class="subtitle">Same 4 documents. Two completely different ways to process them. Watch what happens when you reconstruct.</p>
-  <button class="start-btn" id="startBtn" onclick="startDemo()">Drop Documents &amp; Process</button>
+  <p class="subtitle">Same content. Two completely different ways to process it. Watch what happens when you reconstruct ... live.</p>
+  <div class="controls">
+    <div class="pill-row" id="companyPills">
+      <div class="pill active" data-url="aiaivn.com" data-name="AIAIVN">AIAIVN</div>
+      <div class="pill" data-url="techcombank.com.vn" data-name="Techcombank">Techcombank</div>
+      <div class="pill" data-url="fpt-software.com" data-name="FPT Software">FPT Software</div>
+    </div>
+    <button class="start-btn" id="startBtn" onclick="runAtomize()">Run Live Comparison</button>
+  </div>
 </div>
 
-<!-- ── DOCUMENTS ── -->
-<div class="docs-row" id="docsRow">
-  <div class="doc-card" id="doc0">
-    <span class="doc-type press">Press Release</span>
-    <div class="doc-title">Techcombank AGM 2026: Strategic Transformation Complete</div>
-    <div class="doc-excerpt">Techcombank has concluded its 2021-2025 strategic transformation, evolving from a leading private bank into the centre of an integrated financial ecosystem serving over 18 million customers. The 2026 business plan projects PBT of VND 37,500 billion, up 15% versus 2025.</div>
-  </div>
-  <div class="doc-card" id="doc1">
-    <span class="doc-type report">Annual Report</span>
-    <div class="doc-title">2024 Performance: 20.3% Profit Growth</div>
-    <div class="doc-excerpt">Digital engagement rates exceeded 91% of individual transactions conducted online. Digital CASA cost-to-serve is 27%, compared to 41% at branches. CASA ratio reached 40.9% year-end, driven by data-led offerings like Auto-earning and Techcombank Rewards.</div>
-  </div>
-  <div class="doc-card" id="doc2">
-    <span class="doc-type job">Job Posting</span>
-    <div class="doc-title">Future Gen 2026: Technology Associate</div>
-    <div class="doc-excerpt">Seeking engineers with skills in Java, .NET, Python, cloud services, network security, application security, and penetration testing. Positions at Hanoi head offices. The bank is building a Generative AI platform expected to be completed by mid-2026.</div>
-  </div>
-  <div class="doc-card" id="doc3">
-    <span class="doc-type news">News Article</span>
-    <div class="doc-title">Techcombank Ushers in AI-Powered Banking</div>
-    <div class="doc-excerpt">Techcombank has broadly applied data analysis and AI across the bank. Most major systems have transitioned to cloud, putting the bank three years ahead of competitors. The bank achieved hyper-personalized experiences in just 9 months through an omnichannel approach.</div>
-  </div>
+<!-- ── CONTENT PREVIEW ── -->
+<div class="content-preview" id="contentPreview">
+  <div class="cp-title" id="cpTitle"></div>
+  <div class="cp-meta" id="cpMeta"></div>
 </div>
 
 <!-- ── SPLIT VIEW ── -->
@@ -403,9 +294,12 @@
       <span class="side-tag">How ChatGPT processes documents</span>
     </div>
     <div class="phase-label" id="chunkPhase"></div>
-    <div class="side-body" id="chunkBody"></div>
+    <div class="timer" id="chunkTimer"></div>
+    <div class="side-body" id="chunkBody">
+      <div class="placeholder">Select a company and hit Run to see live chunking vs atomization.</div>
+    </div>
     <div class="recon-section" id="chunkRecon" style="display:none;">
-      <div class="recon-label">Reconstructed Output</div>
+      <div class="recon-label">Reconstructed Output (from chunks)</div>
       <div class="recon-text" id="chunkReconText"></div>
     </div>
   </div>
@@ -418,269 +312,336 @@
       <span class="side-tag">How DRiX processes documents</span>
     </div>
     <div class="phase-label" id="atomPhase"></div>
-    <div class="side-body" id="atomBody"></div>
+    <div class="timer" id="atomTimer"></div>
+    <div class="side-body" id="atomBody">
+      <div class="placeholder">Real decomposition into 9D-tagged atoms, cross-referenced with WinTech's knowledge base.</div>
+    </div>
     <div class="recon-section" id="atomRecon" style="display:none;">
-      <div class="recon-label">Reconstructed Output</div>
+      <div class="recon-label">Reconstructed Output (from atoms)</div>
       <div class="recon-text" id="atomReconText"></div>
     </div>
   </div>
 </div>
 
 <div class="footer-note">
-  Targeted Decomposition Engine &mdash; WinTech Partners &copy; 2026
+  DRiX ... Data Reimagined Experience ... WinTech Partners &copy; 2026
 </div>
 
 <script>
-// ── DOCUMENT CONTENT ──
-const DOCS = [
-  {
-    type: 'Press Release',
-    sentences: [
-      'Techcombank has concluded its 2021-2025 strategic transformation, evolving from a leading private bank into the centre of an integrated financial ecosystem.',
-      'The bank now serves over 18 million individual and corporate customers with end-to-end financial solutions.',
-      'The 2026 business plan projects PBT of VND 37,500 billion, up 15% versus 2025, with credit outstanding projected to grow 12%.'
-    ]
-  },
-  {
-    type: 'Annual Report',
-    sentences: [
-      'More than 91% of individual transactions are now conducted online, placing Techcombank among the highest digital engagement rates globally.',
-      'Digital CASA cost-to-serve is 27%, compared to 41% at branches. Digital term deposits cost 11%, nearly half the branch cost of 20%.',
-      'CASA ratio reached 40.9% year-end, driven by data-led offerings such as Auto-earning and Techcombank Rewards.'
-    ]
-  },
-  {
-    type: 'Job Posting',
-    sentences: [
-      'Techcombank is hiring Technology Associates for their Future Gen 2026 program, seeking skills in Java, .NET, Python, cloud services, and security.',
-      'Required competencies include network security, application security, penetration testing, and Security Operations Center experience.',
-      'The bank is building a Generative AI platform to international standards, expected complete by mid-2026.'
-    ]
-  },
-  {
-    type: 'News Article',
-    sentences: [
-      'Techcombank has broadly applied data analysis and AI across the bank, with most major systems transitioned to cloud.',
-      'This positions the bank approximately three years ahead of its competitors in Vietnam.',
-      'Through an omnichannel, digital-first approach, Techcombank achieved hyper-personalized banking experiences in just 9 months.'
-    ]
-  }
-];
+const $ = id => document.getElementById(id);
 
-// ── ATOMS (what DRiX extracts) ──
-const ATOMS = [
-  { id: 'tcb-ecosystem', claim: 'Evolved from private bank to integrated financial ecosystem', tags: ['CTO', 'Awareness', 'Company Data', 'Banking'], source: 0, color: 'press' },
-  { id: 'tcb-18m-customers', claim: '18M+ individual and corporate customers', tags: ['CFO', 'Evaluation', 'Metric', 'Banking'], source: 0, color: 'press' },
-  { id: 'tcb-pbt-target', claim: 'PBT target VND 37,500B for 2026 (+15% YoY)', tags: ['CFO', 'Decision', 'Metric', 'Banking'], source: 0, color: 'press' },
-  { id: 'tcb-91-digital', claim: '91% of transactions conducted online', tags: ['CTO', 'Evaluation', 'Metric', 'Banking'], source: 1, color: 'report' },
-  { id: 'tcb-cost-advantage', claim: 'Digital CASA costs 27% vs 41% branch', tags: ['CFO', 'Decision', 'Metric', 'Banking'], source: 1, color: 'report' },
-  { id: 'tcb-casa-ratio', claim: 'CASA ratio 40.9%, driven by data-led products', tags: ['CFO', 'Evaluation', 'Product Data', 'Banking'], source: 1, color: 'report' },
-  { id: 'tcb-hiring-tech', claim: 'Hiring for Java, .NET, Python, cloud, security roles', tags: ['CTO', 'Awareness', 'Company Data', 'Banking'], source: 2, color: 'job' },
-  { id: 'tcb-genai-platform', claim: 'Building GenAI platform, complete mid-2026', tags: ['CTO', 'Evaluation', 'Product Data', 'Banking'], source: 2, color: 'job' },
-  { id: 'tcb-security-focus', claim: 'Requires pen testing, AppSec, SOC expertise', tags: ['CISO', 'Awareness', 'Company Data', 'Security'], source: 2, color: 'job' },
-  { id: 'tcb-ai-adoption', claim: 'AI broadly applied across the bank', tags: ['CTO', 'Evaluation', 'Company Data', 'Banking'], source: 3, color: 'news' },
-  { id: 'tcb-cloud-migration', claim: 'Major systems transitioned to cloud', tags: ['CTO', 'Decision', 'Company Data', 'Banking'], source: 3, color: 'news' },
-  { id: 'tcb-3yr-ahead', claim: 'Three years ahead of Vietnam competitors', tags: ['CEO', 'Decision', 'Analyst Opinion', 'Banking'], source: 3, color: 'news' },
-  { id: 'tcb-hyperpersonal', claim: 'Hyper-personalized banking in 9 months', tags: ['CMO', 'Evaluation', 'Product Data', 'Banking'], source: 3, color: 'news' },
-];
-
-// Cross-references: atoms from different docs that connect
-const CROSS_REFS = [
-  { from: 'tcb-genai-platform', to: 'tcb-ai-adoption', label: 'GenAI build confirms AI adoption claim' },
-  { from: 'tcb-91-digital', to: 'tcb-hyperpersonal', label: '91% digital enables personalization' },
-  { from: 'tcb-security-focus', to: 'tcb-cloud-migration', label: 'Security hiring supports cloud move' },
-  { from: 'tcb-cost-advantage', to: 'tcb-ecosystem', label: 'Cost efficiency drives ecosystem scale' },
-];
-
-// Duplicates to merge
-const MERGES = [
-  { atoms: ['tcb-ai-adoption', 'tcb-genai-platform'], label: 'AI strategy: merged from News + Job Posting' },
-];
-
-// ── CHUNKED RECONSTRUCTION (deliberately awkward) ──
-const CHUNK_RECON = `<span class="seam-mark">According to a recent press release, Techcombank has concluded its 2021-2025 strategic transformation. The bank now serves over 18 million customers.</span> <span class="seam-mark">In their annual report, digital engagement rates exceeded 91% of individual transactions conducted online. Digital CASA cost-to-serve is 27%.</span> <span class="seam-mark">A job posting indicates the bank is hiring Technology Associates with skills in Java, Python, and security. The bank is also building a Generative AI platform.</span> <span class="seam-mark">According to news reports, Techcombank has broadly applied AI across the bank and transitioned to cloud, putting them three years ahead of competitors.</span>`;
-
-// ── ATOMIZED RECONSTRUCTION (seamless, flowing) ──
-const ATOM_RECON = `<span class="flow-mark">Techcombank has completed a five-year transformation into a full financial ecosystem serving 18 million customers, and they're not slowing down. Their 2026 target of VND 37,500 billion in pre-tax profit signals confidence in the model they've built.</span> <span class="flow-mark">The foundation is genuinely digital. Over 91% of individual transactions happen online, and digital channels cost nearly half what branches cost to operate. That cost advantage compounds as the CASA ratio hits 40.9%, fueled by data-driven products their competitors haven't shipped yet.</span> <span class="flow-mark">What makes this interesting for a security conversation is the gap between their ambition and their current capability. They're building a GenAI platform due mid-2026 and actively hiring for penetration testing, application security, and SOC roles. They've moved most systems to cloud already. That combination... rapid cloud migration, GenAI deployment, and open security headcount... tells you exactly where their attack surface is expanding.</span> <span class="flow-mark">They're roughly three years ahead of Vietnamese competitors in digital maturity. That lead creates pressure to protect what they've built. Every new digital touchpoint is both a customer experience win and a potential entry point.</span>`;
-
-// ── ANIMATION ENGINE ──
+// ── STATE ──
+let selectedUrl = 'aiaivn.com';
+let selectedName = 'AIAIVN';
 let isRunning = false;
+let startTime = 0;
+let timerInterval = null;
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+// ── PILL HANDLERS ──
+document.querySelectorAll('#companyPills .pill').forEach(p => {
+  p.addEventListener('click', () => {
+    if (isRunning) return;
+    document.querySelectorAll('#companyPills .pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    selectedUrl = p.dataset.url;
+    selectedName = p.dataset.name;
+  });
+});
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-async function startDemo() {
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    $('chunkTimer').textContent = elapsed + 's';
+    $('atomTimer').textContent = elapsed + 's';
+  }, 100);
+}
+
+function stopTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  $('chunkTimer').textContent = elapsed + 's total';
+  $('atomTimer').textContent = elapsed + 's total';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function runAtomize() {
   if (isRunning) return;
   isRunning = true;
-  document.getElementById('startBtn').disabled = true;
-  document.getElementById('startBtn').textContent = 'Processing...';
+  $('startBtn').disabled = true;
+  $('startBtn').textContent = 'Processing...';
 
-  const chunkBody = document.getElementById('chunkBody');
-  const atomBody = document.getElementById('atomBody');
-  const chunkPhase = document.getElementById('chunkPhase');
-  const atomPhase = document.getElementById('atomPhase');
-  chunkBody.innerHTML = '';
-  atomBody.innerHTML = '';
-  document.getElementById('chunkRecon').style.display = 'none';
-  document.getElementById('atomRecon').style.display = 'none';
+  // Reset
+  $('chunkBody').innerHTML = '';
+  $('atomBody').innerHTML = '';
+  $('chunkPhase').textContent = '';
+  $('atomPhase').textContent = '';
+  $('chunkPhase').classList.remove('pulsing');
+  $('atomPhase').classList.remove('pulsing');
+  $('chunkRecon').style.display = 'none';
+  $('atomRecon').style.display = 'none';
+  $('chunkReconText').classList.remove('visible');
+  $('atomReconText').classList.remove('visible');
+  $('contentPreview').classList.remove('visible');
 
-  // ── STEP 1: Drop documents in ──
-  for (let i = 0; i < 4; i++) {
-    document.getElementById(`doc${i}`).classList.add('visible');
-    await sleep(300);
-  }
-  await sleep(600);
+  startTimer();
 
-  // ── STEP 2: CHUNKING SIDE ──
-  chunkPhase.textContent = 'Step 1: Splitting into chunks...';
-  chunkPhase.classList.add('pulsing');
-  atomPhase.textContent = 'Step 1: Extracting atomic claims...';
-  atomPhase.classList.add('pulsing');
+  try {
+    const response = await fetch('/api/atomize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_url: selectedUrl,
+        company_name: selectedName
+      })
+    });
 
-  // Highlight docs as processing
-  for (let i = 0; i < 4; i++) {
-    document.getElementById(`doc${i}`).classList.add('processing');
-  }
-  await sleep(400);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-  // Build chunks (each doc becomes 1 big chunk)
-  for (let i = 0; i < DOCS.length; i++) {
-    const chunkHtml = `<div class="chunk-piece" id="chunk${i}">
-      <span class="chunk-label">Chunk ${i + 1} / ${DOCS.length}</span>
-      ${DOCS[i].sentences.map(s => escHtml(s)).join(' ')}
-      <div class="chunk-source">Source: ${DOCS[i].type}</div>
-    </div>`;
-    chunkBody.insertAdjacentHTML('beforeend', chunkHtml);
-    await sleep(200);
-    document.getElementById(`chunk${i}`).classList.add('visible');
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    // Build atoms from same doc simultaneously
-    const docAtoms = ATOMS.filter(a => a.source === i);
-    for (const atom of docAtoms) {
-      const tagHtml = atom.tags.map((t, ti) => {
-        const cls = ['persona','stage','evidence','industry'][ti] || 'persona';
-        return `<span class="atom-tag ${cls}" id="tag-${atom.id}-${ti}">${escHtml(t)}</span>`;
-      }).join('');
-      const atomHtml = `<div class="atom-card" id="atom-${atom.id}">
-        <div class="atom-claim">${escHtml(atom.claim)}</div>
-        <div class="atom-source">${DOCS[atom.source].type}</div>
-        <div class="atom-tags">${tagHtml}</div>
-      </div>`;
-      atomBody.insertAdjacentHTML('beforeend', atomHtml);
-      await sleep(120);
-      document.getElementById(`atom-${atom.id}`).classList.add('visible');
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let currentEvent = null;
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ') && currentEvent) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            await handleEvent(currentEvent, data);
+          } catch {}
+          currentEvent = null;
+        } else if (line === '') {
+          currentEvent = null;
+        }
+      }
     }
-
-    await sleep(200);
+  } catch (err) {
+    $('chunkBody').innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(err.message)}</div>`;
   }
 
-  // ── STEP 3: Tag atoms (9D tags appear) ──
-  chunkPhase.textContent = 'Step 2: Done. Chunks ready.';
-  chunkPhase.classList.remove('pulsing');
-  atomPhase.textContent = 'Step 2: Applying 9-dimensional tags...';
-
-  for (const atom of ATOMS) {
-    for (let ti = 0; ti < atom.tags.length; ti++) {
-      const tagEl = document.getElementById(`tag-${atom.id}-${ti}`);
-      if (tagEl) tagEl.classList.add('visible');
-    }
-    await sleep(80);
-  }
-
-  await sleep(500);
-
-  // ── STEP 4: Cross-reference (DRiX only) ──
-  atomPhase.textContent = 'Step 3: Cross-referencing across sources...';
-
-  // Add connection indicators
-  const connHtml = CROSS_REFS.map((cr, i) =>
-    `<div class="connection-line" id="conn${i}">${escHtml(cr.label)}</div>`
-  ).join('');
-  atomBody.insertAdjacentHTML('beforeend', `<div class="connections-overlay">${connHtml}</div>`);
-
-  for (let i = 0; i < CROSS_REFS.length; i++) {
-    const cr = CROSS_REFS[i];
-    const fromEl = document.getElementById(`atom-${cr.from}`);
-    const toEl = document.getElementById(`atom-${cr.to}`);
-    if (fromEl) fromEl.classList.add('connected');
-    if (toEl) toEl.classList.add('connected');
-    document.getElementById(`conn${i}`).classList.add('visible');
-    await sleep(400);
-  }
-
-  // Show seam warnings on chunk side
-  chunkPhase.textContent = 'Chunks have no cross-referencing capability';
-  const seams = [];
-  for (let i = 0; i < DOCS.length - 1; i++) {
-    const seamHtml = `<div class="chunk-seam" id="seam${i}">&#9888; Seam between chunks ${i+1} and ${i+2}</div>`;
-    const chunkEl = document.getElementById(`chunk${i}`);
-    chunkEl.insertAdjacentHTML('afterend', seamHtml);
-    seams.push(`seam${i}`);
-  }
-  await sleep(300);
-  for (const id of seams) {
-    document.getElementById(id).classList.add('visible');
-    await sleep(200);
-  }
-
-  await sleep(600);
-
-  // ── STEP 5: Dedup/merge (DRiX only) ──
-  atomPhase.textContent = 'Step 4: Deduplicating overlapping claims...';
-
-  for (const merge of MERGES) {
-    for (const aid of merge.atoms) {
-      const el = document.getElementById(`atom-${aid}`);
-      if (el) el.classList.add('merged');
-    }
-    atomBody.insertAdjacentHTML('beforeend',
-      `<div class="merge-indicator" id="merge-${merge.atoms[0]}">&#x2714; ${escHtml(merge.label)}</div>`
-    );
-    await sleep(300);
-    document.getElementById(`merge-${merge.atoms[0]}`).classList.add('visible');
-    await sleep(400);
-  }
-
-  await sleep(600);
-
-  // ── STEP 6: Reconstruct ──
-  chunkPhase.textContent = 'Reconstructing from chunks...';
-  chunkPhase.classList.add('pulsing');
-  atomPhase.textContent = 'Step 5: Reconstructing from atoms...';
-  atomPhase.classList.add('pulsing');
-
-  await sleep(800);
-
-  // Show reconstructions
-  document.getElementById('chunkRecon').style.display = 'block';
-  document.getElementById('chunkReconText').innerHTML = CHUNK_RECON;
-  await sleep(200);
-  document.getElementById('chunkReconText').classList.add('visible');
-
-  await sleep(600);
-
-  document.getElementById('atomRecon').style.display = 'block';
-  document.getElementById('atomReconText').innerHTML = ATOM_RECON;
-  await sleep(200);
-  document.getElementById('atomReconText').classList.add('visible');
-
-  chunkPhase.textContent = 'Done. Notice the seams.';
-  chunkPhase.classList.remove('pulsing');
-  atomPhase.textContent = 'Done. Seamless reconstruction from cross-referenced atoms.';
-  atomPhase.classList.remove('pulsing');
-
-  // Remove processing state from docs
-  for (let i = 0; i < 4; i++) {
-    document.getElementById(`doc${i}`).classList.remove('processing');
-  }
-
+  stopTimer();
   isRunning = false;
-  document.getElementById('startBtn').disabled = false;
-  document.getElementById('startBtn').textContent = 'Run Again';
+  $('startBtn').disabled = false;
+  $('startBtn').textContent = 'Run Live Comparison';
+}
+
+async function handleEvent(event, data) {
+  switch (event) {
+    case 'phase':
+      handlePhase(data);
+      break;
+
+    case 'content':
+      $('contentPreview').classList.add('visible');
+      $('cpTitle').textContent = data.title;
+      $('cpMeta').textContent = `${(data.text_length / 1000).toFixed(1)}KB of content fetched`;
+      break;
+
+    case 'chunks':
+      await renderChunks(data.chunks);
+      break;
+
+    case 'atoms':
+      await renderAtoms(data.atoms);
+      break;
+
+    case 'cross_refs':
+      await renderCrossRefs(data.refs);
+      break;
+
+    case 'chunk_synthesis':
+      $('chunkPhase').textContent = 'Reconstruction complete';
+      $('chunkPhase').classList.remove('pulsing');
+      $('chunkRecon').style.display = 'block';
+      $('chunkReconText').innerHTML = escHtml(data.text);
+      await sleep(100);
+      $('chunkReconText').classList.add('visible');
+      break;
+
+    case 'atom_synthesis':
+      $('atomPhase').textContent = 'Reconstruction complete';
+      $('atomPhase').classList.remove('pulsing');
+      $('atomRecon').style.display = 'block';
+      $('atomReconText').innerHTML = escHtml(data.text);
+      await sleep(100);
+      $('atomReconText').classList.add('visible');
+      break;
+
+    case 'error':
+      const target = data.side === 'drix' ? 'atomBody' : 'chunkBody';
+      $(target).innerHTML = `<div class="placeholder" style="color:var(--red)">${escHtml(data.message)}</div>`;
+      break;
+
+    case 'done':
+      break;
+  }
+}
+
+function handlePhase(data) {
+  switch (data.step) {
+    case 'fetch':
+      $('chunkPhase').textContent = data.message;
+      $('chunkPhase').classList.add('pulsing');
+      $('atomPhase').textContent = data.message;
+      $('atomPhase').classList.add('pulsing');
+      break;
+    case 'chunking':
+      $('chunkPhase').textContent = 'Splitting into paragraph chunks...';
+      break;
+    case 'decompose':
+      $('atomPhase').textContent = 'Decomposing into atomic claims...';
+      break;
+    case 'cross_ref':
+      $('chunkPhase').textContent = 'Chunks have no cross-referencing capability';
+      $('chunkPhase').classList.remove('pulsing');
+      $('atomPhase').textContent = data.message;
+      break;
+    case 'synthesize':
+      $('chunkPhase').textContent = 'Reconstructing from chunks...';
+      $('chunkPhase').classList.add('pulsing');
+      $('atomPhase').textContent = 'Synthesizing from cross-referenced atoms...';
+      $('atomPhase').classList.add('pulsing');
+      break;
+  }
+}
+
+async function renderChunks(chunks) {
+  const body = $('chunkBody');
+  body.innerHTML = '';
+
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i];
+    const div = document.createElement('div');
+    div.className = 'chunk-piece';
+    div.id = `chunk-${i}`;
+    div.innerHTML = `
+      <span class="chunk-label">Chunk ${i + 1} / ${chunks.length}</span>
+      ${escHtml(c.text)}
+    `;
+    body.appendChild(div);
+    await sleep(150);
+    div.classList.add('visible');
+
+    // Add seam warning between chunks
+    if (i < chunks.length - 1) {
+      const seam = document.createElement('div');
+      seam.className = 'chunk-seam';
+      seam.innerHTML = '&#9888; Seam between chunks ' + (i + 1) + ' and ' + (i + 2);
+      body.appendChild(seam);
+      await sleep(100);
+      seam.classList.add('visible');
+    }
+  }
+
+  $('chunkPhase').textContent = `${chunks.length} chunks created. No relationships, no tags.`;
+  $('chunkPhase').classList.remove('pulsing');
+}
+
+async function renderAtoms(atoms) {
+  const body = $('atomBody');
+  body.innerHTML = '';
+
+  const TAG_CLASSES = {
+    d_persona: 'persona',
+    d_buying_stage: 'stage',
+    d_evidence_type: 'evidence',
+    d_industry: 'industry',
+    d_credibility: 'credibility',
+    type: 'type'
+  };
+
+  for (let i = 0; i < atoms.length; i++) {
+    const a = atoms[i];
+
+    // Build tag list from real 9D dimensions
+    const tags = [];
+    if (a.d_persona) tags.push({ cls: 'persona', text: a.d_persona });
+    if (a.d_buying_stage) tags.push({ cls: 'stage', text: a.d_buying_stage });
+    if (a.d_evidence_type) tags.push({ cls: 'evidence', text: a.d_evidence_type });
+    if (a.type) tags.push({ cls: 'type', text: a.type });
+    if (a.d_industry?.naics) tags.push({ cls: 'industry', text: a.d_industry.naics });
+    if (a.confidence) tags.push({ cls: 'credibility', text: a.confidence });
+
+    const tagHtml = tags.map((t, ti) =>
+      `<span class="atom-tag ${t.cls}" id="tag-${i}-${ti}">${escHtml(t.text)}</span>`
+    ).join('');
+
+    const div = document.createElement('div');
+    div.className = 'atom-card';
+    div.id = `atom-${i}`;
+    div.innerHTML = `
+      <div class="atom-claim">${escHtml(a.claim)}</div>
+      <div class="atom-tags">${tagHtml}</div>
+    `;
+    body.appendChild(div);
+
+    await sleep(80);
+    div.classList.add('visible');
+
+    // Animate tags appearing
+    for (let ti = 0; ti < tags.length; ti++) {
+      const tagEl = document.getElementById(`tag-${i}-${ti}`);
+      if (tagEl) {
+        await sleep(30);
+        tagEl.classList.add('visible');
+      }
+    }
+  }
+
+  $('atomPhase').textContent = `${atoms.length} atoms extracted, each tagged across 9 dimensions`;
+  $('atomPhase').classList.remove('pulsing');
+}
+
+async function renderCrossRefs(refs) {
+  if (!refs || refs.length === 0) return;
+
+  const body = $('atomBody');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'connections-overlay';
+  body.appendChild(overlay);
+
+  for (let i = 0; i < refs.length; i++) {
+    const r = refs[i];
+    const line = document.createElement('div');
+    line.className = 'connection-line';
+    line.id = `conn-${i}`;
+
+    // Truncate claims for display
+    const custClaim = r.customer_claim.length > 40 ? r.customer_claim.slice(0, 40) + '...' : r.customer_claim;
+    const sendClaim = r.sender_claim.length > 40 ? r.sender_claim.slice(0, 40) + '...' : r.sender_claim;
+    line.textContent = `${custClaim} ↔ ${sendClaim}`;
+    overlay.appendChild(line);
+
+    // Highlight connected atoms
+    const atomCards = body.querySelectorAll('.atom-card');
+    for (const card of atomCards) {
+      const claim = card.querySelector('.atom-claim')?.textContent || '';
+      if (claim === r.customer_claim) {
+        card.classList.add('connected');
+      }
+    }
+
+    await sleep(300);
+    line.classList.add('visible');
+  }
+
+  $('atomPhase').textContent = `${refs.length} cross-references found with WinTech atoms`;
 }
 </script>
+
 </body>
 </html>
