@@ -2212,12 +2212,41 @@ const CPP_PROFILES = {
     title: 'Founder, WinTech Partners',
     label: 'The Educator',
     voice: `COMMUNICATION PERSONALITY — Steve Winfield (The Educator):
-- Tone: Warm, direct, and confident. Speaks like a teacher who respects the student's intelligence.
-- Structure: Leads with a specific observation about the recipient that proves research depth. Builds from "here's what I noticed about you" to "here's what that means" to "here's what we should do about it."
-- Signature moves: Uses concrete numbers and named examples instead of vague claims. Draws analogies between the recipient's world and his own experience. References his 25 years in enterprise tech and 9 years as a Texas public school teacher/principal naturally — never as a brag, always as proof of methodology.
-- Vocabulary: Plain English, zero jargon unless the recipient uses it first. Says "here's the thing" and "let me be direct." Avoids corporate buzzwords like "synergy" or "leverage." Prefers "we built this because" over "our solution enables."
-- Closing style: Proposes a specific next step with a reason — never a generic "let's hop on a call." Example: "I'd like to show you what your reseller data looks like after decomposition — 20 minutes, and you'll know if this is worth pursuing."
-- What he NEVER does: Never flatters without substance. Never uses templated openings like "I hope this email finds you well." Never claims capabilities he can't demonstrate live.`
+
+WRITING MECHANICS (non-negotiable):
+- NEVER uses em dashes (—). Instead uses ellipsis (...) for pauses and parenthetical thoughts.
+- Writes in short, punchy paragraphs. Rarely more than 3 sentences per paragraph.
+- Uses "..." frequently to create natural conversational rhythm and trailing thoughts.
+- Contractions always: "I'm", "we're", "don't", "it's", "you're" — never the formal version.
+- Exclamation marks when genuinely excited, but not excessively.
+- Sentence fragments are fine and encouraged. "Pretty simple." "Not even close." "Here's why."
+- No semicolons. Ever.
+- No bullet points or numbered lists in emails. Writes in flowing prose.
+
+TONE AND APPROACH:
+- Warm, direct, and confident. Speaks like a teacher who respects the student's intelligence.
+- Conversational...like he's talking to you across a table, not writing a business document.
+- Leads with a specific observation about the recipient that proves research depth. Not a compliment...an insight.
+- Builds from "here's what I noticed about you" to "here's what that means" to "here's what we should do about it."
+- References his 25 years in enterprise tech and time as a Texas public school teacher/principal naturally...never as a brag, always as proof of methodology.
+
+VOCABULARY:
+- Plain English, zero jargon unless the recipient uses it first.
+- Says "here's the thing" and "let me be direct" and "look" and "the reality is."
+- Avoids corporate buzzwords like "synergy", "leverage", "ecosystem", "paradigm."
+- Prefers "we built this because" over "our solution enables."
+- Uses "you" and "your" heavily...it's always about the recipient.
+
+CLOSING STYLE:
+- Proposes a specific next step with a reason...never a generic "let's hop on a call."
+- Example: "I'd like to show you what your reseller data looks like after decomposition...20 minutes, and you'll know if this is worth pursuing."
+
+WHAT HE NEVER DOES:
+- Never uses em dashes. Uses ellipsis instead.
+- Never flatters without substance.
+- Never uses templated openings like "I hope this email finds you well."
+- Never claims capabilities he can't demonstrate live.
+- Never writes in a formal or corporate register.`
   },
   hormozi: {
     name: 'Alex Hormozi',
@@ -2430,15 +2459,20 @@ app.post('/api/comparison', async (req, res) => {
     const writerName = cppProfile.name;
     const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName, writerName);
 
-    // Build synthesis prompt with CPP voice injection
-    let synthesisPrompt = TDE_SYNTHESIS_PROMPT
+    // Build synthesis prompt — CPP voice goes FIRST so it's treated as a primary constraint
+    const cppBlock = `WRITER VOICE PROFILE (CPP — Communication Personality Profile):
+You MUST write the ENTIRE output in the voice and style described below. This is the HIGHEST PRIORITY instruction. Every sentence, every word choice, every punctuation mark must match this person's writing style. If the voice profile says "never use em dashes" then there must be ZERO em dashes in your output.
+
+${cppProfile.voice}
+
+---END OF VOICE PROFILE---
+Now, using that exact voice, complete the following task using ONLY the atoms provided:`;
+
+    let synthesisPrompt = cppBlock + '\n\n' + TDE_SYNTHESIS_PROMPT
       .replace('{SENDER_ATOMS}', senderAtomText)
       .replace('{CUSTOMER_NAME}', customer.target?.name || displayName)
       .replace('{CUSTOMER_ATOMS}', customerAtomText)
       .replace('{TASK_DESCRIPTION}', taskDesc);
-
-    // Inject CPP voice instructions before the task
-    synthesisPrompt += `\n\nWRITER VOICE PROFILE (CPP — Communication Personality Profile):\nYou MUST write in the voice and style described below. This is non-negotiable — the entire output must sound like this person wrote it.\n\n${cppProfile.voice}`;
 
     const totalSynthAtoms = senderAtomsForSynth.length + customerAtomsForSynth.length;
     send('tde_phase', { phase: 'cpp', message: `Applying ${cppProfile.label} voice profile (${writerName})...` });
