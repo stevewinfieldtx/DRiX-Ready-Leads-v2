@@ -293,6 +293,29 @@
     padding: 4px 0; font-variant-numeric: tabular-nums;
   }
 
+  /* ── PROMPT DISPLAY ── */
+  .prompt-toggle {
+    display: none; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 1px; font-weight: 700; padding: 6px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; margin-bottom: 8px; transition: all 0.2s;
+  }
+  .prompt-toggle:hover { border-color: var(--accent); color: var(--text); }
+  .prompt-toggle.visible { display: inline-flex; }
+  .prompt-toggle .arrow { transition: transform 0.2s; }
+  .prompt-toggle.open .arrow { transform: rotate(90deg); }
+  .prompt-box {
+    display: none; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px; margin-bottom: 12px;
+    font-family: 'Courier New', monospace; font-size: 0.68rem;
+    line-height: 1.5; color: var(--text-dim); white-space: pre-wrap;
+    word-break: break-word; max-height: 350px; overflow-y: auto;
+  }
+  .prompt-box.open { display: block; }
+  .chunk-side .prompt-toggle { color: var(--orange); }
+  .atom-side .prompt-toggle { color: var(--green); }
+
   .footer-note {
     text-align: center; padding: 20px; font-size: 0.7rem;
     color: var(--text-dim); border-top: 1px solid var(--border);
@@ -341,6 +364,8 @@
     </div>
     <div class="recon-section" id="chunkRecon" style="display:none;">
       <div class="recon-label">Reconstructed Output (from chunks)</div>
+      <div class="prompt-toggle" id="chunkPromptToggle" onclick="togglePrompt('chunk')"><span class="arrow">&#9654;</span> Show the prompt this AI was given</div>
+      <div class="prompt-box" id="chunkPromptBox"></div>
       <div class="recon-text" id="chunkReconText"></div>
     </div>
   </div>
@@ -359,6 +384,8 @@
     </div>
     <div class="recon-section" id="atomRecon" style="display:none;">
       <div class="recon-label">Reconstructed Output (from atoms) ... with source provenance</div>
+      <div class="prompt-toggle" id="atomPromptToggle" onclick="togglePrompt('atom')"><span class="arrow">&#9654;</span> Show the prompt DRiX was given</div>
+      <div class="prompt-box" id="atomPromptBox"></div>
       <div id="atomProvLegend" class="prov-legend"></div>
       <div class="recon-text" id="atomReconText"></div>
     </div>
@@ -402,6 +429,29 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function stripMarkdown(s) {
+  return String(s)
+    .replace(/^#{1,6}\s+/gm, '')        // headers
+    .replace(/\*\*([^*]+)\*\*/g, '$1')   // bold
+    .replace(/\*([^*]+)\*/g, '$1')       // italic
+    .replace(/__([^_]+)__/g, '$1')       // bold alt
+    .replace(/_([^_]+)_/g, '$1')         // italic alt
+    .replace(/^[-*]\s+/gm, '')           // bullet points
+    .replace(/^\d+\.\s+/gm, '')          // numbered lists
+    .replace(/`([^`]+)`/g, '$1')         // inline code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links
+    .replace(/\n{3,}/g, '\n\n')          // excessive newlines
+    .trim();
+}
+
+function togglePrompt(side) {
+  const toggle = $(side + 'PromptToggle');
+  const box = $(side + 'PromptBox');
+  const isOpen = toggle.classList.contains('open');
+  toggle.classList.toggle('open');
+  box.classList.toggle('open');
+}
+
 function startTimer() {
   startTime = Date.now();
   timerInterval = setInterval(() => {
@@ -443,6 +493,12 @@ async function runAtomize() {
   $('sourceLegend').innerHTML = '';
   $('blindSpots').classList.remove('visible');
   $('bsGrid').innerHTML = '';
+  $('chunkPromptToggle').classList.remove('visible', 'open');
+  $('atomPromptToggle').classList.remove('visible', 'open');
+  $('chunkPromptBox').classList.remove('open');
+  $('atomPromptBox').classList.remove('open');
+  $('chunkPromptBox').textContent = '';
+  $('atomPromptBox').textContent = '';
 
   startTimer();
 
@@ -521,11 +577,19 @@ async function handleEvent(event, data) {
       await renderCrossRefs(data.refs);
       break;
 
+    case 'prompts':
+      // Store prompts and show toggle buttons
+      $('chunkPromptBox').textContent = data.chunk_prompt;
+      $('atomPromptBox').textContent = data.atom_prompt;
+      $('chunkPromptToggle').classList.add('visible');
+      $('atomPromptToggle').classList.add('visible');
+      break;
+
     case 'chunk_synthesis':
       $('chunkPhase').textContent = 'Reconstruction complete';
       $('chunkPhase').classList.remove('pulsing');
       $('chunkRecon').style.display = 'block';
-      $('chunkReconText').innerHTML = escHtml(data.text);
+      $('chunkReconText').innerHTML = escHtml(stripMarkdown(data.text));
       await sleep(100);
       $('chunkReconText').classList.add('visible');
       break;

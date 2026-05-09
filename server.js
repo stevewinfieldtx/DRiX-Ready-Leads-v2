@@ -2900,7 +2900,7 @@ app.post('/api/atomize', async (req, res) => {
 
 ${chunks.map((c, i) => `--- Chunk ${i + 1} ---\n${c.text}`).join('\n\n')}
 
-Write 3-4 paragraphs. Be specific where you can. You have NO source attribution ... all chunks are anonymous text blobs with no structure or tagging.`;
+Write 3-4 paragraphs of plain text. Be specific where you can. Do NOT use markdown formatting, headers, bold, or bullet points. Just plain prose paragraphs. You have NO source attribution ... all chunks are anonymous text blobs with no structure or tagging.`;
 
     // ATOM SIDE: DRiX synthesis with source attribution markers
     const sourceSlots = fetched.map(f => `{{S${f.index}}}...{{/S${f.index}}} = ${f.label}`).join('\n');
@@ -2936,14 +2936,28 @@ Write 4 paragraphs:
 3. The WinTech play — map specific DRiX capabilities to their specific problems. Use the cross-references. Explain the "so what."
 4. How to open the conversation — not generic "propose a pilot" language. Give the rep a concrete hook and a reason the prospect would take the meeting.
 
-SOURCE ATTRIBUTION (invisible to reader, used for provenance highlighting):
-Wrap each sentence with the source marker it came from:
+SOURCE ATTRIBUTION (CRITICAL — this enables color-coded provenance highlighting):
+You MUST wrap EVERY sentence with the source marker showing which document it came from.
+Available markers:
 ${sourceSlots}
 {{WT}}...{{/WT}} = WinTech intelligence
 
-Example: {{S0}}They're running separate portals for retail and corporate, which means duplicate content and fragmented analytics.{{/S0}} {{WT}}TDE can ingest both portals and surface the overlaps they're missing.{{/WT}}
+RULES FOR MARKERS:
+- EVERY single sentence must be inside exactly ONE marker pair. No exceptions. No unwrapped sentences.
+- Use the CORRECT source for each sentence. If a fact came from the Homepage, use {{S0}}. If from Investors, use {{S2}}. Do NOT default everything to {{S0}}.
+- Sentences about WinTech capabilities use {{WT}}.
+- DISTRIBUTE across all sources. Your output should use ALL available markers, not just one or two.
 
-EVERY sentence must be wrapped in exactly ONE marker. If a sentence blends sources, use the primary one.`;
+Example with multiple sources:
+{{S0}}They're betting big on digital-first retail banking.{{/S0}} {{S1}}Their personal banking portal already handles FX and loan applications online.{{/S1}} {{S2}}Investor disclosures show 15% YoY growth in digital transactions.{{/S2}} {{WT}}TDE can ingest all four portals and surface the cross-segment insights they're missing.{{/WT}}
+
+If a sentence blends sources, attribute it to the PRIMARY source.`;
+
+    // Send prompts to client so audience can see what each side was given
+    send('prompts', {
+      chunk_prompt: chunkPrompt,
+      atom_prompt: atomSynthPrompt
+    });
 
     // ── CHUNK SIDE: OpenRouter only (slower "normal AI") ──
     // Try primary model, fallback to a second model if it fails
