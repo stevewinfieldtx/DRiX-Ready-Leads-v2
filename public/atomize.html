@@ -917,17 +917,20 @@ function renderComparisonStats(data) {
     <div class="comp-stat-card chunk-card">
       <div class="comp-label">Standard Chunking</div>
       <div class="comp-stat-row"><span class="stat-name">Output</span><span class="stat-val">${c.words_generated} words, ${c.sentences} sentences</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val red-val">0</span></div>
       <div class="comp-stat-row"><span class="stat-name">Facts surfaced</span><span class="stat-val">${c.facts_surfaced} of ${c.facts_available} (${c.pct_coverage}%)</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Source tracking</span><span class="stat-val red-val">None</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val red-val">0</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val red-val">None</span></div>
       <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val red-val">None</span></div>
       <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val red-val">No</span></div>
       <div class="comp-stat-note">${escHtml(c.label)}</div>
     </div>
     <div class="comp-stat-card tde-card">
       <div class="comp-label">DRiX Targeted Decomposition</div>
+      <div class="comp-stat-row"><span class="stat-name">Output</span><span class="stat-val green-val">${c.words_generated} words, ${t.structured_facts} structured facts</span></div>
       <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val green-val">${t.structured_facts}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Facts surfaced</span><span class="stat-val green-val">${t.structured_facts} of ${c.facts_available} (100%)</span></div>
       <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val green-val">${t.dimensions_per_fact}</span></div>
-      <div class="comp-stat-row"><span class="stat-name">Fact types discovered</span><span class="stat-val green-val">${t.fact_types || 0}</span></div>
       <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val green-val">${t.sources_tracked}</span></div>
       <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val green-val">${t.cross_references}</span></div>
       <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val green-val">Yes</span></div>
