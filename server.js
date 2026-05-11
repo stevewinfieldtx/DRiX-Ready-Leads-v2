@@ -229,12 +229,14 @@ OUTPUT (JSON only):
 
 const PAIN_PROMPT = `Pain-surfacing phase of TDE. Be concise — short sentences only.
 
-INPUT: customer atoms, optional industry/sub-industry/region, is_archetype flag.
+INPUT: customer atoms, optional industry/sub-industry/region, optional target_title (the role the rep is pitching), is_archetype flag.
 
 Produce 2-4 pain points at each of three levels:
   1) company_pain — specific to THIS customer (empty array if is_archetype=true)
   2) subindustry_pain — patterns typical of the sub-industry/segment
   3) industry_pain — broader forces affecting the whole industry
+
+If target_title is provided, weight pain points toward what that role personally owns and bias persona_primary.title to match target_title where the atom supports it. Interpret target_title through whatever context is also supplied (industry / subindustry / customer atoms) — a CFO at a regional bank has different pain than a CFO at a SaaS startup. If target_title is null, treat persona selection as open and pick what the atoms most clearly point to.
 
 Persona titles must be one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General
 Urgency: "high" | "medium" | "low"
@@ -755,13 +757,16 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region, demo
   return archetype;
 }
 
-async function extractPainPoints(customerEntry, { industry, subindustry } = {}) {
+async function extractPainPoints(customerEntry, { industry, subindustry, recipient_role } = {}) {
   const isArchetype = !!customerEntry.target?.is_archetype;
   const ind = industry || customerEntry.industry || null;
   const subInd = subindustry || customerEntry.subindustry || null;
+  const targetTitle = recipient_role || null;
 
-  // Cache key: customer atoms + industry + subindustry
-  const pk = cacheKey({ atoms: customerEntry.atoms, industry: ind, subindustry: subInd });
+  // Cache key: customer atoms + industry + subindustry + target title
+  // (target title is in the key so swapping CTO → CFO doesn't return cached
+  // CTO pain points; per the cascade spec, Title materially changes pain.)
+  const pk = cacheKey({ atoms: customerEntry.atoms, industry: ind, subindustry: subInd, target_title: targetTitle });
 
   // 1. In-memory cache
   if (painCache.has(pk)) {
@@ -782,6 +787,7 @@ async function extractPainPoints(customerEntry, { industry, subindustry } = {}) 
   const userContent = JSON.stringify({
     is_archetype: isArchetype,
     industry: ind, subindustry: subInd,
+    target_title: targetTitle,
     customer: {
       name: customerEntry.target?.name,
       summary: customerEntry.summary,
@@ -838,13 +844,12 @@ app.post('/api/demo-flow', async (req, res) => {
   const isDemo = mode === 'demo';
   const DEMO_ATOMS_PER_CATEGORY = 20;
 
-  // Validation
+  // Validation — per DRiX pitch cascade spec, only Reseller + Solution are
+  // required. Industry / Subindustry / Title / Company URL / Individual are
+  // optional. If a variable is not provided, it is ignored — no fabrication.
   if (!email) return res.status(400).json({ error: 'Require email (your email)' });
   if (!sender_company_url) return res.status(400).json({ error: 'Require sender_company_url' });
   if (!solution_url) return res.status(400).json({ error: 'Require solution_url' });
-  if (!customer_url && !industry) {
-    return res.status(400).json({ error: 'Require customer_url OR industry (subindustry + region optional)' });
-  }
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -866,9 +871,20 @@ app.post('/api/demo-flow', async (req, res) => {
 
     const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo });
     const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', demoMode: isDemo });
+    // Per cascade spec: customer_url → real ingest; industry-only → archetype
+    // synth; neither → minimal "unspecified" placeholder so strategies fall
+    // back to sender + solution alone rather than us inventing a target.
     const customerPromise = customer_url
       ? ingestOne({ url: normUrl(customer_url), role: 'customer', demoMode: isDemo })
-      : synthesizeCustomerArchetype({ industry, subindustry, region, demoMode: isDemo });
+      : industry
+        ? synthesizeCustomerArchetype({ industry, subindustry, region, demoMode: isDemo })
+        : Promise.resolve({
+            target: { name: 'Unspecified target', url: null, role: 'customer', is_archetype: true },
+            summary: 'No customer URL and no industry supplied. Strategies will lean on the reseller + solution only — no fabricated target context.',
+            atoms: [],
+            source: 'no_target',
+            ingested_at: new Date().toISOString()
+          });
 
     // Settle individually so one failure doesn't kill the rest
     const [senderRes, solutionRes, customerRes] = await Promise.allSettled([
@@ -915,7 +931,7 @@ app.post('/api/demo-flow', async (req, res) => {
     // ── PHASE 3: Pain points — dedicated LLM pass that always returns company,
     //    sub-industry, and industry pain groups (not just an atom-type filter).
     send('phase', { phase: 'pain', message: 'Surfacing company, sub-industry, industry pain…' });
-    const pain_groups = await extractPainPoints(customer, { industry, subindustry });
+    const pain_groups = await extractPainPoints(customer, { industry, subindustry, recipient_role });
     const pain_points = [
       ...pain_groups.company_pain,
       ...pain_groups.subindustry_pain,
