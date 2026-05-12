@@ -999,6 +999,13 @@
         <div class="input-help">The specific person you're reaching out to.</div>
         <input type="text" class="field" id="f-individual" placeholder="linkedin.com/in/janedoe" autocomplete="off" />
       </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-individual-email"><span class="field-num">7</span> Individual Email <span style="color:#6b7685;font-weight:400">(optional)</span></label>
+        <div class="input-help">Improves digital footprint accuracy.</div>
+        <input type="email" class="field" id="f-individual-email" placeholder="jane.doe@company.com" autocomplete="off" />
+      </div>
+    </div>
+    <div class="input-grid">
       <div class="input-wrap" style="display:flex;align-items:flex-end">
         <button class="btn-primary" id="btn-run" style="width:100%">Build Intelligence →</button>
       </div>
@@ -1177,7 +1184,12 @@ async function runFlow() {
   if (title) body.recipient_role = title;
 
   const individual = $('f-individual')?.value.trim();
-  if (individual) body.individual_name = individual;  // LinkedIn URL
+  const individualEmail = $('f-individual-email')?.value.trim();
+  if (individual) {
+    body.individual_linkedin = individual;
+    body.individual_name = individual;
+  }
+  if (individualEmail) body.individual_email = individualEmail;
 
   // Must have at least a customer URL OR an industry
   if (!body.customer_url && !body.industry) {
