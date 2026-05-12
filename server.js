@@ -945,8 +945,8 @@ app.post('/api/demo-flow', async (req, res) => {
     let individual = null;
     if (individual_linkedin) {
       try {
-        send('phase', { phase: 'individual_scan', message: `Scanning individual digital footprint via Maigret…` });
-        const { scan, atoms: individualAtoms } = await scanIndividual({
+        send('phase', { phase: 'individual_scan', message: `Researching individual digital footprint and public presence…` });
+        const individualResult = await scanIndividual({
           linkedin_url: individual_linkedin,
           email: individual_email || null,
           title: recipient_role || null,
@@ -954,15 +954,26 @@ app.post('/api/demo-flow', async (req, res) => {
           tier: 1,
         });
         individual = {
-          target: { name: individual_name || scan.username_resolution?.linkedin_slug || 'Target Individual', role: 'individual', linkedin_url: individual_linkedin, email: individual_email || null },
-          summary: `Digital footprint scan: ${scan.total_found} accounts discovered across ${(scan.accounts || []).map(a => a.site).filter((v,i,a) => a.indexOf(v) === i).length} platforms.${scan.filtered_out ? ` ${scan.filtered_out} false positives filtered.` : ''}`,
-          atoms: individualAtoms,
-          scan: scan,
-          source: 'maigret_scan'
+          target: {
+            name: individualResult.individual?.name || individual_name || 'Target Individual',
+            role: 'individual',
+            title: individualResult.individual?.title || recipient_role || null,
+            company: individualResult.individual?.company || null,
+            linkedin_url: individual_linkedin,
+            email: individual_email || null,
+            key_insight: individualResult.key_insight || null
+          },
+          summary: individualResult.summary || '',
+          atoms: individualResult.atoms || [],
+          pitch_angles: individualResult.pitch_angles || [],
+          scan: individualResult.scan || {},
+          source: 'web_research'
         };
         send('individual', individual);
-        send('phase', { phase: 'individual_scan', message: `${individualAtoms.length} individual OSINT atoms across ${(scan.accounts || []).length} confirmed accounts` });
-        console.log(`[demo-flow] individual entity: ${individualAtoms.length} atoms, ${(scan.accounts || []).length} accounts`);
+        const webCount = individualResult.scan?.web_results || 0;
+        const accountCount = (individualResult.scan?.accounts || []).length;
+        send('phase', { phase: 'individual_scan', message: `${(individualResult.atoms || []).length} atoms from ${webCount} web sources + ${accountCount} platform accounts` });
+        console.log(`[demo-flow] individual entity: ${(individualResult.atoms || []).length} atoms, ${webCount} web sources, ${accountCount} platform accounts`);
       } catch (err) {
         console.error(`[demo-flow] individual scan failed (non-blocking):`, err.message);
         send('phase', { phase: 'individual_scan', message: `Individual scan skipped: ${err.message}` });
