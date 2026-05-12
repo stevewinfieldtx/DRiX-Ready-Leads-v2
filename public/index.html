@@ -1258,6 +1258,9 @@ function handleSSE(event, data) {
       renderAtoms(data);
       markPhaseDone('ph-fetch'); markPhaseDone('ph-ingest');
       break;
+    case 'individual':
+      renderIndividual(data);
+      break;
     case 'pain':
       renderPain(data.pain_groups, data.pain_points);
       markPhaseDone('ph-pain');
@@ -1308,6 +1311,53 @@ function renderAtoms(data) {
   `;
   $('atoms-panel').innerHTML = html;
   $('atoms-panel').classList.add('active');
+}
+
+function renderIndividual(data) {
+  if (!data || !data.scan) return;
+  const accounts = data.scan.accounts || [];
+  const name = data.target?.name || 'Target Individual';
+  const uniqueSites = [...new Set(accounts.map(a => a.site))];
+  const filtered = data.scan.filtered_out || 0;
+
+  // Group accounts by site for clean display
+  const bySite = {};
+  accounts.forEach(a => {
+    if (!bySite[a.site]) bySite[a.site] = [];
+    bySite[a.site].push(a);
+  });
+
+  const siteCards = Object.entries(bySite).map(([site, accts]) => {
+    const urls = accts.map(a => `<a href="${esc(a.url)}" target="_blank" style="color:var(--cyan);text-decoration:none;font-size:11px;display:block;margin:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.username || a.url)}</a>`).join('');
+    return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:4px 0">
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">${esc(site)} <span style="color:var(--dim);font-weight:400">(${accts.length})</span></div>
+      ${urls}
+    </div>`;
+  }).join('');
+
+  const panel = document.createElement('div');
+  panel.className = 'result-panel active';
+  panel.id = 'individual-panel';
+  panel.innerHTML = `
+    <div class="section-title">Individual Intelligence — ${esc(name)}</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:8px">
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">
+        ${esc(data.summary || '')}
+        ${filtered ? `<span style="color:var(--dim);font-size:11px"> (${filtered} false positives filtered)</span>` : ''}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px">
+        ${siteCards}
+      </div>
+    </div>
+  `;
+
+  // Insert after atoms panel
+  const atomsPanel = $('atoms-panel');
+  if (atomsPanel && atomsPanel.parentNode) {
+    const existing = document.getElementById('individual-panel');
+    if (existing) existing.remove();
+    atomsPanel.parentNode.insertBefore(panel, atomsPanel.nextSibling);
+  }
 }
 
 function renderAtomGroup(entry, g) {

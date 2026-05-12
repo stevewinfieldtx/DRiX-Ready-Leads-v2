@@ -171,9 +171,17 @@ DISCIPLINE:
 
 const STRATEGIES_PROMPT = `You are the sales-strategy generator of TDE.
 
-INPUT: customer atoms, sender (seller) atoms, solution atoms, region context. Each set is 9D-tagged.
+INPUT: customer atoms, sender (seller) atoms, solution atoms, region context, and optionally INDIVIDUAL atoms (behavioral intelligence about the specific person being pitched to). Each set is 9D-tagged.
 
 TASK: produce EXACTLY 5 distinct Discovery-stage sales strategies for how the sender could win this customer with this solution. These are first-touch strategies — the buyer is cold / newly hydrated.
+
+INDIVIDUAL INTELLIGENCE (when provided):
+If the input includes an "individual" object, it contains OSINT-discovered digital footprint data about the specific person you're pitching to — their social media accounts, community memberships, content they've published, conference talks, and other behavioral signals. This is SEPARATE from the customer (company) data. Use it to:
+- Personalize conversation openers ("I saw your talk at..." or "Your GitHub activity suggests...")
+- Infer their personal priorities and communication preferences
+- Identify which strategy angles will resonate with THIS person specifically
+- Reference their public activity to demonstrate research depth
+The individual's data should influence strategy selection and especially the first_step field.
 
 THE CORE RULE — (Persona × Pain) ANCHORING:
 - Each strategy MUST be anchored on a distinct (Persona, Pain) PAIR drawn from the customer's atoms.
@@ -931,23 +939,30 @@ app.post('/api/demo-flow', async (req, res) => {
       customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms, source: customer.source, tde_collection: customer.tde_collection, tde_atom_count: customer.tde_atom_count }
     });
 
-    // ── INDIVIDUAL OSINT: If a LinkedIn URL was provided, fire Maigret scan
-    //    and inject discovered accounts as additional customer-side atoms.
+    // ── INDIVIDUAL OSINT: Separate entity, like sender/solution/customer.
+    //    Scanned independently, sent to frontend independently, passed to
+    //    strategy/pain LLM as its own bucket.
+    let individual = null;
     if (individual_linkedin) {
       try {
         send('phase', { phase: 'individual_scan', message: `Scanning individual digital footprint via Maigret…` });
-        const { atoms: individualAtoms } = await scanIndividual({
+        const { scan, atoms: individualAtoms } = await scanIndividual({
           linkedin_url: individual_linkedin,
           email: individual_email || null,
           title: recipient_role || null,
           name: individual_name || null,
           tier: 1,
         });
-        if (individualAtoms.length) {
-          customer.atoms = [...(customer.atoms || []), ...individualAtoms];
-          send('phase', { phase: 'individual_scan', message: `Injected ${individualAtoms.length} individual OSINT atoms` });
-          console.log(`[demo-flow] injected ${individualAtoms.length} individual OSINT atoms`);
-        }
+        individual = {
+          target: { name: individual_name || scan.username_resolution?.linkedin_slug || 'Target Individual', role: 'individual', linkedin_url: individual_linkedin, email: individual_email || null },
+          summary: `Digital footprint scan: ${scan.total_found} accounts discovered across ${(scan.accounts || []).map(a => a.site).filter((v,i,a) => a.indexOf(v) === i).length} platforms.${scan.filtered_out ? ` ${scan.filtered_out} false positives filtered.` : ''}`,
+          atoms: individualAtoms,
+          scan: scan,
+          source: 'maigret_scan'
+        };
+        send('individual', individual);
+        send('phase', { phase: 'individual_scan', message: `${individualAtoms.length} individual OSINT atoms across ${(scan.accounts || []).length} confirmed accounts` });
+        console.log(`[demo-flow] individual entity: ${individualAtoms.length} atoms, ${(scan.accounts || []).length} accounts`);
       } catch (err) {
         console.error(`[demo-flow] individual scan failed (non-blocking):`, err.message);
         send('phase', { phase: 'individual_scan', message: `Individual scan skipped: ${err.message}` });
@@ -993,6 +1008,7 @@ app.post('/api/demo-flow', async (req, res) => {
           sender:   { name: sender.target?.name,   summary: sender.summary,   atoms: sender.atoms },
           solution: { name: solution.target?.name, summary: solution.summary, atoms: solution.atoms },
           customer: { name: customer.target?.name, summary: customer.summary, atoms: customer.atoms, is_archetype: !!customer.target?.is_archetype },
+          individual: individual ? { name: individual.target?.name, summary: individual.summary, atoms: individual.atoms, accounts: (individual.scan?.accounts || []).map(a => ({ site: a.site, url: a.url })) } : null,
           recipient_role: recipient_role || 'Senior executive'
         });
         strategies = await callLLM(STRATEGIES_PROMPT, stratInput, { maxTokens: 4000 });
@@ -1020,7 +1036,7 @@ app.post('/api/demo-flow', async (req, res) => {
 
     // ── Persist the run so /api/hydrate can retrieve it by run_id ────────
     runStore.set(run_id, {
-      email, sender, solution, customer,
+      email, sender, solution, customer, individual,
       pain_points, pain_groups, strategies,
       decisionMakers,
       industry, subindustry, region,
@@ -1723,6 +1739,24 @@ function buildReportHtml(run) {
     ${atomGroup('Solution', run.solution)}
     ${atomGroup('Customer', run.customer)}
   </div>
+
+  ${run.individual ? `
+  <div class="section">
+    <h2>Individual Intelligence — ${esc(run.individual.target?.name || 'Target Individual')}</h2>
+    <div class="group">
+      <div class="group-title">Digital Footprint Summary</div>
+      <div class="group-sum">${esc(run.individual.summary || '')}</div>
+      ${(run.individual.scan?.accounts || []).length ? `
+        <div style="margin-top:10px">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#5aa9ff;margin-bottom:8px">Confirmed Accounts (${run.individual.scan.accounts.length})</div>
+          ${(run.individual.scan.accounts || []).map(a => `
+            <div style="display:inline-block;background:#1a222c;border:1px solid #2a3542;border-radius:6px;padding:4px 10px;margin:3px 4px;font-size:11px">
+              <b>${esc(a.site)}</b> <a href="${esc(a.url)}" style="color:#5aa9ff;text-decoration:none">${esc(a.username || '')}</a>
+            </div>
+          `).join('')}
+        </div>` : ''}
+    </div>
+  </div>` : ''}
 
   <div class="section">
     <h2>Pain Points</h2>
