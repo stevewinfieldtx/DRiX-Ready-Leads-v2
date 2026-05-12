@@ -52,7 +52,7 @@ function classifyPersona(title) {
   if (/\b(cto|vp\s*eng|architect|devops|sre|developer|software|platform|infra)/i.test(t)) return 'technical';
   if (/\b(ciso|security|soc\s|infosec|cyber|threat)/i.test(t)) return 'security';
   if (/\b(ceo|coo|cfo|cro|president|founder|board|managing\s*director)/i.test(t)) return 'executive';
-  if (/\b(channel|partner|alliance|distribution|reseller|var\b|msp\b)/i.test(t)) return 'channel';
+  if (/\b(channel|partner|alliance|distribution|reseller|var\b|msp\b|category\s*manage)/i.test(t)) return 'channel';
   if (/\b(cmo|marketing|sales|revenue|growth|demand|brand|content\s*market)/i.test(t)) return 'business';
 
   return 'general';
@@ -135,6 +135,38 @@ function maigretResultsToAtoms(scanResult, context = {}) {
 /**
  * Run individual Maigret scan and return TDE atoms.
  */
+/**
+ * Filter out false-positive accounts that clearly belong to someone else.
+ * Checks the fullname/username fields against the target name.
+ */
+function filterFalsePositives(accounts, targetName) {
+  if (!targetName || !accounts.length) return accounts;
+
+  const nameParts = targetName.toLowerCase().split(/\s+/).filter(p => p.length > 2);
+  if (!nameParts.length) return accounts;
+
+  return accounts.filter(account => {
+    const ids = account.ids || {};
+    const fullname = (ids.fullname || ids.username || ids.name || '').toLowerCase();
+
+    // If no fullname data, keep it (can't disprove)
+    if (!fullname || fullname.length < 2) return true;
+
+    // Check if any part of the target name appears in the account's fullname
+    const nameMatch = nameParts.some(part => fullname.includes(part));
+
+    // Also keep if the username matches one of our scan candidates
+    const username = (account.username || '').toLowerCase();
+    const slug = targetName.toLowerCase().replace(/\s+/g, '');
+    const usernameMatch = username.includes(nameParts[0]) || username.includes(slug);
+
+    // Keep accounts where the site doesn't return identity info (Instagram, Reddit, etc.)
+    const noIdentityData = !ids.fullname && !ids.name;
+
+    return nameMatch || usernameMatch || noIdentityData;
+  });
+}
+
 async function scanIndividual({ linkedin_url, email, title, name, tier = 1 }) {
   const persona_type = classifyPersona(title);
 
@@ -158,7 +190,14 @@ async function scanIndividual({ linkedin_url, email, title, name, tier = 1 }) {
     }
 
     scanResult = await res.json();
-    console.log(`[individual-scan] complete: ${scanResult.total_found} accounts in ${scanResult.elapsed_seconds}s`);
+    console.log(`[individual-scan] raw: ${scanResult.total_found} accounts in ${scanResult.elapsed_seconds}s`);
+
+    // Filter out false positives — accounts that clearly belong to other people
+    const rawCount = (scanResult.accounts || []).length;
+    scanResult.accounts = filterFalsePositives(scanResult.accounts || [], name);
+    scanResult.total_found = scanResult.accounts.length;
+    scanResult.filtered_out = rawCount - scanResult.accounts.length;
+    console.log(`[individual-scan] after filtering: ${scanResult.total_found} kept, ${scanResult.filtered_out} false positives removed`);
   } catch (err) {
     console.error(`[individual-scan] failed:`, err.message);
     return {
