@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const db = require('./db');
+const { scanIndividual } = require('./individual-scan');
 
 const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
@@ -839,6 +840,8 @@ app.post('/api/demo-flow', async (req, res) => {
     industry, subindustry, region,
     recipient_role,
     individual_name,
+    individual_linkedin,
+    individual_email,
     mode
   } = req.body || {};
   const isDemo = mode === 'demo';
@@ -927,6 +930,29 @@ app.post('/api/demo-flow', async (req, res) => {
       solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source, tde_collection: solution.tde_collection, tde_atom_count: solution.tde_atom_count },
       customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms, source: customer.source, tde_collection: customer.tde_collection, tde_atom_count: customer.tde_atom_count }
     });
+
+    // ── INDIVIDUAL OSINT: If a LinkedIn URL was provided, fire Maigret scan
+    //    and inject discovered accounts as additional customer-side atoms.
+    if (individual_linkedin) {
+      try {
+        send('phase', { phase: 'individual_scan', message: `Scanning individual digital footprint via Maigret…` });
+        const { atoms: individualAtoms } = await scanIndividual({
+          linkedin_url: individual_linkedin,
+          email: individual_email || null,
+          title: recipient_role || null,
+          name: individual_name || null,
+          tier: 1,
+        });
+        if (individualAtoms.length) {
+          customer.atoms = [...(customer.atoms || []), ...individualAtoms];
+          send('phase', { phase: 'individual_scan', message: `Injected ${individualAtoms.length} individual OSINT atoms` });
+          console.log(`[demo-flow] injected ${individualAtoms.length} individual OSINT atoms`);
+        }
+      } catch (err) {
+        console.error(`[demo-flow] individual scan failed (non-blocking):`, err.message);
+        send('phase', { phase: 'individual_scan', message: `Individual scan skipped: ${err.message}` });
+      }
+    }
 
     // ── PHASE 3: Pain points — dedicated LLM pass that always returns company,
     //    sub-industry, and industry pain groups (not just an atom-type filter).
@@ -3222,6 +3248,24 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
   } finally {
     clearInterval(keepAlive);
     res.end();
+  }
+});
+
+// ─── INDIVIDUAL SCAN (standalone test endpoint) ─────────────────────────────
+app.post('/api/individual-scan', async (req, res) => {
+  const { linkedin_url, email, title, name, tier } = req.body || {};
+  if (!linkedin_url) return res.status(400).json({ error: 'linkedin_url required' });
+  try {
+    const result = await scanIndividual({
+      linkedin_url,
+      email: email || null,
+      title: title || null,
+      name: name || null,
+      tier: tier || 1,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
