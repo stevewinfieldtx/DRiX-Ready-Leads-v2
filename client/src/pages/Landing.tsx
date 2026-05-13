@@ -198,7 +198,7 @@ export default function Landing() {
             </div>
             <div className="text-center">
               <div className="text-3xl sm:text-4xl font-black gradient-text">5</div>
-              <div className="text-[10px] sm:text-xs text-drix-muted uppercase tracking-widest font-semibold mt-1">Strategies Each</div>
+              <div className="text-[10px] sm:text-xs text-drix-muted uppercase tracking-widest font-semibold mt-1">Sales Strategies</div>
             </div>
           </motion.div>
         </div>
@@ -373,7 +373,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="DRiX" className="h-7 w-auto" />
+              <img src="/DRiX-Logo.jpg" alt="DRiX" className="h-7 w-auto" />
             </div>
             <div className="text-xs text-drix-muted tracking-widest uppercase">
               by WinTech Partners

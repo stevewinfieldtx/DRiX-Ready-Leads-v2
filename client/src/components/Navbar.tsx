@@ -37,7 +37,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Brand */}
           <Link to="/" className="flex items-center gap-3 group">
-            <img src="/logo.png" alt="DRiX" className="h-8 w-auto" />
+            <img src="/DRiX-Logo.jpg" alt="DRiX" className="h-8 w-auto" />
           </Link>
 
           {/* Desktop Nav */}
