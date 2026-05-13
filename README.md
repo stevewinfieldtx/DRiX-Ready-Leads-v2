@@ -96,3 +96,4 @@ Total demo time: ~45 seconds of watching + ~60 seconds of narration = **under tw
 - **Some sites won't fetch cleanly.** Heavy SPAs (React-only, no SSR) return mostly empty HTML. Have 2-3 known-good URLs ready as fallbacks. Vietnamese bank sites (Techcombank, BIDV, Vietcombank) and content-heavy sites generally work well.
 - **First run takes longer.** OpenRouter cold start + three sequential LLM calls = 25-45 seconds typical. Tell him upfront: "about 30 seconds to watch it work."
 - **If the email feels generic, it means the target didn't have enough content.** Blame the target's thin website, not TDE. Recovery line: "When we run this against a richer content source — LinkedIn profiles, their actual docs, a product catalog — the output gets sharper. This is just what their public homepage gave us."
+# DRiX-Ready-Leads-v2
