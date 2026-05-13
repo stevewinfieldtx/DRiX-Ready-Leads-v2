@@ -18,7 +18,7 @@ node_modules/
 jspm_packages/
 
 # ==== Build / runtime output ====
-dist/
+# dist/ is committed because Railway doesn't build the React client
 build/
 .cache/
 *.log
