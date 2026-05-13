@@ -1,0 +1,30 @@
+import path from "path"
+import react from "@vitejs/plugin-react"
+import { defineConfig } from "vite"
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/healthz': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
+  },
+  build: {
+    outDir: '../dist',
+    emptyOutDir: true,
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});

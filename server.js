@@ -13,6 +13,8 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json({ limit: '500kb' }));
+// Serve the React build (from client/build → dist/) first, then legacy public/
+app.use(express.static(path.join(__dirname, 'dist')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
@@ -3316,6 +3318,20 @@ app.post('/api/individual-scan', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SPA FALLBACK ────────────────────────────────────────────────────────────
+// For any non-API routes that don't match a static file, serve the React app
+const fs = require('fs');
+const distIndex = path.join(__dirname, 'dist', 'index.html');
+app.get('*', (req, res) => {
+  // Only serve SPA fallback if dist/index.html exists (i.e. React app has been built)
+  if (fs.existsSync(distIndex)) {
+    res.sendFile(distIndex);
+  } else {
+    // Fall back to legacy public/index.html
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
 });
 
