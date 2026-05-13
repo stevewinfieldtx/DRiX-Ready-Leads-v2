@@ -966,8 +966,13 @@ app.post('/api/demo-flow', async (req, res) => {
           summary: individualResult.summary || '',
           atoms: individualResult.atoms || [],
           pitch_angles: individualResult.pitch_angles || [],
+          career_highlights: individualResult.career_highlights || [],
+          public_signals: individualResult.public_signals || [],
+          vendor_opinions: individualResult.vendor_opinions || [],
+          leadership_style: individualResult.leadership_style || null,
+          pain_signals: individualResult.pain_signals || [],
           scan: individualResult.scan || {},
-          source: 'web_research'
+          source: 'llm_research'
         };
         send('individual', individual);
         const webCount = individualResult.scan?.web_results || 0;
