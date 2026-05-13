@@ -1280,9 +1280,9 @@ export default function DrixApp() {
             </span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-drix-text mb-3 tracking-tight">
-            Build Your <span className="gradient-text">Intelligence</span>
+            Build Your <span className="text-drix-accent">Intelligence</span>
           </h1>
-          <p className="text-drix-dim max-w-lg mx-auto text-sm">
+          <p className="text-drix-dim max-w-2xl mx-auto text-sm leading-relaxed">
             Fill in what you know. Skip what you don't. DRiX adapts to whatever depth you provide.
           </p>
         </motion.div>
