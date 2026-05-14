@@ -34,14 +34,14 @@ export default function Navbar() {
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Brand */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <img src="/DRiX-Logo.jpg" alt="DRiX" className="h-8 w-auto" />
+        <div className="flex items-center h-16 relative">
+          {/* Brand — fixed width so center nav is truly centered */}
+          <Link to="/" className="flex items-center gap-3 group flex-shrink-0">
+            <img src="/DRiX-Logo.jpg" alt="DRiX" className="h-11 w-auto" />
           </Link>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1">
+          {/* Desktop Nav — absolutely centered */}
+          <div className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
             {navLinks.map((link) => (
               <Link
                 key={link.path}
@@ -57,8 +57,8 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Launch Button */}
-          <div className="hidden md:block">
+          {/* Launch Button — pushed to the right */}
+          <div className="hidden md:block ml-auto">
             <Link
               to="/app"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow transition-all duration-300 hover:-translate-y-0.5"
