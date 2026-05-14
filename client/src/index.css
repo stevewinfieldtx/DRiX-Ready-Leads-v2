@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    /* ── DRiX theme tokens (hex values — used in inline styles & custom classes) ── */
     --bg: #0a0e13;
     --surface: #121820;
     --surface-2: #1a222c;
@@ -13,8 +14,8 @@
     --text: #e8ecf2;
     --text-dim: #a8b2c0;
     --text-muted: #6b7685;
-    --border: #2a3542;
-    --accent: #5aa9ff;
+    --dx-border: #2a3542;
+    --dx-accent: #5aa9ff;
     --accent-glow: rgba(90, 169, 255, 0.4);
     --green: #3ddc84;
     --yellow: #ffc757;
@@ -24,6 +25,7 @@
     --pink: #ff67c3;
     --cyan: #5ad4ff;
 
+    /* ── shadcn/ui tokens (HSL without wrapper — used by Tailwind hsl()) ── */
     --background: 216 28% 5%;
     --foreground: 216 20% 93%;
     --card: 216 24% 8%;
@@ -84,7 +86,7 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--border);
+    background: var(--dx-border);
   }
 }
 
@@ -108,7 +110,7 @@
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, var(--text) 0%, var(--accent) 60%, var(--purple) 100%);
+    background: linear-gradient(135deg, var(--text) 0%, var(--dx-accent) 60%, var(--purple) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -124,7 +126,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, var(--accent), var(--purple));
+    background: linear-gradient(135deg, var(--dx-accent), var(--dx-purple));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -140,7 +142,7 @@
     content: '';
     position: absolute;
     inset: -2px;
-    background: linear-gradient(135deg, var(--accent), var(--purple));
+    background: linear-gradient(135deg, var(--dx-accent), var(--dx-purple));
     border-radius: inherit;
     z-index: -1;
     opacity: 0;

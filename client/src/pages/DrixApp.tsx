@@ -369,7 +369,7 @@ export default function DrixApp() {
     ]
     let html = `
       <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:24px 0 12px;display:flex;align-items:center;gap:8px;">
-        <span style="width:14px;height:2px;background:var(--accent);border-radius:2px;"></span>
+        <span style="width:14px;height:2px;background:var(--dx-accent);border-radius:2px;"></span>
         6D-Tagged Atoms
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
@@ -384,7 +384,7 @@ export default function DrixApp() {
 
   const renderAtomGroup = (entry: any, g: any) => {
     if (!entry)
-      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;"><div style="font-size:12px;font-weight:800;color:var(--text);">${esc(g.label)}</div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">No data.</div></div>`
+      return `<div style="background:var(--surface);border:1px solid var(--dx-border);border-radius:10px;padding:14px;"><div style="font-size:12px;font-weight:800;color:var(--text);">${esc(g.label)}</div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">No data.</div></div>`
     const name = entry.target?.name || g.label
     const atoms = entry.atoms || []
     const count = atoms.length
@@ -427,11 +427,11 @@ export default function DrixApp() {
       const items = byType[type]
       const typeLabel = type.replace(/_/g, ' ')
       return `
-        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:4px;">
+        <div style="border:1px solid var(--dx-border);border-radius:8px;overflow:hidden;margin-bottom:4px;">
           <div onclick="this.classList.toggle('open');var b=this.nextElementSibling;b.style.display=b.style.display==='none'?'':'none';var a=this.querySelector('.arrow');a.textContent=a.textContent==='▶'?'▼':'▶';a.classList.toggle('open')" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;background:var(--surface-3);transition:background 0.15s;user-select:none;" onmouseover="this.style.background='rgba(90,169,255,0.08)'" onmouseout="this.style.background='var(--surface-3)'">
             <span class="arrow" style="font-size:9px;color:var(--text-muted);transition:transform 0.15s;width:12px;">▶</span>
             <span style="font-size:11px;font-weight:800;text-transform:capitalize;color:var(--text);letter-spacing:0.3px;flex:1;">${esc(typeLabel)}</span>
-            <span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;background:rgba(90,169,255,0.12);color:var(--accent);letter-spacing:0.5px;">${items.length}</span>
+            <span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;background:rgba(90,169,255,0.12);color:var(--dx-accent);letter-spacing:0.5px;">${items.length}</span>
           </div>
           <div style="display:none;flex-direction:column;gap:6px;padding:8px 10px;max-height:500px;overflow-y:auto;">
             ${items.map((a) => renderAtomMini(a, typeColors[type] || '#5aa9ff')).join('')}
@@ -441,13 +441,13 @@ export default function DrixApp() {
     }).join('')
 
     const roleColors: Record<string, string> = {
-      sender: 'rgba(90,169,255,0.15);color:var(--accent)',
+      sender: 'rgba(90,169,255,0.15);color:var(--dx-accent)',
       solution: 'rgba(61,220,132,0.15);color:var(--green)',
       customer: 'rgba(181,131,255,0.15);color:var(--purple)',
     }
 
     return `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 14px 10px;">
+      <div style="background:var(--surface);border:1px solid var(--dx-border);border-radius:10px;padding:14px 14px 10px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;gap:8px;">
           <div>
             <div style="font-size:12px;font-weight:800;letter-spacing:0.3px;color:var(--text);">${esc(name)}</div>
@@ -474,14 +474,14 @@ export default function DrixApp() {
         ? `${esc(shortCode(ind.naics))}<br><span style="color:var(--muted)">${esc(shortCode(ind.sic))}</span>`
         : '—'
     return `
-      <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid ${color};border-radius:6px;padding:8px 10px;">
+      <div style="background:var(--bg);border:1px solid var(--dx-border);border-left:3px solid ${color};border-radius:6px;padding:8px 10px;">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;">
           <span style="font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:${color};font-weight:800;">${esc((a.type || '').replace(/_/g, ' '))}</span>
           <span style="font-size:9px;color:var(--text-muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;">${esc(a.confidence || '')}</span>
         </div>
         <div style="font-size:12px;color:var(--text);line-height:1.4;margin-bottom:6px;">${esc(a.claim)}</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:4px;">
-          <div style="background:var(--surface-3);border-radius:3px;padding:3px 5px;font-size:8px;line-height:1.2;text-align:left;min-height:32px;border-left:2px solid var(--accent);">
+          <div style="background:var(--surface-3);border-radius:3px;padding:3px 5px;font-size:8px;line-height:1.2;text-align:left;min-height:32px;border-left:2px solid var(--dx-accent);">
             <div style="font-size:7px;color:var(--text-muted);letter-spacing:0.5px;text-transform:uppercase;font-weight:700;">Persona</div>
             <div style="font-size:9px;color:var(--text);font-weight:600;margin-top:1px;">${esc(short(a.d_persona))}</div>
           </div>
@@ -551,10 +551,10 @@ export default function DrixApp() {
 
     let html = `
       <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:24px 0 12px;display:flex;align-items:center;gap:8px;">
-        <span style="width:14px;height:2px;background:var(--accent);border-radius:2px;"></span>
+        <span style="width:14px;height:2px;background:var(--dx-accent);border-radius:2px;"></span>
         Individual Intelligence — ${esc(name)}
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:8px;">
+      <div style="background:var(--surface);border:1px solid var(--dx-border);border-radius:10px;padding:16px;margin-top:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div>
             <div style="font-size:16px;font-weight:700;">${esc(name)}</div>
@@ -603,7 +603,7 @@ export default function DrixApp() {
       (groups.industry_pain?.length || 0)
     if (total === 0) {
       setPainHtml(
-        `<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:24px 0 12px;display:flex;align-items:center;gap:8px;"><span style="width:14px;height:2px;background:var(--accent);border-radius:2px;"></span>Customer Pain Points</div><div style="color:var(--text-dim);font-size:13px;">Pain surfacing returned nothing — try a richer customer URL, or add industry/sub-industry.</div>`
+        `<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:24px 0 12px;display:flex;align-items:center;gap:8px;"><span style="width:14px;height:2px;background:var(--dx-accent);border-radius:2px;"></span>Customer Pain Points</div><div style="color:var(--text-dim);font-size:13px;">Pain surfacing returned nothing — try a richer customer URL, or add industry/sub-industry.</div>`
       )
       setShowPain(true)
       return
@@ -632,7 +632,7 @@ export default function DrixApp() {
 
     setPainHtml(`
       <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:24px 0 12px;display:flex;align-items:center;gap:8px;">
-        <span style="width:14px;height:2px;background:var(--accent);border-radius:2px;"></span>
+        <span style="width:14px;height:2px;background:var(--dx-accent);border-radius:2px;"></span>
         Pain Points — ${total} across company, sub-industry, industry
       </div>
       ${section('Company-specific', groups.company_pain, 'company')}
@@ -669,17 +669,17 @@ export default function DrixApp() {
     let personaHtml = ''
     if (p.persona_primary && p.persona_secondary) {
       personaHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-        <div style="flex:1;min-width:140px;background:var(--surface-2);border-radius:6px;padding:6px 8px;border-left:2px solid var(--accent);">
+        <div style="flex:1;min-width:140px;background:var(--surface-2);border-radius:6px;padding:6px 8px;border-left:2px solid var(--dx-accent);">
           <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:2px;">Primary Owner</div>
           <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px;">${esc(p.persona_primary.title || '')}</div>
-          ${p.persona_primary.rationale ? `<div style="font-size:10px;color:var(--accent);font-weight:600;line-height:1.4;margin-bottom:2px;">${esc(p.persona_primary.rationale)}</div>` : ''}
+          ${p.persona_primary.rationale ? `<div style="font-size:10px;color:var(--dx-accent);font-weight:600;line-height:1.4;margin-bottom:2px;">${esc(p.persona_primary.rationale)}</div>` : ''}
           <div style="font-size:10px;color:var(--text-dim);line-height:1.4;font-style:italic;">${esc(p.persona_primary.perspective || '')}</div>
           ${personaChips(p.persona_primary)}
         </div>
         <div style="flex:1;min-width:140px;background:var(--surface-2);border-radius:6px;padding:6px 8px;border-left:2px solid var(--text-muted);">
           <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:700;margin-bottom:2px;">Also Affected</div>
           <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px;">${esc(p.persona_secondary.title || '')}</div>
-          ${p.persona_secondary.rationale ? `<div style="font-size:10px;color:var(--accent);font-weight:600;line-height:1.4;margin-bottom:2px;">${esc(p.persona_secondary.rationale)}</div>` : ''}
+          ${p.persona_secondary.rationale ? `<div style="font-size:10px;color:var(--dx-accent);font-weight:600;line-height:1.4;margin-bottom:2px;">${esc(p.persona_secondary.rationale)}</div>` : ''}
           <div style="font-size:10px;color:var(--text-dim);line-height:1.4;font-style:italic;">${esc(p.persona_secondary.perspective || '')}</div>
           ${personaChips(p.persona_secondary)}
         </div>
@@ -692,7 +692,7 @@ export default function DrixApp() {
       <div style="background:${bgColors[tone] || bgColors.company};border:1px solid ${borderColors[tone] || borderColors.company}30;border-left:3px solid ${borderColors[tone] || borderColors.company};border-radius:8px;padding:12px 14px;">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">${esc(p.title || '')}</div>
         <div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:6px;">${esc(p.description || '')}</div>
-        ${p.evidence ? `<div style="font-size:10px;color:var(--text-muted);font-style:italic;margin-bottom:6px;line-height:1.4;border-left:2px solid var(--border);padding-left:6px;">${esc(p.evidence)}</div>` : ''}
+        ${p.evidence ? `<div style="font-size:10px;color:var(--text-muted);font-style:italic;margin-bottom:6px;line-height:1.4;border-left:2px solid var(--dx-border);padding-left:6px;">${esc(p.evidence)}</div>` : ''}
         ${personaHtml}
       </div>
     `
@@ -705,7 +705,7 @@ export default function DrixApp() {
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
         <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:0;display:flex;align-items:center;gap:8px;">
-          <span style="width:14px;height:2px;background:var(--accent);border-radius:2px;"></span>
+          <span style="width:14px;height:2px;background:var(--dx-accent);border-radius:2px;"></span>
           Sales Strategies — ${strats.length}
         </div>
         <div style="font-size:12px;color:var(--text-dim);">
@@ -716,20 +716,20 @@ export default function DrixApp() {
       </div>
       <div style="display:flex;flex-direction:column;gap:12px;">
         ${strats.map((s: any) => renderStratCard(s, s.id === topId)).join('')}
-        <div style="background:var(--bg);border:2px dashed var(--border);border-radius:12px;padding:14px 16px;text-align:center;">
-          <button onclick="window.toggleCustomStrat()" style="background:transparent;border:none;color:var(--accent);font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;padding:4px 8px;">+ Add your own (6th) strategy</button>
+        <div style="background:var(--bg);border:2px dashed var(--dx-border);border-radius:12px;padding:14px 16px;text-align:center;">
+          <button onclick="window.toggleCustomStrat()" style="background:transparent;border:none;color:var(--dx-accent);font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;padding:4px 8px;">+ Add your own (6th) strategy</button>
           <div id="custom-strat-form" style="display:none;text-align:left;margin-top:8px;">
-            <input type="text" id="custom-title-input" placeholder="Strategy title" style="width:100%;margin-bottom:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit;" />
-            <textarea id="custom-explain-input" placeholder="Explain in 2-3 sentences why this wins." style="width:100%;margin-bottom:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;min-height:60px;"></textarea>
-            <button onclick="window.saveCustomStrat()" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:8px 16px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;font-family:inherit;">Save custom strategy</button>
+            <input type="text" id="custom-title-input" placeholder="Strategy title" style="width:100%;margin-bottom:8px;background:var(--surface-2);border:1px solid var(--dx-border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit;" />
+            <textarea id="custom-explain-input" placeholder="Explain in 2-3 sentences why this wins." style="width:100%;margin-bottom:8px;background:var(--surface-2);border:1px solid var(--dx-border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;min-height:60px;"></textarea>
+            <button onclick="window.saveCustomStrat()" style="background:transparent;border:1px solid var(--dx-border);color:var(--text-dim);padding:8px 16px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;font-family:inherit;">Save custom strategy</button>
           </div>
         </div>
       </div>
-      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--dx-border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
         <div id="strat-action-info" style="font-size:13px;color:var(--text);font-weight:600;">Click a strategy to select it. Multi-select to trigger Sales Advisor Storm.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="btn-proceed" disabled onclick="window.onProceed()" style="background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;font-weight:800;cursor:not-allowed;font-family:inherit;transition:all 0.15s;letter-spacing:0.3px;opacity:0.7;">Proceed with selected →</button>
-          <button id="btn-storm" disabled onclick="window.onAdvisorStorm()" style="display:none;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.4;cursor:not-allowed;">Run Sales Advisor Storm</button>
+          <button id="btn-proceed" disabled onclick="window.onProceed()" style="background:var(--surface-3);color:var(--text-dim);border:1px solid var(--dx-border);border-radius:10px;padding:10px 20px;font-size:13px;font-weight:800;cursor:not-allowed;font-family:inherit;transition:all 0.15s;letter-spacing:0.3px;opacity:0.7;">Proceed with selected →</button>
+          <button id="btn-storm" disabled onclick="window.onAdvisorStorm()" style="display:none;background:linear-gradient(135deg,var(--dx-accent),var(--purple));color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.4;cursor:not-allowed;">Run Sales Advisor Storm</button>
         </div>
       </div>
     `
@@ -746,18 +746,18 @@ export default function DrixApp() {
     const forceStyles: Record<string, string> = {
       economic_pull: 'background:rgba(61,220,132,0.12);color:var(--green);',
       counter_inertia: 'background:rgba(255,103,195,0.12);color:var(--pink);',
-      balanced: 'background:rgba(90,169,255,0.12);color:var(--accent);',
+      balanced: 'background:rgba(90,169,255,0.12);color:var(--dx-accent);',
     }
     return `
-      <div class="strat-card ${isTop ? 'top-pick' : ''}" data-strat-id="${esc(s.id)}" onclick="window.toggleStrat('${esc(s.id)}')" style="background:var(--surface-2);border:2px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;cursor:pointer;transition:all 0.15s;${isTop ? '' : ''}">
+      <div class="strat-card ${isTop ? 'top-pick' : ''}" data-strat-id="${esc(s.id)}" onclick="window.toggleStrat('${esc(s.id)}')" style="background:var(--surface-2);border:2px solid var(--dx-border);border-radius:12px;padding:16px 18px;position:relative;cursor:pointer;transition:all 0.15s;${isTop ? '' : ''}">
         ${isTop ? `<div style="position:absolute;top:12px;right:14px;font-size:9px;letter-spacing:1.5px;font-weight:800;color:var(--yellow);background:rgba(255,199,87,0.15);padding:3px 8px;border-radius:10px;">TOP PICK</div>` : ''}
         <div style="display:flex;gap:10px;margin-bottom:10px;padding-right:80px;align-items:flex-start;">
-          <div class="strat-check" style="width:22px;height:22px;border:2px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;background:var(--bg);margin-top:2px;"></div>
+          <div class="strat-check" style="width:22px;height:22px;border:2px solid var(--dx-border);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;background:var(--bg);margin-top:2px;"></div>
           <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.3;">${esc(s.title)}</div>
         </div>
         <div style="margin-bottom:10px;">
-          <span style="display:inline-flex;align-items:center;gap:0;font-size:11px;font-weight:800;letter-spacing:0.3px;margin-bottom:10px;padding:0;border:1px solid var(--border);border-radius:14px;overflow:hidden;max-width:100%;">
-            <span style="background:rgba(90,169,255,0.15);color:var(--accent);padding:4px 10px;">${esc(persona)}</span>
+          <span style="display:inline-flex;align-items:center;gap:0;font-size:11px;font-weight:800;letter-spacing:0.3px;margin-bottom:10px;padding:0;border:1px solid var(--dx-border);border-radius:14px;overflow:hidden;max-width:100%;">
+            <span style="background:rgba(90,169,255,0.15);color:var(--dx-accent);padding:4px 10px;">${esc(persona)}</span>
             <span style="background:var(--surface-3);color:var(--text-muted);padding:4px 6px;font-size:10px;">×</span>
             <span style="background:rgba(255,90,90,0.12);color:#ff9a9a;padding:4px 10px;">${esc(pain)}</span>
           </span>
@@ -765,13 +765,13 @@ export default function DrixApp() {
         </div>
         <div style="font-size:13px;color:var(--text-dim);line-height:1.55;margin-bottom:10px;margin-top:10px;">${esc(s.explanation)}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:10px;">
-          <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">Customer pain</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.customer_pain)}</div></div>
-          <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">You bring</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.sender_contribution)}</div></div>
-          <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">Solution delivers</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.solution_contribution)}</div></div>
-          <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">First step</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.first_step)}</div></div>
+          <div style="background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">Customer pain</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.customer_pain)}</div></div>
+          <div style="background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">You bring</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.sender_contribution)}</div></div>
+          <div style="background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">Solution delivers</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.solution_contribution)}</div></div>
+          <div style="background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;padding:8px 10px;"><div style="font-size:8px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:3px;">First step</div><div style="font-size:11px;color:var(--text);line-height:1.4;">${esc(s.first_step)}</div></div>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-top:10px;border-top:1px dashed var(--border);">
-          <span style="font-size:10px;background:rgba(90,169,255,0.1);color:var(--accent);padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:0.3px;">${esc(persona)}</span>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-top:10px;border-top:1px dashed var(--dx-border);">
+          <span style="font-size:10px;background:rgba(90,169,255,0.1);color:var(--dx-accent);padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:0.3px;">${esc(persona)}</span>
           <span style="font-size:10px;color:var(--text-dim);font-weight:700;letter-spacing:0.5px;">CONFIDENCE ${confPct}<span style="display:inline-block;width:60px;height:4px;background:var(--surface-3);border-radius:2px;margin-left:6px;vertical-align:middle;"><span style="display:block;height:100%;background:var(--green);border-radius:2px;width:${confPct}%;"></span></span></span>
         </div>
       </div>
@@ -897,7 +897,7 @@ export default function DrixApp() {
         check.innerHTML = '✓'
       } else {
         card.classList.remove('selected')
-        check.style.borderColor = 'var(--border)'
+        check.style.borderColor = 'var(--dx-border)'
         check.style.background = 'var(--bg)'
         check.style.color = ''
         check.style.fontWeight = ''
@@ -915,7 +915,7 @@ export default function DrixApp() {
       proceed.style.opacity = '0.7'
       proceed.style.background = 'var(--surface-3)'
       proceed.style.color = 'var(--text-dim)'
-      proceed.style.border = '1px solid var(--border)'
+      proceed.style.border = '1px solid var(--dx-border)'
       proceed.style.cursor = 'not-allowed'
       proceed.style.display = ''
       storm.disabled = true
@@ -927,7 +927,7 @@ export default function DrixApp() {
       info.style.fontSize = '13px'
       proceed.disabled = false
       proceed.style.opacity = '1'
-      proceed.style.background = 'linear-gradient(135deg,var(--green),var(--accent))'
+      proceed.style.background = 'linear-gradient(135deg,var(--green),var(--dx-accent))'
       proceed.style.color = '#0a0e13'
       proceed.style.border = 'none'
       proceed.style.cursor = 'pointer'
@@ -957,7 +957,7 @@ export default function DrixApp() {
         Lead Hydration
       </div>
       <div style="color:var(--text-dim);font-size:13px;display:flex;align-items:center;gap:10px;">
-        <span style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block;vertical-align:middle;"></span>
+        <span style="width:14px;height:14px;border:2px solid var(--dx-border);border-top-color:var(--dx-accent);border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block;vertical-align:middle;"></span>
         Calling DRiX Ready Lead ... researching solution, mapping pain, generating discovery questions...
       </div>
     `)
@@ -1010,21 +1010,21 @@ export default function DrixApp() {
     const questionsHtml = (h.questions || [])
       .map(
         (q: any) => `
-      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px;">
-        <div style="font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:6px;">${esc(q.stage || 'Question')}</div>
+      <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;padding:16px 18px;margin-bottom:14px;">
+        <div style="font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:var(--dx-accent);font-weight:800;margin-bottom:6px;">${esc(q.stage || 'Question')}</div>
         <div style="font-size:14px;color:var(--text);line-height:1.55;margin-bottom:12px;font-weight:600;">${esc(q.question)}</div>
         <div style="margin-bottom:10px;">
           <div style="font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:4px;">Purpose — why ask this</div>
           <div style="font-size:12px;color:var(--text-dim);line-height:1.55;">${esc(q.purpose || '')}</div>
         </div>
         ${q.pain_it_targets ? `<div style="margin-bottom:10px;"><div style="font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:4px;">Pain it targets</div><div style="font-size:12px;color:var(--text-dim);line-height:1.55;">${esc(q.pain_it_targets)}</div></div>` : ''}
-        ${q.tone_guidance ? `<div style="background:rgba(90,169,255,0.06);border-left:2px solid var(--accent);padding:8px 12px;border-radius:4px;font-size:11px;color:var(--text-dim);line-height:1.5;margin-top:4px;font-style:italic;">${esc(q.tone_guidance)}</div>` : ''}
+        ${q.tone_guidance ? `<div style="background:rgba(90,169,255,0.06);border-left:2px solid var(--dx-accent);padding:8px 12px;border-radius:4px;font-size:11px;color:var(--text-dim);line-height:1.5;margin-top:4px;font-style:italic;">${esc(q.tone_guidance)}</div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
           <div>
             ${(q.positive_responses || [])
               .map(
                 (r: any) => `
-              <div style="border-radius:6px;padding:10px 12px;border:1px solid var(--border);background:rgba(61,220,132,0.05);border-left:2px solid var(--green);margin-bottom:6px;">
+              <div style="border-radius:6px;padding:10px 12px;border:1px solid var(--dx-border);background:rgba(61,220,132,0.05);border-left:2px solid var(--green);margin-bottom:6px;">
                 <div style="font-size:9px;letter-spacing:1.3px;text-transform:uppercase;font-weight:800;margin-bottom:4px;color:var(--green);">If they say (positive)</div>
                 <div style="font-size:11px;color:var(--text);font-style:italic;line-height:1.5;margin-bottom:6px;">"${esc(r.response)}"</div>
                 <div style="font-size:11px;color:var(--text-dim);line-height:1.5;"><strong style="color:var(--text);">Next:</strong> ${esc(r.next_step)}</div>
@@ -1037,7 +1037,7 @@ export default function DrixApp() {
             ${(q.neutral_negative_responses || q.negative_responses || [])
               .map(
                 (r: any) => `
-              <div style="border-radius:6px;padding:10px 12px;border:1px solid var(--border);background:rgba(255,90,90,0.04);border-left:2px solid var(--red);margin-bottom:6px;">
+              <div style="border-radius:6px;padding:10px 12px;border:1px solid var(--dx-border);background:rgba(255,90,90,0.04);border-left:2px solid var(--red);margin-bottom:6px;">
                 <div style="font-size:9px;letter-spacing:1.3px;text-transform:uppercase;font-weight:800;margin-bottom:4px;color:var(--red);">If they say (pivot to recover)</div>
                 <div style="font-size:11px;color:var(--text);font-style:italic;line-height:1.5;margin-bottom:6px;">"${esc(r.response)}"</div>
                 <div style="font-size:11px;color:var(--text-dim);line-height:1.5;"><strong>Pivot:</strong> ${esc(r.pivot || r.next_step || '')}</div>
@@ -1056,7 +1056,7 @@ export default function DrixApp() {
     const emailsHtml = emails
       .map(
         (em: any, i: number) => `
-      <div style="background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--cyan);border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+      <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-left:3px solid var(--cyan);border-radius:8px;padding:12px 14px;margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
           <span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--cyan);">${esc(em.label || 'Email ' + (em.step || i + 1))}</span>
           ${em.sendDay ? `<span style="font-size:10px;color:var(--text-muted);background:var(--surface-3);padding:2px 8px;border-radius:8px;">${esc(em.sendDay)}</span>` : ''}
@@ -1073,7 +1073,7 @@ export default function DrixApp() {
         <span style="width:14px;height:2px;background:var(--green);border-radius:2px;"></span>
         Lead Hydration — Strategy: ${esc(chosen.title || '')}
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--dx-border);flex-wrap:wrap;">
         <div style="flex:1;min-width:240px;">
           <div style="font-size:13px;color:var(--text-dim);line-height:1.55;">${esc(h.whoIsThis || '—')}</div>
         </div>
@@ -1082,7 +1082,7 @@ export default function DrixApp() {
           <div style="font-size:9px;letter-spacing:1.5px;color:var(--text-muted);font-weight:800;margin-top:3px;">FIT SCORE</div>
         </div>
       </div>
-      ${h.primaryLead ? `<div style="background:var(--surface-2);border-left:3px solid var(--accent);padding:10px 14px;border-radius:6px;margin-bottom:16px;"><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:4px;">Primary lead — who to target</div><div style="font-size:14px;color:var(--text);font-weight:700;">${esc(h.primaryLead.title)} · <span style="color:var(--text-dim);font-weight:500">${esc(h.primaryLead.topic)}</span></div></div>` : ''}
+      ${h.primaryLead ? `<div style="background:var(--surface-2);border-left:3px solid var(--dx-accent);padding:10px 14px;border-radius:6px;margin-bottom:16px;"><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:4px;">Primary lead — who to target</div><div style="font-size:14px;color:var(--text);font-weight:700;">${esc(h.primaryLead.title)} · <span style="color:var(--text-dim);font-weight:500">${esc(h.primaryLead.topic)}</span></div></div>` : ''}
       ${painsHtml ? `<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><span style="width:14px;height:2px;background:var(--red);border-radius:2px;"></span>Pain Indicators</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px;">${painsHtml}</div>` : ''}
       ${questionsHtml ? `<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><span style="width:14px;height:2px;background:var(--green);border-radius:2px;"></span>Discovery Questions</div>${questionsHtml}` : ''}
       ${emailsHtml ? `<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:24px 0 12px;display:flex;align-items:center;gap:8px;"><span style="width:14px;height:2px;background:var(--cyan);border-radius:2px;"></span>Email Drip Campaign (${emails.length}-step sequence)</div><div style="display:flex;flex-direction:column;gap:10px;">${emailsHtml}</div>` : ''}
@@ -1149,7 +1149,7 @@ export default function DrixApp() {
       .map((t: any) => t.signal_reading || t.what_it_means)
 
     let html = `
-      <div style="display:flex;gap:14px;align-items:center;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;">
+      <div style="display:flex;gap:14px;align-items:center;padding:12px 14px;background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;margin-bottom:16px;">
         <div style="border:2px solid ${scoreColor};border-radius:50%;width:70px;height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;color:${scoreColor}">
           <div style="font-size:22px;font-weight:800;line-height:1;">${esc(health.score ?? '?')}</div>
           <div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:0.7;margin-top:2px;">STATUS</div>
@@ -1163,7 +1163,7 @@ export default function DrixApp() {
 
     if (customerNeeds.length) {
       html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--purple);margin:14px 0 8px;">What the customer is telling you</div>`
-      html += customerNeeds.map((n: string) => `<div style="font-size:12px;color:var(--text);line-height:1.55;padding:6px 10px;border-left:2px solid var(--accent);margin-bottom:6px;background:rgba(90,169,255,0.04);border-radius:0 6px 6px 0;">${esc(n)}</div>`).join('')
+      html += customerNeeds.map((n: string) => `<div style="font-size:12px;color:var(--text);line-height:1.55;padding:6px 10px;border-left:2px solid var(--dx-accent);margin-bottom:6px;background:rgba(90,169,255,0.04);border-radius:0 6px 6px 0;">${esc(n)}</div>`).join('')
     }
 
     if (nextSteps.length) {
@@ -1171,15 +1171,15 @@ export default function DrixApp() {
       html += nextSteps
         .map((s: any) => {
           if (typeof s === 'string')
-            return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:12px;font-weight:700;color:var(--text);flex:1;">${esc(s)}</div></div>`
+            return `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:12px;font-weight:700;color:var(--text);flex:1;">${esc(s)}</div></div>`
           return `
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+          <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
               <div style="font-size:12px;font-weight:700;color:var(--text);flex:1;">${esc(s.action || '')}</div>
               ${s.timing ? `<span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(168,85,247,0.15);color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;">${esc(s.timing)}</span>` : ''}
             </div>
             ${s.methodology ? `<div style="font-size:9px;color:var(--text-dim);font-weight:600;letter-spacing:0.3px;margin-bottom:4px;">${esc(s.methodology)}</div>` : ''}
-            ${s.script ? `<div onclick="navigator.clipboard.writeText(this.innerText).then(()=>{this.style.outline='2px solid var(--green)';setTimeout(()=>this.style.outline='',800)})" style="font-size:12px;color:var(--text-dim);line-height:1.55;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;white-space:pre-wrap;cursor:pointer;position:relative;">${esc(s.script)}</div>` : ''}
+            ${s.script ? `<div onclick="navigator.clipboard.writeText(this.innerText).then(()=>{this.style.outline='2px solid var(--green)';setTimeout(()=>this.style.outline='',800)})" style="font-size:12px;color:var(--text-dim);line-height:1.55;padding:8px 10px;background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;white-space:pre-wrap;cursor:pointer;position:relative;">${esc(s.script)}</div>` : ''}
           </div>`
         })
         .join('')
@@ -1276,7 +1276,7 @@ export default function DrixApp() {
   // ─── STYLES ─────────────────────────────────────────────────────────────
   const appStyles = `
     @keyframes spin { to { transform: rotate(360deg); } }
-    .strat-card:hover { border-color: var(--accent) !important; }
+    .strat-card:hover { border-color: var(--dx-accent) !important; }
     .strat-card.selected { border-color: var(--green) !important; background: linear-gradient(135deg, var(--surface-2) 0%, rgba(61,220,132,0.06) 100%) !important; }
     @media (max-width: 960px) { .atoms-triple { grid-template-columns: 1fr !important; } }
   `
@@ -1401,7 +1401,7 @@ export default function DrixApp() {
                   <button
                     onClick={() => fEmail.trim() && setWizardStep(1)}
                     disabled={!fEmail.trim()}
-                    className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                    className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
                     Next →
                   </button>
@@ -1459,7 +1459,7 @@ export default function DrixApp() {
                   <button
                     onClick={() => fSender.trim() && fSolution.trim() && setWizardStep(2)}
                     disabled={!fSender.trim() || !fSolution.trim()}
-                    className="px-7 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow transition-all hover:-translate-y-0.5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                    className="px-7 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
                     Next →
                   </button>
