@@ -100,6 +100,9 @@ export default function DrixApp() {
   const coachHistoryRef = useRef<{ role: string; content: string }[]>([])
   const coachEndRef = useRef<HTMLDivElement>(null)
 
+  // Ref so window.onProceed always calls the LATEST hydrate (avoids stale closure)
+  const hydrateRef = useRef<(id: string) => Promise<void>>(async () => {})
+
   // Industry / subindustry state
   const [selectedIndustry, setSelectedIndustry] = useState('')
   const [subindustryOptions, setSubindustryOptions] = useState<{ code: string; name: string }[]>([])
@@ -862,7 +865,7 @@ export default function DrixApp() {
       setAppState((s) => {
         if (s.selected.size !== 1) return s
         const id = [...s.selected][0]
-        setTimeout(() => hydrate(id), 0)
+        setTimeout(() => hydrateRef.current(id), 0)
         return s
       })
     }
@@ -890,7 +893,7 @@ export default function DrixApp() {
             if (strat && (!best || (parseInt(strat.confidence) || 0) > (parseInt(best.confidence) || 0))) best = strat
           }
           const winnerId = best ? best.id : [...s.selected][0]
-          hydrate(winnerId)
+          hydrateRef.current(winnerId)
         }
         return s
       })
@@ -1018,6 +1021,9 @@ export default function DrixApp() {
       `)
     }
   }
+
+  // Keep the ref pointing at the latest hydrate so window.onProceed never goes stale
+  hydrateRef.current = hydrate
 
   const renderHydration = (data: any) => {
     const h = data.hydration || {}
