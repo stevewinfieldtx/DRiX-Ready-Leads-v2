@@ -1401,7 +1401,7 @@ export default function DrixApp() {
                   <button
                     onClick={() => fEmail.trim() && setWizardStep(1)}
                     disabled={!fEmail.trim()}
-                    className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                    className="dx-btn-primary px-8 py-3.5 rounded-xl text-sm font-bold hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
                     Next →
                   </button>
@@ -1459,7 +1459,7 @@ export default function DrixApp() {
                   <button
                     onClick={() => fSender.trim() && fSolution.trim() && setWizardStep(2)}
                     disabled={!fSender.trim() || !fSolution.trim()}
-                    className="px-7 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                    className="dx-btn-green px-7 py-3 rounded-xl text-sm font-bold hover:shadow-glow transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
                     Next →
                   </button>
@@ -1541,7 +1541,7 @@ export default function DrixApp() {
                   </button>
                   <button
                     onClick={() => setWizardStep(3)}
-                    className="px-7 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-cyan to-drix-accent text-drix-bg hover:shadow-glow transition-all hover:-translate-y-0.5"
+                    className="dx-btn-cyan px-7 py-3 rounded-xl text-sm font-bold hover:shadow-glow transition-all hover:-translate-y-0.5"
                   >
                     {selectedIndustry ? 'Next →' : 'Skip →'}
                   </button>
@@ -1598,7 +1598,7 @@ export default function DrixApp() {
                   </button>
                   <button
                     onClick={() => setWizardStep(4)}
-                    className="px-7 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-purple to-drix-pink text-drix-bg hover:shadow-glow transition-all hover:-translate-y-0.5"
+                    className="dx-btn-purple-pink px-7 py-3 rounded-xl text-sm font-bold hover:shadow-glow transition-all hover:-translate-y-0.5"
                   >
                     {(fTitle || fCustomer) ? 'Next →' : 'Skip →'}
                   </button>
@@ -1655,7 +1655,7 @@ export default function DrixApp() {
                   </button>
                   <button
                     onClick={() => setWizardStep(5)}
-                    className="px-7 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-orange to-drix-yellow text-drix-bg hover:shadow-glow transition-all hover:-translate-y-0.5"
+                    className="dx-btn-orange px-7 py-3 rounded-xl text-sm font-bold hover:shadow-glow transition-all hover:-translate-y-0.5"
                   >
                     {(fIndividual || fIndividualEmail) ? 'Next →' : 'Skip →'}
                   </button>
@@ -1731,7 +1731,7 @@ export default function DrixApp() {
                   <button
                     onClick={runFlow}
                     disabled={running}
-                    className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center gap-2"
+                    className="dx-btn-primary px-8 py-3.5 rounded-xl text-sm font-bold hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center gap-2"
                   >
                     {running && <span className="w-4 h-4 border-2 border-drix-bg/30 border-t-drix-bg rounded-full animate-spin" />}
                     {running ? 'Building Intelligence...' : 'Build Intelligence →'}
@@ -1870,7 +1870,7 @@ export default function DrixApp() {
                   </div>
                   <button
                     onClick={() => setCsOpen(true)}
-                    className="px-5 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow transition-all whitespace-nowrap"
+                    className="dx-btn-primary px-5 py-2.5 rounded-lg text-xs font-bold hover:shadow-glow transition-all whitespace-nowrap"
                   >
                     Analyze Thread
                   </button>
@@ -1964,7 +1964,7 @@ export default function DrixApp() {
                   setStormOpen(false)
                   if (window._stormCallback) window._stormCallback()
                 }}
-                className="px-5 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow transition-all"
+                className="dx-btn-green px-5 py-2.5 rounded-lg text-xs font-bold hover:shadow-glow transition-all"
               >
                 Proceed →
               </button>
@@ -2001,7 +2001,7 @@ export default function DrixApp() {
               <div className="flex items-center gap-4 mt-3">
                 <button
                   onClick={submitClearSignals}
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow transition-all"
+                  className="dx-btn-primary px-5 py-2.5 rounded-lg text-xs font-bold hover:shadow-glow transition-all"
                 >
                   Analyze
                 </button>

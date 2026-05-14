@@ -168,7 +168,8 @@ export default function Landing() {
           >
             <Link
               to="/app"
-              className="group inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all duration-300 hover:-translate-y-0.5"
+              className="group inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold hover:shadow-glow-lg transition-all duration-300 hover:-translate-y-0.5"
+              style={{ background: 'linear-gradient(to right, #5aa9ff, #b583ff)', color: '#0a0e13' }}
             >
               Start Building Intelligence
               <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
@@ -193,8 +194,8 @@ export default function Landing() {
               <div className="text-[10px] sm:text-xs text-drix-muted uppercase tracking-widest font-semibold mt-1">Faster Close</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl sm:text-4xl font-black gradient-text">9D</div>
-              <div className="text-[10px] sm:text-xs text-drix-muted uppercase tracking-widest font-semibold mt-1">Intelligence Atoms</div>
+              <div className="text-3xl sm:text-4xl font-black gradient-text">Deep</div>
+              <div className="text-[10px] sm:text-xs text-drix-muted uppercase tracking-widest font-semibold mt-1">Contextual Tagging</div>
             </div>
             <div className="text-center">
               <div className="text-3xl sm:text-4xl font-black gradient-text">5</div>
@@ -357,7 +358,8 @@ export default function Landing() {
                 </p>
                 <Link
                   to="/app"
-                  className="inline-flex items-center gap-2 px-10 py-4 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all duration-300 hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 px-10 py-4 rounded-xl text-sm font-bold hover:shadow-glow-lg transition-all duration-300 hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(to right, #5aa9ff, #b583ff)', color: '#0a0e13' }}
                 >
                   Launch DRiX
                   <ArrowRight size={16} />

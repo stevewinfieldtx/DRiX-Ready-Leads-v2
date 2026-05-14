@@ -160,3 +160,29 @@
     text-wrap: balance;
   }
 }
+
+/* ── Gradient button backgrounds (bypass Tailwind gradient utility issues) ── */
+.dx-btn-primary {
+  background: linear-gradient(to right, #5aa9ff, #b583ff) !important;
+  color: #0a0e13 !important;
+}
+
+.dx-btn-green {
+  background: linear-gradient(to right, #3ddc84, #5aa9ff) !important;
+  color: #0a0e13 !important;
+}
+
+.dx-btn-cyan {
+  background: linear-gradient(to right, #5ad4ff, #5aa9ff) !important;
+  color: #0a0e13 !important;
+}
+
+.dx-btn-purple-pink {
+  background: linear-gradient(to right, #b583ff, #ff67c3) !important;
+  color: #0a0e13 !important;
+}
+
+.dx-btn-orange {
+  background: linear-gradient(to right, #ff9d5a, #ffc757) !important;
+  color: #0a0e13 !important;
+}

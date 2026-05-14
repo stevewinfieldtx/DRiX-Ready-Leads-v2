@@ -175,7 +175,7 @@ export default function HowItWorks() {
               <FadeIn>
                 <Link
                   to="/app"
-                  className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5"
+                  className="dx-btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold hover:shadow-glow-lg transition-all hover:-translate-y-0.5"
                 >
                   Ready? Launch DRiX <ArrowRight size={16} />
                 </Link>
@@ -254,7 +254,7 @@ export default function HowItWorks() {
               <FadeIn>
                 <Link
                   to="/app"
-                  className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5"
+                  className="dx-btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold hover:shadow-glow-lg transition-all hover:-translate-y-0.5"
                 >
                   See It In Action <ArrowRight size={16} />
                 </Link>
@@ -403,7 +403,7 @@ export default function HowItWorks() {
               <FadeIn>
                 <Link
                   to="/app"
-                  className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-cyan text-drix-bg hover:shadow-[0_0_40px_rgba(61,220,132,0.25)] transition-all hover:-translate-y-0.5"
+                  className="dx-btn-green inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold hover:shadow-[0_0_40px_rgba(61,220,132,0.25)] transition-all hover:-translate-y-0.5"
                 >
                   Try the Atomizer <ArrowRight size={16} />
                 </Link>

@@ -61,7 +61,8 @@ export default function Navbar() {
           <div className="hidden md:block ml-auto">
             <Link
               to="/app"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg hover:shadow-glow transition-all duration-300 hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold hover:shadow-glow transition-all duration-300 hover:-translate-y-0.5"
+              style={{ background: 'linear-gradient(to right, #5aa9ff, #b583ff)', color: '#0a0e13' }}
             >
               <Zap size={14} />
               Launch App
@@ -97,7 +98,8 @@ export default function Navbar() {
             ))}
             <Link
               to="/app"
-              className="block mt-2 px-4 py-3 rounded-lg text-sm font-bold bg-gradient-to-r from-drix-accent to-drix-purple text-drix-bg text-center"
+              className="block mt-2 px-4 py-3 rounded-lg text-sm font-bold text-center"
+              style={{ background: 'linear-gradient(to right, #5aa9ff, #b583ff)', color: '#0a0e13' }}
             >
               <span className="inline-flex items-center gap-2">
                 <Zap size={14} />
