@@ -88,6 +88,12 @@ export default function DrixApp() {
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [csOutput, setCsOutput] = useState('')
   const [csStatus, setCsStatus] = useState('')
+  const [demoGenerating, setDemoGenerating] = useState(false)
+  const [demoScenario, setDemoScenario] = useState('')
+  const [csFullResponse, setCsFullResponse] = useState<any>(null) // full coaching response for Play-by-Play reuse
+  const [playByPlayOutput, setPlayByPlayOutput] = useState('')
+  const [lookBackLoading, setLookBackLoading] = useState(false)
+  const [lookBackOutput, setLookBackOutput] = useState('')
   const [coachMsgs, setCoachMsgs] = useState<{ role: string; text: string }[]>([
     { role: 'system', text: 'Ask me anything about this deal. I know the pains, personas, strategies, discovery questions, and competitive angles.' },
   ])
@@ -1138,6 +1144,9 @@ export default function DrixApp() {
     }
     setCsStatus('Analyzing...')
     setCsOutput('')
+    setPlayByPlayOutput('')
+    setLookBackOutput('')
+    setCsFullResponse(null)
     try {
       const res = await fetch('/api/clearsignals', {
         method: 'POST',
@@ -1146,82 +1155,328 @@ export default function DrixApp() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Request failed')
-      renderClearSignals(data.analysis || {})
+      const analysis = data.analysis || {}
+      setCsFullResponse(analysis) // cache for Play-by-Play reuse
+      renderClearSignals(analysis)
       setCsStatus('Done.')
     } catch (e: any) {
       setCsStatus('Error: ' + e.message)
     }
   }
 
+  // ─── GENERATE DEMO THREAD ─────────────────────────────────────────────
+  const generateDemoThread = async () => {
+    if (!appState.runId) {
+      setCsStatus('No active run — complete hydration first.')
+      return
+    }
+    setDemoGenerating(true)
+    setDemoScenario('')
+    setCsStatus('Generating realistic email thread...')
+    setCsOutput('')
+    try {
+      const res = await fetch('/api/generate-demo-thread', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: appState.runId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Generation failed')
+      // Fill the textarea with the generated thread
+      const ta = document.getElementById('cs-thread') as HTMLTextAreaElement
+      if (ta) ta.value = data.thread_text || ''
+      setDemoScenario(data.scenario || '')
+      setCsStatus(`Demo thread ready — "${data.scenario}" scenario. Hit Analyze to test ClearSignals.`)
+    } catch (e: any) {
+      setCsStatus('Error: ' + e.message)
+    } finally {
+      setDemoGenerating(false)
+    }
+  }
+
+  // ─── RENDER: Tier 1 — Forward-looking coaching (no backward commentary) ──
   const renderClearSignals = (a: any) => {
     const d = a.result || a
     const health = d.deal_health || {}
-    const threadAn = Array.isArray(d.thread_analysis)
-      ? d.thread_analysis
-      : Array.isArray(d.email_analysis)
-        ? d.email_analysis
-        : Array.isArray(d.messages)
-          ? d.messages
-          : Array.isArray(d.analysis)
-            ? d.analysis
-            : []
-    const nextSteps = Array.isArray(d.next_steps)
-      ? d.next_steps
-      : Array.isArray(d.recommended_actions)
-        ? d.recommended_actions
-        : Array.isArray(d.action_items)
-          ? d.action_items
-          : []
-    void (d.rep_scorecard || d.scorecard || {})
+    const final = d.final || {}
+
+    // ClearSignalsAI coaching mode returns: final.deal_health, final.trajectory,
+    // final.recommended_actions, final.coach, final.unresolved_items, etc.
+    // LeadHydration fallback returns: deal_health, next_steps, thread_analysis, etc.
+    // We handle both shapes.
+
+    const score = health.score ?? final.win_pct ?? '?'
+    const scoreNum = typeof score === 'number' ? score : parseInt(score) || 0
     const scoreColor =
-      health.score >= 70 ? 'var(--green)' : health.score >= 40 ? 'var(--yellow)' : 'var(--red)'
+      scoreNum >= 70 ? 'var(--green)' : scoreNum >= 40 ? 'var(--yellow)' : 'var(--red)'
+    const label = health.label || final.deal_health || ''
+    const summary = health.status_summary || health.summary || final.summary || ''
+    const winProb = health.win_probability ?? final.win_pct ?? null
+    const trajectory = final.trajectory || health.sentiment_trend || ''
 
-    const customerMsgs = threadAn.filter((t: any) => {
-      const from = (t.message_from || t.from || t.author || '').toLowerCase()
-      return !from.includes('jason') && !from.includes('rep') && !from.includes('seller') && !from.includes('atlas')
-    })
-    const customerNeeds = customerMsgs
-      .filter((t: any) => t.signal_reading || t.what_it_means)
-      .map((t: any) => t.signal_reading || t.what_it_means)
+    // Next steps — adapt to both ClearSignalsAI and LeadHydration shapes
+    const nextSteps = Array.isArray(final.recommended_actions)
+      ? final.recommended_actions
+      : Array.isArray(d.next_steps)
+        ? d.next_steps
+        : Array.isArray(d.recommended_actions)
+          ? d.recommended_actions
+          : []
 
-    let html = `
+    // Unresolved items from ClearSignalsAI coaching mode
+    const unresolved = Array.isArray(final.unresolved_items) ? final.unresolved_items : []
+
+    // Coach headline from ClearSignalsAI
+    const coachLine = final.coach || ''
+
+    // Qualification gaps (ClearSignalsAI or LeadHydration)
+    const qualGaps = d.qualification_gaps || {}
+
+    let html = ''
+
+    // ── Deal health badge ──
+    html += `
       <div style="display:flex;gap:14px;align-items:center;padding:12px 14px;background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;margin-bottom:16px;">
         <div style="border:2px solid ${scoreColor};border-radius:50%;width:70px;height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;color:${scoreColor}">
-          <div style="font-size:22px;font-weight:800;line-height:1;">${esc(health.score ?? '?')}</div>
-          <div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:0.7;margin-top:2px;">STATUS</div>
+          <div style="font-size:22px;font-weight:800;line-height:1;">${esc(score)}</div>
+          <div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:0.7;margin-top:2px;">HEALTH</div>
         </div>
         <div>
-          <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px;">${esc(health.label || '')} ${health.win_probability != null ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px">Win likelihood: ${health.win_probability}%</span>` : ''}</div>
-          <div style="font-size:12px;color:var(--text-dim);line-height:1.55;">${esc(health.status_summary || health.summary || health.explanation || '')}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px;">${esc(label)} ${winProb != null ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px">Win likelihood: ${winProb}%</span>` : ''} ${trajectory ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px;margin-left:8px;">Trajectory: ${esc(trajectory)}</span>` : ''}</div>
+          <div style="font-size:12px;color:var(--text-dim);line-height:1.55;">${esc(summary)}</div>
         </div>
       </div>
     `
 
-    if (customerNeeds.length) {
-      html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--purple);margin:14px 0 8px;">What the customer is telling you</div>`
-      html += customerNeeds.map((n: string) => `<div style="font-size:12px;color:var(--text);line-height:1.55;padding:6px 10px;border-left:2px solid var(--dx-accent);margin-bottom:6px;background:rgba(90,169,255,0.04);border-radius:0 6px 6px 0;">${esc(n)}</div>`).join('')
+    // ── Coach headline — the ONE most important thing ──
+    if (coachLine) {
+      html += `
+        <div style="background:linear-gradient(135deg, rgba(90,169,255,0.08), rgba(168,85,247,0.08));border:1px solid var(--dx-accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+          <div style="font-size:10px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--dx-accent);margin-bottom:6px;">What you need to do right now</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.55;">${esc(coachLine)}</div>
+        </div>
+      `
     }
 
+    // ── Recommended next moves (forward-looking actions) ──
     if (nextSteps.length) {
       html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--purple);margin:14px 0 8px;">Recommended next moves</div>`
       html += nextSteps
         .map((s: any) => {
           if (typeof s === 'string')
-            return `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:12px;font-weight:700;color:var(--text);flex:1;">${esc(s)}</div></div>`
+            return `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:12px;font-weight:700;color:var(--text);">${esc(s)}</div></div>`
+          const action = s.action || ''
+          const timing = s.timing || s.priority ? `P${s.priority}` : ''
+          const reasoning = s.reasoning || ''
+          const methodology = s.methodology || ''
+          const script = s.script || ''
           return `
           <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <div style="font-size:12px;font-weight:700;color:var(--text);flex:1;">${esc(s.action || '')}</div>
-              ${s.timing ? `<span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(168,85,247,0.15);color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;">${esc(s.timing)}</span>` : ''}
+              <div style="font-size:12px;font-weight:700;color:var(--text);flex:1;">${esc(action)}</div>
+              ${timing ? `<span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(168,85,247,0.15);color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;">${esc(timing)}</span>` : ''}
             </div>
-            ${s.methodology ? `<div style="font-size:9px;color:var(--text-dim);font-weight:600;letter-spacing:0.3px;margin-bottom:4px;">${esc(s.methodology)}</div>` : ''}
-            ${s.script ? `<div onclick="navigator.clipboard.writeText(this.innerText).then(()=>{this.style.outline='2px solid var(--green)';setTimeout(()=>this.style.outline='',800)})" style="font-size:12px;color:var(--text-dim);line-height:1.55;padding:8px 10px;background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;white-space:pre-wrap;cursor:pointer;position:relative;">${esc(s.script)}</div>` : ''}
+            ${reasoning ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;">${esc(reasoning)}</div>` : ''}
+            ${methodology ? `<div style="font-size:9px;color:var(--text-dim);font-weight:600;letter-spacing:0.3px;margin-bottom:4px;">${esc(methodology)}</div>` : ''}
+            ${script ? `<div onclick="navigator.clipboard.writeText(this.innerText).then(()=>{this.style.outline='2px solid var(--green)';setTimeout(()=>this.style.outline='',800)})" style="font-size:12px;color:var(--text-dim);line-height:1.55;padding:8px 10px;background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;white-space:pre-wrap;cursor:pointer;" title="Click to copy">${esc(script)}</div>` : ''}
           </div>`
         })
         .join('')
     }
 
+    // ── Unresolved items — things the buyer asked that never got addressed ──
+    if (unresolved.length) {
+      html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--red);margin:14px 0 8px;">Unanswered buyer questions</div>`
+      html += unresolved.map((item: string) =>
+        `<div style="font-size:12px;color:var(--text);line-height:1.55;padding:6px 10px;border-left:2px solid var(--red);margin-bottom:6px;background:rgba(239,68,68,0.04);border-radius:0 6px 6px 0;">${esc(item)}</div>`
+      ).join('')
+    }
+
+    // ── MEDDPICC qualification gaps ──
+    if (qualGaps.gaps?.length) {
+      const missing = qualGaps.gaps.filter((g: any) => g.status === 'missing' || g.status === 'unknown')
+      if (missing.length) {
+        html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--yellow);margin:14px 0 8px;">Qualification gaps ${qualGaps.meddpicc_score ? `(${esc(qualGaps.meddpicc_score)})` : ''}</div>`
+        html += missing.slice(0, 4).map((g: any) =>
+          `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:8px 12px;margin-bottom:6px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text);">${esc(g.letter)} — ${esc(g.element)}</div>
+            ${g.coaching ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-top:4px;">${esc(g.coaching)}</div>` : ''}
+          </div>`
+        ).join('')
+      }
+    }
+
     setCsOutput(html)
+    setPlayByPlayOutput('') // reset previous modes
+    setLookBackOutput('')
+  }
+
+  // ─── MODE 2: Play-by-Play — email-by-email while deal is active ────────
+  const showPlayByPlay = () => {
+    if (!csFullResponse) return
+    const d = csFullResponse.result || csFullResponse
+    const perEmail = Array.isArray(d.per_email) ? d.per_email : []
+    const parsedEmails = Array.isArray(d.parsed_emails) ? d.parsed_emails : []
+
+    if (!perEmail.length) {
+      setPlayByPlayOutput(`<div style="color:var(--text-dim);font-size:12px;">No email-by-email data in the coaching response. The analysis engine may not have returned per-email breakdowns for this thread.</div>`)
+      return
+    }
+
+    let html = `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--dx-accent);margin:0 0 12px;">Play-by-Play — How Did We Get Here?</div>`
+
+    perEmail.forEach((em: any, i: number) => {
+      const parsed = parsedEmails[i] || {}
+      const dir = em.direction || parsed.direction || 'unknown'
+      const isInbound = dir === 'inbound'
+      const borderColor = isInbound ? 'var(--dx-accent)' : 'var(--purple)'
+      const dirLabel = isInbound ? 'BUYER' : 'REP'
+      const winPct = em.win_pct ?? ''
+      const intent = em.intent ?? ''
+
+      const signals = Array.isArray(em.signals) ? em.signals : []
+      const redCount = signals.filter((s: any) => s.severity === 'red').length
+      const yellowCount = signals.filter((s: any) => s.severity === 'yellow').length
+      const greenCount = signals.filter((s: any) => s.severity === 'green').length
+
+      html += `
+        <div style="border-left:3px solid ${borderColor};padding:10px 14px;margin-bottom:12px;background:var(--surface-2);border-radius:0 8px 8px 0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:10px;font-weight:800;letter-spacing:0.5px;color:${borderColor};">EMAIL ${em.email_num || i + 1} — ${dirLabel} ${parsed.from ? `(${esc(parsed.from)})` : ''}</div>
+            <div style="display:flex;gap:8px;font-size:10px;font-weight:700;">
+              ${winPct !== '' ? `<span style="color:var(--text-dim);">Win: ${winPct}%</span>` : ''}
+              ${intent !== '' ? `<span style="color:var(--text-dim);">Intent: ${intent}/10</span>` : ''}
+              ${redCount ? `<span style="color:var(--red);">${redCount} red</span>` : ''}
+              ${yellowCount ? `<span style="color:var(--yellow);">${yellowCount} yellow</span>` : ''}
+              ${greenCount ? `<span style="color:var(--green);">${greenCount} green</span>` : ''}
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:8px;">${esc(em.summary || '')}</div>
+      `
+
+      // Direction-aware coaching from ClearSignalsAI coaching mode
+      if (isInbound && em.inbound_coaching) {
+        const ic = em.inbound_coaching
+        if (ic.buyer_analysis) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--dx-accent);">Buyer thinking:</strong> ${esc(ic.buyer_analysis)}</div>`
+        if (Array.isArray(ic.buyer_requests) && ic.buyer_requests.length) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--dx-accent);">Buyer asked for:</strong> ${esc(ic.buyer_requests.join(', '))}</div>`
+        if (ic.recommended_response) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--green);">Best response:</strong> ${esc(ic.recommended_response)}</div>`
+        if (ic.watch_for) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;"><strong style="color:var(--yellow);">Watch for:</strong> ${esc(ic.watch_for)}</div>`
+      } else if (!isInbound && em.outbound_coaching) {
+        const oc = em.outbound_coaching
+        if (oc.rep_grade) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--purple);">Grade:</strong> ${esc(oc.rep_grade)}</div>`
+        if (oc.did_well) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--green);">Did well:</strong> ${esc(oc.did_well)}</div>`
+        if (oc.missed) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--red);">Missed:</strong> ${esc(oc.missed)}</div>`
+        if (oc.tone_match) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;"><strong style="color:var(--text-dim);">Tone:</strong> ${esc(oc.tone_match)}</div>`
+      }
+
+      // Signals
+      if (signals.length) {
+        html += `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">`
+        signals.forEach((sig: any) => {
+          const sc = sig.severity === 'red' ? 'var(--red)' : sig.severity === 'yellow' ? 'var(--yellow)' : 'var(--green)'
+          html += `<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${sc}15;color:${sc};border:1px solid ${sc}30;font-weight:600;">${esc(sig.type)}: ${esc(sig.desc?.slice(0, 60) || '')}</span>`
+        })
+        html += `</div>`
+      }
+
+      html += `</div>`
+    })
+
+    // Tone & timing guidance from coaching final
+    const final = d.final || {}
+    if (final.tone_guidance || final.timing_guidance) {
+      html += `
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;padding:12px 14px;margin-top:8px;">
+          <div style="font-size:10px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--dx-accent);margin-bottom:6px;">Communication Guidance</div>
+          ${final.tone_guidance ? `<div style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:4px;"><strong>Tone:</strong> ${esc(final.tone_guidance)}</div>` : ''}
+          ${final.timing_guidance ? `<div style="font-size:12px;color:var(--text-dim);line-height:1.55;"><strong>Timing:</strong> ${esc(final.timing_guidance)}</div>` : ''}
+        </div>
+      `
+    }
+
+    setPlayByPlayOutput(html)
+  }
+
+  // ─── MODE 3: Look Back — holistic retrospective when deal is done ──────
+  const submitLookBack = async () => {
+    if (!appState.runId) return
+    setLookBackLoading(true)
+    setLookBackOutput('')
+    try {
+      const res = await fetch('/api/clearsignals-lookback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: appState.runId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Look Back analysis failed')
+      renderLookBack(data.analysis || {})
+    } catch (e: any) {
+      setLookBackOutput(`<div style="color:var(--red);font-size:12px;">Error: ${esc(e.message)}</div>`)
+    } finally {
+      setLookBackLoading(false)
+    }
+  }
+
+  const renderLookBack = (a: any) => {
+    const d = a.result || a
+    const perEmail = Array.isArray(d.per_email) ? d.per_email : []
+    const final = d.final || {}
+    const parsedEmails = Array.isArray(d.parsed_emails) ? d.parsed_emails : []
+
+    let html = `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--purple);margin:0 0 12px;">Look Back — Opportunity Summary</div>`
+
+    if (!perEmail.length && !final.coach && !final.summary) {
+      html += `<div style="color:var(--text-dim);font-size:12px;">No look-back analysis returned. Make sure a Situation Report was run first and CLEARSIGNALS_URL is configured.</div>`
+      setLookBackOutput(html)
+      return
+    }
+
+    // Email-by-email with postmortem coaching (pivotal moments, what to do next time)
+    perEmail.forEach((em: any, i: number) => {
+      const parsed = parsedEmails[i] || {}
+      const dir = em.direction || parsed.direction || 'unknown'
+      const isInbound = dir === 'inbound'
+      const borderColor = isInbound ? 'var(--dx-accent)' : 'var(--purple)'
+      const dirLabel = isInbound ? 'BUYER' : 'REP'
+      const winPct = em.win_pct ?? ''
+
+      html += `
+        <div style="border-left:3px solid ${borderColor};padding:10px 14px;margin-bottom:12px;background:var(--surface-2);border-radius:0 8px 8px 0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:10px;font-weight:800;letter-spacing:0.5px;color:${borderColor};">EMAIL ${em.email_num || i + 1} — ${dirLabel} ${parsed.from ? `(${esc(parsed.from)})` : ''}</div>
+            ${winPct !== '' ? `<span style="font-size:10px;font-weight:700;color:var(--text-dim);">Win: ${winPct}%</span>` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:8px;">${esc(em.summary || '')}</div>
+      `
+
+      // Postmortem coaching — what went well, what didn't, pivotal moments
+      if (em.coaching) {
+        const c = em.coaching
+        if (c.good) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--green);">Good:</strong> ${esc(c.good)}</div>`
+        if (c.better) html += `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;"><strong style="color:var(--yellow);">Could improve:</strong> ${esc(c.better)}</div>`
+      }
+      if (em.next_time) {
+        html += `<div style="font-size:11px;padding:6px 10px;margin-top:6px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:var(--text);line-height:1.45;"><strong style="color:var(--purple);">Next time:</strong> ${esc(em.next_time)}</div>`
+      }
+
+      html += `</div>`
+    })
+
+    // Holistic final summary — the big picture
+    if (final.coach || final.summary || final.deal_stage) {
+      html += `
+        <div style="background:linear-gradient(135deg, rgba(168,85,247,0.08), rgba(90,169,255,0.08));border:1px solid var(--purple);border-radius:10px;padding:14px 16px;margin-top:8px;">
+          <div style="font-size:10px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--purple);margin-bottom:8px;">Opportunity Summary</div>
+          ${final.deal_stage ? `<div style="display:inline-block;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;background:var(--purple)15;color:var(--purple);border:1px solid var(--purple)30;margin-bottom:8px;">${esc(final.deal_stage)}</div>` : ''}
+          ${final.summary ? `<div style="font-size:12px;color:var(--text);line-height:1.6;margin-bottom:8px;">${esc(final.summary)}</div>` : ''}
+          ${final.coach ? `<div style="font-size:12px;color:var(--text-dim);line-height:1.55;margin-bottom:4px;"><strong>Key lesson:</strong> ${esc(final.coach)}</div>` : ''}
+          ${final.next_steps ? `<div style="font-size:12px;color:var(--text-dim);line-height:1.55;"><strong>Carry forward:</strong> ${esc(final.next_steps)}</div>` : ''}
+        </div>
+      `
+    }
+
+    setLookBackOutput(html)
   }
 
   // ─── COACH CHAT ─────────────────────────────────────────────────────────
@@ -1904,12 +2159,22 @@ export default function DrixApp() {
                     <div className="text-sm font-extrabold text-drix-purple tracking-tight">ClearSignals AI — Email Thread Analyzer</div>
                     <div className="text-xs text-drix-dim mt-1">Paste any reply thread for deal-health scoring and next-step coaching.</div>
                   </div>
-                  <button
-                    onClick={() => setCsOpen(true)}
-                    className="dx-btn-primary px-5 py-2.5 rounded-lg text-xs font-bold hover:shadow-glow transition-all whitespace-nowrap"
-                  >
-                    Analyze Thread
-                  </button>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => { setCsOpen(true); setTimeout(() => generateDemoThread(), 300) }}
+                      disabled={demoGenerating}
+                      className="px-4 py-2.5 rounded-lg text-xs font-bold bg-drix-purple/20 border border-drix-purple/30 text-drix-purple hover:bg-drix-purple/30 transition-all whitespace-nowrap flex items-center gap-1.5 disabled:opacity-40"
+                    >
+                      <Zap size={13} />
+                      {demoGenerating ? 'Generating...' : 'Demo Thread'}
+                    </button>
+                    <button
+                      onClick={() => setCsOpen(true)}
+                      className="dx-btn-primary px-5 py-2.5 rounded-lg text-xs font-bold hover:shadow-glow transition-all whitespace-nowrap"
+                    >
+                      Analyze Thread
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -2025,13 +2290,28 @@ export default function DrixApp() {
               </button>
             </div>
             <div className="p-5">
-              <label className="block text-[11px] font-bold tracking-wide uppercase text-drix-dim mb-2">
-                Paste the full email thread:
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-[11px] font-bold tracking-wide uppercase text-drix-dim">
+                  Paste the full email thread:
+                </label>
+                <button
+                  onClick={generateDemoThread}
+                  disabled={demoGenerating}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-drix-purple/20 to-drix-accent/20 border border-drix-purple/30 text-drix-purple hover:border-drix-purple/60 transition-all disabled:opacity-40 disabled:cursor-wait flex items-center gap-1.5"
+                >
+                  <Zap size={12} />
+                  {demoGenerating ? 'Generating...' : 'Generate Demo Thread'}
+                </button>
+              </div>
+              {demoScenario && (
+                <div className="mb-2 px-3 py-1.5 rounded-lg bg-drix-purple/10 border border-drix-purple/20 text-[11px] text-drix-purple font-medium">
+                  Scenario: {demoScenario}
+                </div>
+              )}
               <textarea
                 id="cs-thread"
-                rows={8}
-                placeholder="From: prospect@acme.com&#10;Subject: Re: Follow-up&#10;&#10;Thanks for the note. Honestly, timing is tough..."
+                rows={10}
+                placeholder="From: prospect@acme.com&#10;Subject: Re: Follow-up&#10;&#10;Thanks for the note. Honestly, timing is tough...&#10;&#10;— Or click 'Generate Demo Thread' above to auto-create a realistic email thread from your deal data."
                 className="w-full bg-drix-surface2 border border-drix-border rounded-lg px-3 py-2.5 text-xs text-drix-text font-mono leading-relaxed resize-y outline-none focus:border-drix-purple transition-colors"
               />
               <div className="flex items-center gap-4 mt-3">
@@ -2044,69 +2324,112 @@ export default function DrixApp() {
                 <span className="text-xs text-drix-dim">{csStatus}</span>
               </div>
               {csOutput && (
-                <div className="mt-4" dangerouslySetInnerHTML={{ __html: csOutput }} />
+                <>
+                  <div className="mt-4" dangerouslySetInnerHTML={{ __html: csOutput }} />
+                  {/* Mode 2 & 3 buttons — only show after initial Situation Report */}
+                  <div className="mt-4 pt-4 border-t border-drix-border flex gap-3">
+                    <button
+                      onClick={showPlayByPlay}
+                      disabled={!csFullResponse}
+                      className="flex-1 py-3 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-accent/15 to-drix-accent/5 border border-drix-accent/30 text-drix-accent hover:border-drix-accent/60 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                    >
+                      <MessageSquare size={14} />
+                      Play-by-Play
+                    </button>
+                    <button
+                      onClick={submitLookBack}
+                      disabled={lookBackLoading}
+                      className="flex-1 py-3 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-purple/20 to-drix-purple/5 border border-drix-purple/30 text-drix-purple hover:border-drix-purple/60 transition-all disabled:opacity-40 disabled:cursor-wait flex items-center justify-center gap-2"
+                    >
+                      <Zap size={14} />
+                      {lookBackLoading ? 'Analyzing...' : 'Look Back'}
+                    </button>
+                  </div>
+                  <div className="text-[10px] text-drix-dim mt-2 flex gap-6">
+                    <span><strong>Play-by-Play:</strong> Email-by-email breakdown — what happened at each step</span>
+                    <span><strong>Look Back:</strong> Holistic retrospective — lessons learned from the full thread</span>
+                  </div>
+                  {lookBackLoading && (
+                    <div className="text-[11px] text-drix-dim mt-2 text-center">
+                      ClearSignals is running a full retrospective — this takes a moment.
+                    </div>
+                  )}
+                  {playByPlayOutput && (
+                    <div className="mt-4" dangerouslySetInnerHTML={{ __html: playByPlayOutput }} />
+                  )}
+                  {lookBackOutput && (
+                    <div className="mt-4" dangerouslySetInnerHTML={{ __html: lookBackOutput }} />
+                  )}
+                </>
               )}
             </div>
           </motion.div>
         </div>
       )}
 
-      {/* ─── COACH CHAT PANEL ─── */}
+      {/* ─── COACH CHAT MODAL ─── */}
       {coachOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-0 right-4 sm:right-8 w-[380px] max-w-[calc(100vw-2rem)] max-h-[70vh] glass border border-drix-border border-b-0 rounded-t-xl z-50 flex flex-col shadow-2xl shadow-black/50"
-        >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-drix-border bg-gradient-to-r from-drix-accent/10 to-drix-purple/5 rounded-t-xl">
-            <span className="text-sm font-extrabold text-drix-accent">AI Sales Coach</span>
-            <button onClick={() => setCoachOpen(false)} className="text-drix-dim hover:text-drix-text">
-              <X size={18} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 min-h-[200px] max-h-[calc(70vh-120px)]">
-            {coachMsgs.map((msg, i) => (
-              <div
-                key={i}
-                className={`max-w-[88%] px-3 py-2 rounded-xl text-xs leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'self-end bg-drix-accent text-white rounded-br-sm'
-                    : msg.role === 'system'
-                      ? 'self-center text-drix-dim italic text-[11px]'
-                      : 'self-start bg-drix-surface2 text-drix-text border border-drix-border rounded-bl-sm'
-                }`}
-              >
-                {msg.text}
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setCoachOpen(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass rounded-2xl w-full max-w-xl relative flex flex-col shadow-2xl shadow-black/50"
+            style={{ height: 'min(75vh, 600px)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-drix-border bg-gradient-to-r from-drix-accent/10 to-drix-purple/5 rounded-t-2xl">
+              <div>
+                <div className="text-sm font-extrabold text-drix-accent">AI Sales Coach</div>
+                <div className="text-[10px] text-drix-dim mt-0.5">Ask about pain points, objections, scripts, who to target</div>
               </div>
-            ))}
-            {coachTyping && (
-              <div className="self-start text-drix-dim italic text-[11px] px-3">Coach is thinking...</div>
-            )}
-            <div ref={coachEndRef} />
-          </div>
-          <div className="flex gap-2 p-3 border-t border-drix-border">
-            <textarea
-              value={coachInput}
-              onChange={(e) => setCoachInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  sendCoachMsg()
-                }
-              }}
-              placeholder="What should I lead with?"
-              rows={1}
-              className="flex-1 bg-drix-surface2 border border-drix-border rounded-lg px-3 py-2 text-xs text-drix-text resize-none outline-none focus:border-drix-accent transition-colors min-h-[36px] max-h-[80px]"
-            />
-            <button
-              onClick={sendCoachMsg}
-              disabled={!coachInput.trim() || coachTyping}
-              className="bg-drix-accent text-white rounded-lg px-4 text-xs font-bold hover:bg-drix-accent/90 transition-colors disabled:opacity-40"
-            >
-              <Send size={14} />
-            </button>
-          </div>
-        </motion.div>
+              <button onClick={() => setCoachOpen(false)} className="text-drix-dim hover:text-drix-text">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0">
+              {coachMsgs.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`max-w-[85%] px-4 py-3 rounded-xl text-sm leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'self-end bg-drix-accent text-white rounded-br-sm'
+                      : msg.role === 'system'
+                        ? 'self-center text-drix-dim italic text-xs'
+                        : 'self-start bg-drix-surface2 text-drix-text border border-drix-border rounded-bl-sm'
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              ))}
+              {coachTyping && (
+                <div className="self-start text-drix-dim italic text-xs px-4">Coach is thinking...</div>
+              )}
+              <div ref={coachEndRef} />
+            </div>
+            <div className="flex gap-3 p-4 border-t border-drix-border">
+              <textarea
+                value={coachInput}
+                onChange={(e) => setCoachInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    sendCoachMsg()
+                  }
+                }}
+                placeholder="What should I lead with?"
+                rows={1}
+                className="flex-1 bg-drix-surface2 border border-drix-border rounded-lg px-4 py-3 text-sm text-drix-text resize-none outline-none focus:border-drix-accent transition-colors min-h-[44px] max-h-[100px]"
+              />
+              <button
+                onClick={sendCoachMsg}
+                disabled={!coachInput.trim() || coachTyping}
+                className="bg-drix-accent text-white rounded-lg px-5 text-sm font-bold hover:bg-drix-accent/90 transition-colors disabled:opacity-40"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
 
       {/* ─── VOICE COACH MODAL ─── */}

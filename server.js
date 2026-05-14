@@ -22,6 +22,7 @@ const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID || 'anthropic/claude-sonnet-4.5';
 const LEADHYDRATION_URL   = (process.env.LEADHYDRATION_URL || '').replace(/\/+$/, '');
 const LEADHYDRATION_API_KEY = process.env.LEADHYDRATION_API_KEY || '';
+const CLEARSIGNALS_URL    = (process.env.CLEARSIGNALS_URL || '').replace(/\/+$/, '');
 const RESEND_API_KEY      = process.env.RESEND_API_KEY || '';
 const REPORT_FROM_EMAIL   = process.env.REPORT_FROM_EMAIL || 'info@NYNImpact.com';
 const TDE_BASE_URL        = (process.env.TDE_BASE_URL || 'https://targeteddecomposition-production.up.railway.app').replace(/\/+$/, '');
@@ -38,6 +39,7 @@ if (!RESEND_API_KEY)     console.warn('⚠️  RESEND_API_KEY not set — email 
 if (!TDE_API_KEY)        console.warn('⚠️  TDE_API_KEY not set — TDE cache lookups will be skipped (fresh ingest every time).');
 if (!FIRECRAWL_API_KEY)  console.warn('⚠️  FIRECRAWL_API_KEY not set — fetches use basic HTTP (SPAs may return empty content).');
 if (!APOLLO_API_KEY)     console.warn('⚠️  APOLLO_API_KEY not set — decision-maker lookup will be skipped.');
+if (!CLEARSIGNALS_URL)   console.warn('⚠️  CLEARSIGNALS_URL not set — will fall back to LEADHYDRATION_URL for thread analysis.');
 const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY || '';
 if (!CEREBRAS_API_KEY)   console.warn('⚠️  CEREBRAS_API_KEY not set — comparison synthesis will fall back to OpenRouter.');
 
@@ -905,6 +907,8 @@ app.get('/healthz', (_req, res) => {
     ok: true,
     model: OPENROUTER_MODEL_ID,
     leadhydration_configured: Boolean(LEADHYDRATION_URL),
+    clearsignals_configured: Boolean(CLEARSIGNALS_URL),
+    clearsignals_mode: CLEARSIGNALS_URL ? 'dedicated (two-stage)' : LEADHYDRATION_URL ? 'fallback (single-call via LeadHydration)' : 'none',
     email_configured: Boolean(RESEND_API_KEY),
     email_from: REPORT_FROM_EMAIL,
     tde_configured: tdeAvailable(),
@@ -1433,8 +1437,242 @@ app.post('/api/hydrate', async (req, res) => {
   }
 });
 
-// ClearSignals — analyze a pasted email thread.
-// Proxies to LeadHydration /api/coaching-analyze with run context pre-filled.
+// ─── GENERATE DEMO EMAIL THREAD ────────────────────────────────────────────
+// Uses run context (pains, strategies, company, personas) to create a realistic
+// multi-turn sales email thread for testing ClearSignals.
+app.post('/api/generate-demo-thread', async (req, res) => {
+  const { run_id } = req.body || {};
+  if (!run_id) return res.status(400).json({ error: 'Require run_id' });
+
+  const run = runStore.get(run_id);
+  if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
+
+  try {
+    // ── Gather deal context from the run ──
+    const companyName = run.customer?.target?.name || 'Acme Corp';
+    const industry = run.customer?.industry || run.industry || '';
+    const sellerName = run.sender?.target?.name || 'Jason';
+    const solutionName = run.solution?.target?.name || 'Our Solution';
+
+    const allPains = [
+      ...(run.pain_groups?.company_pain     || []),
+      ...(run.pain_groups?.subindustry_pain || []),
+      ...(run.pain_groups?.industry_pain    || [])
+    ];
+    const painSummary = allPains.slice(0, 5).map(p => {
+      let s = `- ${p.title}`;
+      if (p.description) s += `: ${p.description}`;
+      if (p.persona_primary?.title) s += ` (Owner: ${p.persona_primary.title})`;
+      return s;
+    }).join('\n');
+
+    const strategies = (run.strategies?.strategies || []).slice(0, 3).map(s =>
+      `- ${s.title}: ${(s.explanation || '').slice(0, 150)}`
+    ).join('\n');
+
+    const chosenStrat = run.chosen_strategy
+      ? `${run.chosen_strategy.title}: ${(run.chosen_strategy.explanation || '').slice(0, 200)}`
+      : strategies.split('\n')[0] || 'general outreach';
+
+    const questions = (run.hydration?.questions || []).slice(0, 3).map(q =>
+      `"${q.question}"`
+    ).join(', ');
+
+    // ── Pick a random scenario for variety ──
+    const scenarios = [
+      {
+        label: 'Clean Win',
+        guidance: 'The rep executes well, asks good discovery questions, connects solution to pain points. The prospect warms up and eventually agrees to a next step (demo, proposal, meeting). Thread ends on a positive scheduling note.'
+      },
+      {
+        label: 'Rep Makes Mistakes',
+        guidance: 'The rep leads with product features instead of pain. They talk too much about themselves. The prospect pushes back or goes cold. The rep attempts to recover but partially fumbles. Thread ends with the prospect saying they\'ll "think about it" or asking to circle back later.'
+      },
+      {
+        label: 'Customer Goes Quiet',
+        guidance: 'Initial exchange is promising, but after 2-3 replies the prospect stops responding. The rep sends follow-ups that become increasingly desperate. Include noticeable gaps (noted as "Sent: 5 days later", "Sent: 8 days later"). Thread trails off without resolution.'
+      },
+      {
+        label: 'Competitive Threat',
+        guidance: 'The prospect mentions they\'re also evaluating a competitor. The rep must differentiate. Some replies show the rep handling this well, others show missed opportunities. Thread has tension around timing and decision process.'
+      },
+      {
+        label: 'Internal Champion Lost',
+        guidance: 'The prospect was engaged but suddenly their tone changes — they mention restructuring, a new boss, or shifted priorities. The rep has to navigate organizational change. Thread shows the deal stalling due to internal politics.'
+      }
+    ];
+    const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+
+    // ── Build personas from run data ──
+    const prospectPersona = allPains[0]?.persona_primary?.title || 'VP of Operations';
+    const prospectName = (() => {
+      // Try to extract a real individual name from atoms if available
+      const custAtoms = run.customer?.atoms || [];
+      const personAtom = custAtoms.find(a => a.type === 'person' || a.type === 'leader' || a.type === 'executive');
+      return personAtom?.claim?.split(/[,\-–—]/)[0]?.trim()?.slice(0, 40) || 'Jordan Miller';
+    })();
+
+    const repSkill = Math.floor(Math.random() * 3) + 2; // 2-4 skill level
+
+    const numTurns = Math.floor(Math.random() * 5) + 6; // 6-10 turns
+
+    const systemPrompt = `You are an expert at generating realistic B2B sales email threads for training purposes. You produce threads that feel genuinely human — not scripted, not perfect. Real emails have typos occasionally, vary in length, and show personality.
+
+CRITICAL RULES:
+- Each turn is one email: either [OUTGOING] from the sales rep or [INCOMING] from the prospect
+- Include realistic "Sent:" timestamps showing days between emails
+- The rep's skill level is ${repSkill}/5 — adjust quality of their sales technique accordingly
+- Make emails feel real: varying lengths, some short replies, some longer, natural language
+- The prospect's responses should reflect their role and pain points authentically
+- DO NOT make every email a wall of text — mix in quick 1-2 sentence replies
+- Include realistic subject line evolution (Re: Re: Re:)
+
+Return ONLY a JSON object with these fields:
+{
+  "scenario": "${scenario.label}",
+  "thread_text": "the complete email thread as a single string with clear From/To/Subject/Date headers for each email",
+  "summary": "one sentence describing what happened in this thread"
+}`;
+
+    const userPrompt = `Generate a realistic ${numTurns}-turn sales email thread.
+
+COMPANY: ${companyName} (${industry})
+PROSPECT: ${prospectName}, ${prospectPersona} at ${companyName}
+PROSPECT EMAIL: ${prospectName.toLowerCase().replace(/\s+/g, '.')}@${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com
+REP: ${sellerName} (selling ${solutionName})
+REP EMAIL: ${sellerName.toLowerCase().replace(/\s+/g, '.')}@wintech-partners.com
+
+PAIN POINTS THE PROSPECT IS DEALING WITH:
+${painSummary || '- General operational challenges\n- Cost pressures\n- Competitive threats'}
+
+STRATEGIES THE REP SHOULD REFERENCE:
+${strategies || '- General consultative selling approach'}
+
+CHOSEN APPROACH: ${chosenStrat}
+
+DISCOVERY QUESTIONS THE REP MIGHT USE:
+${questions || '"What keeps you up at night regarding this area?"'}
+
+SCENARIO: ${scenario.label}
+${scenario.guidance}
+
+FORMAT each email clearly like:
+---
+From: name <email>
+To: name <email>
+Subject: Re: [subject]
+Date: [realistic date] (Sent: X days after previous)
+
+[email body]
+---
+
+Make it ${numTurns} emails total, alternating between rep and prospect (rep starts). The thread should feel like a real conversation you'd find in someone's inbox.`;
+
+    console.log(`[generate-demo-thread] Generating "${scenario.label}" thread for ${companyName} (${numTurns} turns)`);
+
+    const result = await callLLM(systemPrompt, userPrompt, {
+      maxTokens: 6000,
+      temperature: 0.85,
+      retries: 1
+    });
+
+    const threadText = result?.thread_text || '';
+    if (!threadText || threadText.length < 100) {
+      console.warn('[generate-demo-thread] LLM returned short/empty thread');
+      return res.status(502).json({ error: 'Generated thread was too short — try again' });
+    }
+
+    console.log(`[generate-demo-thread] Success: "${scenario.label}", ${threadText.length} chars`);
+    return res.json({
+      scenario: result.scenario || scenario.label,
+      thread_text: threadText,
+      summary: result.summary || '',
+      company: companyName,
+      prospect: prospectName
+    });
+
+  } catch (err) {
+    console.error('[generate-demo-thread]', err.message);
+    return res.status(502).json({ error: `Thread generation failed: ${err.message}` });
+  }
+});
+
+// ─── CLEARSIGNALS AI — Thread Analysis (two-tier) ───────────────────────────
+// Routes to the standalone ClearSignalsAI product (CLEARSIGNALS_URL).
+// Falls back to LeadHydration's /api/coaching-analyze if CLEARSIGNALS_URL is not set.
+//
+// Mode 1+2 (POST /api/clearsignals)        → coaching mode: situation report + play-by-play data
+// Mode 3   (POST /api/clearsignals-lookback) → postmortem mode: holistic retrospective / opportunity summary
+
+// Helper: call ClearSignalsAI /api/analyze
+async function callClearSignals(threadText, mode, run) {
+  const csUrl = CLEARSIGNALS_URL || LEADHYDRATION_URL;
+  if (!csUrl) throw new Error('Neither CLEARSIGNALS_URL nor LEADHYDRATION_URL is configured.');
+
+  // If we have the dedicated ClearSignalsAI service, use its two-stage /api/analyze
+  if (CLEARSIGNALS_URL) {
+    console.log(`[clearsignals] Using ClearSignalsAI /api/analyze (mode: ${mode})`);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const csRes = await fetch(`${CLEARSIGNALS_URL}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: threadText,
+          mode: mode,  // 'coaching' or 'postmortem'
+          model: 'sonnet'
+        }),
+        signal: AbortSignal.timeout(180_000) // 3 min — two-stage pipeline can take a moment
+      });
+      if (csRes.ok) {
+        const data = await csRes.json();
+        return data; // ClearSignalsAI returns { result, mode, model, pipeline, ... }
+      }
+      const txt = await csRes.text();
+      console.error(`[clearsignals] attempt ${attempt + 1}/3 — ${csRes.status}: ${txt.slice(0, 300)}`);
+      if (attempt < 2 && csRes.status >= 500) {
+        console.log(`[clearsignals] Retrying in ${3 + attempt * 3}s…`);
+        await new Promise(r => setTimeout(r, (3 + attempt * 3) * 1000));
+        continue;
+      }
+      throw new Error(`ClearSignals ${mode} failed (${csRes.status}): ${txt.slice(0, 300)}`);
+    }
+    throw new Error('ClearSignals returned no data after 3 attempts');
+  }
+
+  // Fallback: LeadHydration's single-call /api/coaching-analyze (no postmortem support)
+  console.log(`[clearsignals] Fallback: LeadHydration /api/coaching-analyze`);
+  const customerName = run.customer?.target?.name || 'Target Customer';
+  const painLabels = [
+    ...(run.pain_groups?.company_pain     || []),
+    ...(run.pain_groups?.subindustry_pain || []),
+    ...(run.pain_groups?.industry_pain    || [])
+  ].map(p => p.title).filter(Boolean).slice(0, 8);
+
+  const csRes = await fetch(`${LEADHYDRATION_URL}/api/coaching-analyze`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
+    },
+    body: JSON.stringify({
+      thread_text: threadText,
+      companyName: customerName,
+      pain_context: { painLabels }
+    }),
+    signal: AbortSignal.timeout(120_000)
+  });
+  if (!csRes.ok) {
+    const txt = await csRes.text();
+    throw new Error(`LeadHydration coaching-analyze failed (${csRes.status}): ${txt.slice(0, 300)}`);
+  }
+  const analysis = await csRes.json();
+  // Wrap in the same shape ClearSignalsAI returns
+  return { result: analysis?.result || analysis, mode: 'coaching', pipeline: 'leadhydration-fallback' };
+}
+
+// ── Mode 1 + 2: Coaching call (returns situation report + play-by-play in one shot)
+// Mode 1 "Situation Report": frontend renders only final block (forward-looking)
+// Mode 2 "Play-by-Play": frontend reveals per_email from the SAME response (no extra API call)
 app.post('/api/clearsignals', async (req, res) => {
   const { run_id, thread_text } = req.body || {};
   if (!run_id)      return res.status(400).json({ error: 'Require run_id' });
@@ -1446,64 +1684,58 @@ app.post('/api/clearsignals', async (req, res) => {
   const run = runStore.get(run_id);
   if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
 
-  if (!LEADHYDRATION_URL) {
+  try {
+    const data = await callClearSignals(thread_text, 'coaching', run);
+    const analysis = data.result || data;
+
+    // Store full coaching response (situation report + play-by-play) on the run
+    run.clearsignals_analysis = analysis;
+    run._cs_thread_text = thread_text; // stash for Look Back mode
+
+    // Persist coaching analysis to Postgres (fire-and-forget)
+    db.saveCoaching(run_id, thread_text, analysis)
+      .catch(err => console.error('[db] async saveCoaching:', err.message));
+
+    return res.json({ run_id, analysis, pipeline: data.pipeline || 'clearsignals' });
+  } catch (err) {
+    console.error('[clearsignals]', err.message);
+    return res.status(502).json({ error: `ClearSignals failed: ${err.message}` });
+  }
+});
+
+// ── Mode 3: "Look Back" — Opportunity summary (deal is done, holistic retrospective)
+// Separate call because this uses ClearSignalsAI's postmortem mode which has
+// a completely different analytical lens (what went right/wrong, lessons learned).
+app.post('/api/clearsignals-lookback', async (req, res) => {
+  const { run_id } = req.body || {};
+  if (!run_id) return res.status(400).json({ error: 'Require run_id' });
+
+  const run = runStore.get(run_id);
+  if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
+
+  const threadText = run._cs_thread_text;
+  if (!threadText) {
+    return res.status(400).json({ error: 'Run the initial analysis first — no thread text found.' });
+  }
+
+  if (!CLEARSIGNALS_URL) {
     return res.status(503).json({
-      error: 'DRiX Ready Lead not connected',
-      detail: 'ClearSignals is hosted inside DRiX Ready Lead. Set LEADHYDRATION_URL to enable.'
+      error: 'Look Back requires ClearSignals AI',
+      detail: 'Set CLEARSIGNALS_URL to enable opportunity summary. LeadHydration fallback does not support this mode.'
     });
   }
 
   try {
-    const customerName = run.customer?.target?.name || 'Target Customer';
-    // Pain context hands our already-discovered pain labels to ClearSignals so
-    // it can align its analysis to the specific pains we surfaced.
-    const painLabels = [
-      ...(run.pain_groups?.company_pain     || []),
-      ...(run.pain_groups?.subindustry_pain || []),
-      ...(run.pain_groups?.industry_pain    || [])
-    ].map(p => p.title).filter(Boolean).slice(0, 8);
+    console.log(`[clearsignals-lookback] Starting opportunity summary for run ${run_id}`);
+    const data = await callClearSignals(threadText, 'postmortem', run);
+    const analysis = data.result || data;
 
-    // Retry up to 2 times — LeadHydration's LLM can return null on cold starts.
-    let analysis;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const csRes = await fetch(`${LEADHYDRATION_URL}/api/coaching-analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
-        },
-        body: JSON.stringify({
-          thread_text,
-          companyName: customerName,
-          pain_context: { painLabels }
-        }),
-        signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
-      });
-      if (csRes.ok) {
-        analysis = await csRes.json();
-        break;
-      }
-      const txt = await csRes.text();
-      console.error(`[clearsignals] attempt ${attempt + 1}/3 — ${csRes.status}: ${txt.slice(0, 300)}`);
-      if (attempt < 2 && (csRes.status >= 500 || txt.includes('null response'))) {
-        console.log(`[clearsignals] Retrying in ${3 + attempt * 3}s…`);
-        await new Promise(r => setTimeout(r, (3 + attempt * 3) * 1000));
-        continue;
-      }
-      throw new Error(`ClearSignals analyze failed (${csRes.status}): ${txt.slice(0, 300)}`);
-    }
-    if (!analysis) throw new Error('ClearSignals returned no data after 3 attempts');
-    // Keep the latest ClearSignals run attached to the run for the email report.
-    run.clearsignals_analysis = analysis;
+    run.clearsignals_lookback = analysis;
 
-    // Persist coaching analysis to Postgres (fire-and-forget)
-    db.saveCoaching(run_id, thread_text, analysis?.result || analysis)
-      .catch(err => console.error('[db] async saveCoaching:', err.message));
-
-    return res.json({ run_id, analysis });
+    return res.json({ run_id, analysis, pipeline: data.pipeline || 'clearsignals-lookback' });
   } catch (err) {
-    console.error('[clearsignals]', err.message);
-    return res.status(502).json({ error: `ClearSignals failed: ${err.message}` });
+    console.error('[clearsignals-lookback]', err.message);
+    return res.status(502).json({ error: `Look Back failed: ${err.message}` });
   }
 });
 
