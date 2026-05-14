@@ -94,6 +94,8 @@ export default function DrixApp() {
   const [playByPlayOutput, setPlayByPlayOutput] = useState('')
   const [lookBackLoading, setLookBackLoading] = useState(false)
   const [lookBackOutput, setLookBackOutput] = useState('')
+  const [exportModes, setExportModes] = useState({ situation: true, playbyplay: false, lookback: false })
+  const [exporting, setExporting] = useState(false)
   const [coachMsgs, setCoachMsgs] = useState<{ role: string; text: string }[]>([
     { role: 'system', text: 'Ask me anything about this deal. I know the pains, personas, strategies, discovery questions, and competitive angles.' },
   ])
@@ -1479,6 +1481,36 @@ export default function DrixApp() {
     setLookBackOutput(html)
   }
 
+  // ─── PDF EXPORT ──────────────────────────────────────────────────────────
+  const exportClearSignalsPDF = async () => {
+    if (!appState.runId) return
+    setExporting(true)
+    try {
+      const res = await fetch('/api/clearsignals-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: appState.runId, modes: exportModes }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Export failed')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ClearSignals_Report_${appState.runId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      setCsStatus('Export error: ' + e.message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // ─── COACH CHAT ─────────────────────────────────────────────────────────
   const sendCoachMsg = async () => {
     const msg = coachInput.trim()
@@ -2360,6 +2392,34 @@ export default function DrixApp() {
                   {lookBackOutput && (
                     <div className="mt-4" dangerouslySetInnerHTML={{ __html: lookBackOutput }} />
                   )}
+                  {/* ── PDF Export panel ── */}
+                  <div className="mt-5 pt-4 border-t border-drix-border">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-[10px] font-bold tracking-wide uppercase text-drix-dim">Export Report as PDF</div>
+                      <button
+                        onClick={exportClearSignalsPDF}
+                        disabled={exporting}
+                        className="px-4 py-2 rounded-lg text-[11px] font-bold bg-gradient-to-r from-drix-accent/20 to-drix-purple/20 border border-drix-accent/30 text-drix-accent hover:border-drix-accent/60 transition-all disabled:opacity-40 disabled:cursor-wait flex items-center gap-1.5"
+                      >
+                        <Download size={12} />
+                        {exporting ? 'Generating PDF...' : 'Download PDF'}
+                      </button>
+                    </div>
+                    <div className="flex gap-5">
+                      <label className="flex items-center gap-2 text-[11px] text-drix-text cursor-pointer">
+                        <input type="checkbox" checked={exportModes.situation} onChange={(e) => setExportModes((m) => ({ ...m, situation: e.target.checked }))} className="accent-drix-accent rounded" />
+                        Situation Report
+                      </label>
+                      <label className="flex items-center gap-2 text-[11px] text-drix-text cursor-pointer">
+                        <input type="checkbox" checked={exportModes.playbyplay} onChange={(e) => setExportModes((m) => ({ ...m, playbyplay: e.target.checked }))} className="accent-drix-accent rounded" />
+                        Play-by-Play
+                      </label>
+                      <label className="flex items-center gap-2 text-[11px] text-drix-text cursor-pointer">
+                        <input type="checkbox" checked={exportModes.lookback} onChange={(e) => setExportModes((m) => ({ ...m, lookback: e.target.checked }))} className="accent-drix-accent rounded" />
+                        Look Back
+                      </label>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

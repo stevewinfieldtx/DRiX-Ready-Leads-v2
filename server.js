@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const PDFDocument = require('pdfkit');
 
 const db = require('./db');
 const { scanIndividual } = require('./individual-scan');
@@ -1736,6 +1737,313 @@ app.post('/api/clearsignals-lookback', async (req, res) => {
   } catch (err) {
     console.error('[clearsignals-lookback]', err.message);
     return res.status(502).json({ error: `Look Back failed: ${err.message}` });
+  }
+});
+
+// ─── CLEARSIGNALS PDF EXPORT ─────────────────────────────────────────────────
+// Generates a branded, professional PDF report from cached analysis results.
+// Frontend sends mode flags; server reads from run's stashed data.
+
+app.post('/api/clearsignals-export', async (req, res) => {
+  const { run_id, modes } = req.body || {};
+  if (!run_id) return res.status(400).json({ error: 'Require run_id' });
+
+  const run = runStore.get(run_id);
+  if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
+
+  const includeSitRep    = modes?.situation !== false;
+  const includePlayByPlay = modes?.playbyplay === true;
+  const includeLookBack  = modes?.lookback === true;
+
+  const coaching = run.clearsignals_analysis || null;
+  const lookback = run.clearsignals_lookback || null;
+
+  if (!coaching && !lookback) {
+    return res.status(400).json({ error: 'No ClearSignals analysis found. Run the Situation Report first.' });
+  }
+
+  try {
+    const doc = new PDFDocument({ size: 'letter', margin: 50, bufferPages: true });
+    const chunks = [];
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end', () => {
+      const pdfBuf = Buffer.concat(chunks);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="ClearSignals_Report_${run_id}.pdf"`);
+      res.send(pdfBuf);
+    });
+
+    // ── Brand colors ──
+    const ACCENT  = '#5AA9FF';
+    const PURPLE  = '#A855F7';
+    const RED     = '#EF4444';
+    const GREEN   = '#22C55E';
+    const YELLOW  = '#EAB308';
+    const DARK    = '#111827';
+    const DIM     = '#6B7280';
+    const SURFACE = '#F3F4F6';
+
+    const companyName = run.customer?.target?.name || 'Target Company';
+
+    // ── Helper functions ──
+    function drawHeader(title, subtitle) {
+      // Top bar
+      doc.rect(0, 0, doc.page.width, 80).fill(DARK);
+      doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold')
+        .text('ClearSignals', 50, 20, { continued: true })
+        .fillColor(ACCENT).text(' AI', { continued: false });
+      doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica')
+        .text(`Report for: ${companyName}  |  ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 50, 50);
+      doc.moveDown(2.5);
+      // Section title
+      doc.fillColor(DARK).fontSize(16).font('Helvetica-Bold').text(title);
+      if (subtitle) doc.fillColor(DIM).fontSize(9).font('Helvetica').text(subtitle);
+      doc.moveDown(0.6);
+      doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).strokeColor(ACCENT).lineWidth(1).stroke();
+      doc.moveDown(0.6);
+    }
+
+    function sectionLabel(label, color) {
+      doc.fillColor(color || PURPLE).fontSize(9).font('Helvetica-Bold').text(label.toUpperCase(), { characterSpacing: 0.8 });
+      doc.moveDown(0.3);
+    }
+
+    function bodyText(text, opts) {
+      if (!text) return;
+      doc.fillColor(opts?.color || DARK).fontSize(opts?.size || 10).font(opts?.bold ? 'Helvetica-Bold' : 'Helvetica')
+        .text(String(text), { lineGap: 3 });
+      doc.moveDown(opts?.gap || 0.3);
+    }
+
+    function checkPageSpace(needed) {
+      if (doc.y + (needed || 120) > doc.page.height - 60) doc.addPage();
+    }
+
+    function drawScoreBadge(score, label) {
+      const x = 50, y = doc.y;
+      const scoreNum = typeof score === 'number' ? score : parseInt(score) || 0;
+      const sc = scoreNum >= 70 ? GREEN : scoreNum >= 40 ? YELLOW : RED;
+      doc.circle(x + 22, y + 22, 22).lineWidth(2).strokeColor(sc).stroke();
+      doc.fillColor(sc).fontSize(18).font('Helvetica-Bold').text(String(score), x + 4, y + 10, { width: 36, align: 'center' });
+      doc.fillColor(DARK).fontSize(11).font('Helvetica-Bold').text(label || '', x + 55, y + 6, { width: 400 });
+      doc.y = y + 50;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // MODE 1: SITUATION REPORT
+    // ════════════════════════════════════════════════════════════════
+    if (includeSitRep && coaching) {
+      const d = coaching.result || coaching;
+      const health = d.deal_health || {};
+      const final = d.final || {};
+
+      drawHeader('Situation Report', 'Forward-looking assessment — where we are and what to do next');
+
+      // Deal health badge
+      const score = health.score ?? final.win_pct ?? '?';
+      const label = health.label || final.deal_health || '';
+      drawScoreBadge(score, label);
+
+      const summary = health.status_summary || health.summary || final.summary || '';
+      if (summary) bodyText(summary, { color: DIM });
+
+      const winProb = health.win_probability ?? final.win_pct ?? null;
+      const trajectory = final.trajectory || health.sentiment_trend || '';
+      if (winProb != null || trajectory) {
+        bodyText(`${winProb != null ? `Win likelihood: ${winProb}%` : ''}${trajectory ? `   Trajectory: ${trajectory}` : ''}`, { color: DIM, size: 9 });
+      }
+
+      // Coach headline
+      const coachLine = final.coach || '';
+      if (coachLine) {
+        doc.moveDown(0.3);
+        sectionLabel('What you need to do right now', ACCENT);
+        bodyText(coachLine, { bold: true });
+      }
+
+      // Next moves
+      const nextSteps = Array.isArray(final.recommended_actions) ? final.recommended_actions
+        : Array.isArray(d.next_steps) ? d.next_steps
+        : Array.isArray(d.recommended_actions) ? d.recommended_actions : [];
+
+      if (nextSteps.length) {
+        doc.moveDown(0.3);
+        sectionLabel('Recommended next moves', PURPLE);
+        nextSteps.forEach((s) => {
+          checkPageSpace(80);
+          if (typeof s === 'string') {
+            bodyText(`• ${s}`);
+          } else {
+            bodyText(`• ${s.action || ''}`, { bold: true });
+            if (s.reasoning) bodyText(`  ${s.reasoning}`, { color: DIM, size: 9 });
+            if (s.script) {
+              doc.fillColor(DIM).fontSize(9).font('Helvetica-Oblique')
+                .text(`  Script: "${s.script}"`, { lineGap: 2 });
+              doc.moveDown(0.2);
+            }
+          }
+        });
+      }
+
+      // Unresolved items
+      const unresolved = Array.isArray(final.unresolved_items) ? final.unresolved_items : [];
+      if (unresolved.length) {
+        doc.moveDown(0.3);
+        sectionLabel('Unanswered buyer questions', RED);
+        unresolved.forEach((item) => {
+          checkPageSpace();
+          bodyText(`• ${item}`, { color: RED });
+        });
+      }
+
+      // Qualification gaps
+      const qualGaps = d.qualification_gaps || {};
+      if (qualGaps.gaps?.length) {
+        const missing = qualGaps.gaps.filter((g) => g.status === 'missing' || g.status === 'unknown');
+        if (missing.length) {
+          doc.moveDown(0.3);
+          sectionLabel(`Qualification gaps${qualGaps.meddpicc_score ? ` (${qualGaps.meddpicc_score})` : ''}`, YELLOW);
+          missing.slice(0, 6).forEach((g) => {
+            checkPageSpace();
+            bodyText(`• ${g.letter} — ${g.element}`, { bold: true });
+            if (g.coaching) bodyText(`  ${g.coaching}`, { color: DIM, size: 9 });
+          });
+        }
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // MODE 2: PLAY-BY-PLAY
+    // ════════════════════════════════════════════════════════════════
+    if (includePlayByPlay && coaching) {
+      const d = coaching.result || coaching;
+      const perEmail = Array.isArray(d.per_email) ? d.per_email : [];
+      const parsedEmails = Array.isArray(d.parsed_emails) ? d.parsed_emails : [];
+
+      if (perEmail.length) {
+        doc.addPage();
+        drawHeader('Play-by-Play', 'Email-by-email breakdown — what happened at each step');
+
+        perEmail.forEach((em, i) => {
+          checkPageSpace(100);
+          const parsed = parsedEmails[i] || {};
+          const dir = em.direction || parsed.direction || 'unknown';
+          const isInbound = dir === 'inbound';
+          const dirLabel = isInbound ? 'BUYER' : 'REP';
+          const dirColor = isInbound ? ACCENT : PURPLE;
+
+          // Email card header
+          const cardY = doc.y;
+          doc.rect(50, cardY, 3, 0.1).fill(dirColor); // left border start
+          doc.fillColor(dirColor).fontSize(9).font('Helvetica-Bold')
+            .text(`EMAIL ${em.email_num || i + 1} — ${dirLabel}${parsed.from ? ` (${parsed.from})` : ''}`, 58);
+
+          // Win / intent badges
+          const winPct = em.win_pct ?? '';
+          const intent = em.intent ?? '';
+          if (winPct !== '' || intent !== '') {
+            doc.fillColor(DIM).fontSize(8).font('Helvetica')
+              .text(`${winPct !== '' ? `Win: ${winPct}%` : ''}${intent !== '' ? `  Intent: ${intent}/10` : ''}`, 58);
+          }
+          doc.moveDown(0.2);
+
+          if (em.summary) bodyText(em.summary, { size: 9 });
+
+          // Direction-aware coaching
+          if (isInbound && em.inbound_coaching) {
+            const ic = em.inbound_coaching;
+            if (ic.buyer_analysis) { doc.fillColor(ACCENT).fontSize(8).font('Helvetica-Bold').text('Buyer thinking: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(ic.buyer_analysis); doc.moveDown(0.15); }
+            if (ic.recommended_response) { doc.fillColor(GREEN).fontSize(8).font('Helvetica-Bold').text('Best response: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(ic.recommended_response); doc.moveDown(0.15); }
+            if (ic.watch_for) { doc.fillColor(YELLOW).fontSize(8).font('Helvetica-Bold').text('Watch for: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(ic.watch_for); doc.moveDown(0.15); }
+          } else if (!isInbound && em.outbound_coaching) {
+            const oc = em.outbound_coaching;
+            if (oc.rep_grade) { doc.fillColor(PURPLE).fontSize(8).font('Helvetica-Bold').text('Grade: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(oc.rep_grade); doc.moveDown(0.15); }
+            if (oc.did_well) { doc.fillColor(GREEN).fontSize(8).font('Helvetica-Bold').text('Did well: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(oc.did_well); doc.moveDown(0.15); }
+            if (oc.missed) { doc.fillColor(RED).fontSize(8).font('Helvetica-Bold').text('Missed: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(oc.missed); doc.moveDown(0.15); }
+          }
+
+          // Draw the left border for the card
+          const cardEnd = doc.y;
+          doc.rect(50, cardY, 3, cardEnd - cardY).fill(dirColor);
+          doc.moveDown(0.5);
+        });
+
+        // Tone & timing guidance
+        const final = d.final || {};
+        if (final.tone_guidance || final.timing_guidance) {
+          checkPageSpace(80);
+          sectionLabel('Communication guidance', ACCENT);
+          if (final.tone_guidance) bodyText(`Tone: ${final.tone_guidance}`, { size: 9 });
+          if (final.timing_guidance) bodyText(`Timing: ${final.timing_guidance}`, { size: 9 });
+        }
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // MODE 3: LOOK BACK
+    // ════════════════════════════════════════════════════════════════
+    if (includeLookBack && lookback) {
+      const d = lookback.result || lookback;
+      const perEmail = Array.isArray(d.per_email) ? d.per_email : [];
+      const parsedEmails = Array.isArray(d.parsed_emails) ? d.parsed_emails : [];
+      const final = d.final || {};
+
+      doc.addPage();
+      drawHeader('Look Back', 'Opportunity summary — holistic retrospective and lessons learned');
+
+      perEmail.forEach((em, i) => {
+        checkPageSpace(100);
+        const parsed = parsedEmails[i] || {};
+        const dir = em.direction || parsed.direction || 'unknown';
+        const isInbound = dir === 'inbound';
+        const dirColor = isInbound ? ACCENT : PURPLE;
+        const dirLabel = isInbound ? 'BUYER' : 'REP';
+
+        const cardY = doc.y;
+        doc.fillColor(dirColor).fontSize(9).font('Helvetica-Bold')
+          .text(`EMAIL ${em.email_num || i + 1} — ${dirLabel}${parsed.from ? ` (${parsed.from})` : ''}`, 58);
+        doc.moveDown(0.2);
+
+        if (em.summary) bodyText(em.summary, { size: 9 });
+
+        if (em.coaching) {
+          if (em.coaching.good) { doc.fillColor(GREEN).fontSize(8).font('Helvetica-Bold').text('Good: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(em.coaching.good); doc.moveDown(0.15); }
+          if (em.coaching.better) { doc.fillColor(YELLOW).fontSize(8).font('Helvetica-Bold').text('Could improve: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(em.coaching.better); doc.moveDown(0.15); }
+        }
+        if (em.next_time) { doc.fillColor(PURPLE).fontSize(8).font('Helvetica-Bold').text('Next time: ', { continued: true }); doc.fillColor(DIM).font('Helvetica').text(em.next_time); doc.moveDown(0.15); }
+
+        const cardEnd = doc.y;
+        doc.rect(50, cardY, 3, cardEnd - cardY).fill(dirColor);
+        doc.moveDown(0.5);
+      });
+
+      // Holistic summary
+      if (final.coach || final.summary || final.deal_stage) {
+        checkPageSpace(100);
+        sectionLabel('Opportunity summary', PURPLE);
+        if (final.deal_stage) bodyText(`Stage: ${final.deal_stage}`, { bold: true, size: 10 });
+        if (final.summary) bodyText(final.summary);
+        if (final.coach) bodyText(`Key lesson: ${final.coach}`, { color: PURPLE });
+        if (final.next_steps) bodyText(`Carry forward: ${final.next_steps}`, { color: DIM });
+      }
+    }
+
+    // ── Footer on every page ──
+    const pageCount = doc.bufferedPageRange().count;
+    for (let i = 0; i < pageCount; i++) {
+      doc.switchToPage(i);
+      doc.fillColor(DIM).fontSize(7).font('Helvetica')
+        .text(
+          `ClearSignals AI  •  DRiX by WinTech Partners  •  Page ${i + 1} of ${pageCount}`,
+          50, doc.page.height - 30,
+          { width: doc.page.width - 100, align: 'center' }
+        );
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error('[clearsignals-export]', err.message);
+    return res.status(500).json({ error: `PDF export failed: ${err.message}` });
   }
 });
 
