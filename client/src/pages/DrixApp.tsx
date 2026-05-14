@@ -337,7 +337,12 @@ export default function DrixApp() {
         )
         break
       case 'strategies':
-        setAppState((s) => ({ ...s, strategies: data, topPickId: data.top_pick_id }))
+        setAppState((s) => ({
+          ...s,
+          strategies: data,
+          topPickId: data.top_pick_id,
+          ...(data.run_id ? { runId: data.run_id } : {})
+        }))
         renderStrategies(data)
         setPhases((prev) =>
           prev.map((p) =>
@@ -721,9 +726,9 @@ export default function DrixApp() {
         </div>
       </div>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div id="strat-action-info" style="font-size:12px;color:var(--text-dim);">Click a strategy to select it. Multi-select to trigger Sales Advisor Storm.</div>
+        <div id="strat-action-info" style="font-size:13px;color:var(--text);font-weight:600;">Click a strategy to select it. Multi-select to trigger Sales Advisor Storm.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="btn-proceed" disabled onclick="window.onProceed()" style="background:linear-gradient(135deg,var(--green),var(--accent));color:#0a0e13;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;transition:all 0.15s;letter-spacing:0.3px;opacity:0.4;cursor:not-allowed;">Proceed with selected →</button>
+          <button id="btn-proceed" disabled onclick="window.onProceed()" style="background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;font-weight:800;cursor:not-allowed;font-family:inherit;transition:all 0.15s;letter-spacing:0.3px;opacity:0.7;">Proceed with selected →</button>
           <button id="btn-storm" disabled onclick="window.onAdvisorStorm()" style="display:none;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.4;cursor:not-allowed;">Run Sales Advisor Storm</button>
         </div>
       </div>
@@ -903,15 +908,29 @@ export default function DrixApp() {
     if (!info || !proceed || !storm) return
     if (count === 0) {
       info.textContent = 'Click a strategy to select it. Multi-select to trigger Sales Advisor Storm.'
+      info.style.fontWeight = '600'
+      info.style.color = 'var(--text)'
+      info.style.fontSize = '13px'
       proceed.disabled = true
-      proceed.style.opacity = '0.4'
+      proceed.style.opacity = '0.7'
+      proceed.style.background = 'var(--surface-3)'
+      proceed.style.color = 'var(--text-dim)'
+      proceed.style.border = '1px solid var(--border)'
+      proceed.style.cursor = 'not-allowed'
       proceed.style.display = ''
       storm.disabled = true
       storm.style.display = 'none'
     } else if (count === 1) {
       info.innerHTML = `<strong>${count}</strong> strategy selected. Click proceed to hydrate the lead.`
+      info.style.fontWeight = '600'
+      info.style.color = 'var(--text)'
+      info.style.fontSize = '13px'
       proceed.disabled = false
       proceed.style.opacity = '1'
+      proceed.style.background = 'linear-gradient(135deg,var(--green),var(--accent))'
+      proceed.style.color = '#0a0e13'
+      proceed.style.border = 'none'
+      proceed.style.cursor = 'pointer'
       proceed.style.display = ''
       storm.disabled = true
       storm.style.display = 'none'

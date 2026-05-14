@@ -1034,25 +1034,10 @@ app.post('/api/demo-flow', async (req, res) => {
         db.setCachedIngest(sk, 'strategy', strategies);
       }
     }
-    send('strategies', strategies);
+    send('strategies', { ...strategies, run_id });
 
-    // ── PHASE 5: Decision-maker lookup — Apollo against the AI-identified
-    //    target_persona of the top-pick strategy. One Apollo call per demo;
-    //    additional calls fire lazily in /api/hydrate when the user picks a
-    //    different (non-top-pick) strategy.
+    // ── Persist the run EARLY so /api/hydrate works as soon as strategies render ──
     const decisionMakers = {}; // strategy_id → contact object
-    const customerDomain = String(customer?.target?.url || customer?.source_url || customer_url || '')
-      .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').trim();
-    const topPickId = strategies?.top_pick_id;
-    const topPick   = (strategies?.strategies || []).find(s => s.id === topPickId);
-    if (APOLLO_API_KEY && customerDomain && topPick?.target_persona) {
-      send('phase', { phase: 'decision_maker', message: `Identifying ${topPick.target_persona} at ${customerDomain}…` });
-      const contact = await apolloFindContact(customerDomain, topPick.target_persona);
-      if (contact) decisionMakers[topPickId] = contact;
-      send('decision_maker', { strategy_id: topPickId, persona: topPick.target_persona, contact: contact || null });
-    }
-
-    // ── Persist the run so /api/hydrate can retrieve it by run_id ────────
     runStore.set(run_id, {
       email, sender, solution, customer, individual,
       pain_points, pain_groups, strategies,
@@ -1065,6 +1050,30 @@ app.post('/api/demo-flow', async (req, res) => {
     const cutoff = Date.now() - 3600000;
     for (const [k, v] of runStore.entries()) {
       if (new Date(v.created_at).getTime() < cutoff) runStore.delete(k);
+    }
+
+    // ── PHASE 5: Decision-maker lookup — Apollo against the AI-identified
+    //    target_persona of the top-pick strategy. One Apollo call per demo;
+    //    additional calls fire lazily in /api/hydrate when the user picks a
+    //    different (non-top-pick) strategy.
+    const customerDomain = String(customer?.target?.url || customer?.source_url || customer_url || '')
+      .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').trim();
+    const topPickId = strategies?.top_pick_id;
+    const topPick   = (strategies?.strategies || []).find(s => s.id === topPickId);
+    if (APOLLO_API_KEY && customerDomain && topPick?.target_persona) {
+      try {
+        send('phase', { phase: 'decision_maker', message: `Identifying ${topPick.target_persona} at ${customerDomain}…` });
+        const contact = await apolloFindContact(customerDomain, topPick.target_persona);
+        if (contact) {
+          decisionMakers[topPickId] = contact;
+          const existingRun = runStore.get(run_id);
+          if (existingRun) existingRun.decisionMakers = decisionMakers;
+        }
+        send('decision_maker', { strategy_id: topPickId, persona: topPick.target_persona, contact: contact || null });
+      } catch (apolloErr) {
+        console.error('[demo-flow] Apollo lookup failed (non-blocking):', apolloErr.message);
+        send('decision_maker', { strategy_id: topPickId, persona: topPick.target_persona, contact: null, error: apolloErr.message });
+      }
     }
 
     send('done', { run_id });
