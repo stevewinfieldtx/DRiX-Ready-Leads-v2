@@ -282,43 +282,122 @@ If is_archetype=true, company_pain must be [].
 JSON only, no markdown: { "company_pain": [...], "subindustry_pain": [...], "industry_pain": [...] }`;
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperature = 0.3, retries = 1 } = {}) {
+async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperature = 0.3, retries = 1, modelOverride = null } = {}) {
   if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not configured');
+  const model = modelOverride || OPENROUTER_MODEL_ID;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
-        'X-Title': 'TDE Demo v3'
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL_ID,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ],
-        response_format: { type: 'json_object' },
-        temperature,
-        max_tokens: maxTokens
-      })
-    });
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`LLM ${response.status}: ${err.slice(0, 300)}`);
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
+          'X-Title': 'TDE Demo v3'
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userContent }
+          ],
+          response_format: { type: 'json_object' },
+          temperature,
+          max_tokens: maxTokens
+        })
+      });
+      if (!response.ok) {
+        const err = await response.text();
+        console.error(`[callLLM] HTTP ${response.status} (attempt ${attempt + 1}/${retries + 1}, model=${model}): ${err.slice(0, 300)}`);
+        if (attempt < retries) { await new Promise(r => setTimeout(r, 2000)); continue; }
+        throw new Error(`LLM ${response.status}: ${err.slice(0, 300)}`);
+      }
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      const finishReason = data?.choices?.[0]?.finish_reason;
+      if (!content) {
+        console.warn(`[callLLM] Empty response (attempt ${attempt + 1}/${retries + 1}, finish_reason=${finishReason}, model=${data?.model || '?'})`);
+        if (attempt < retries) { await new Promise(r => setTimeout(r, 1500)); continue; }
+        throw new Error(`Empty LLM response after ${retries + 1} attempts (finish_reason: ${finishReason || 'unknown'} — model may have filtered this content)`);
+      }
+      if (finishReason === 'length') {
+        console.warn(`[callLLM] Response truncated (finish_reason=length, attempt ${attempt + 1}/${retries + 1}, model=${data?.model || '?'}, content_len=${content.length})`);
+      }
+      const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch (parseErr) {
+        console.error(`[callLLM] JSON parse failed (attempt ${attempt + 1}/${retries + 1}): ${parseErr.message} — raw: ${cleaned.slice(0, 500)}`);
+        // Try to salvage truncated JSON by closing open braces/brackets
+        const salvaged = salvageJSON(cleaned);
+        if (salvaged) {
+          console.log(`[callLLM] Salvaged truncated JSON successfully`);
+          return salvaged;
+        }
+        if (attempt < retries) { await new Promise(r => setTimeout(r, 1500)); continue; }
+        throw new Error(`Invalid JSON from LLM after ${retries + 1} attempts: ${parseErr.message}`);
+      }
+    } catch (err) {
+      if (attempt < retries && !err.message.includes('after')) {
+        console.warn(`[callLLM] Attempt ${attempt + 1} failed: ${err.message} — retrying…`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw err;
     }
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    const finishReason = data?.choices?.[0]?.finish_reason;
-    if (!content) {
-      console.warn(`[callLLM] Empty response (attempt ${attempt + 1}/${retries + 1}, finish_reason=${finishReason}, model=${data?.model || '?'})`);
-      if (attempt < retries) { await new Promise(r => setTimeout(r, 1500)); continue; }
-      throw new Error(`Empty LLM response after ${retries + 1} attempts (finish_reason: ${finishReason || 'unknown'} — model may have filtered this content)`);
-    }
-    const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    return JSON.parse(cleaned);
   }
+}
+
+// Attempt to fix truncated JSON (common with smaller models hitting token limits)
+function salvageJSON(str) {
+  try {
+    // Count open/close braces and brackets
+    let opens = 0, closesNeeded = '';
+    for (const ch of str) {
+      if (ch === '{') { opens++; closesNeeded = '}' + closesNeeded; }
+      else if (ch === '[') { opens++; closesNeeded = ']' + closesNeeded; }
+      else if (ch === '}' || ch === ']') { closesNeeded = closesNeeded.slice(1); }
+    }
+    if (closesNeeded.length > 0 && closesNeeded.length < 10) {
+      // Remove any trailing partial key/value
+      let trimmed = str.replace(/,\s*"[^"]*$/, '').replace(/,\s*$/, '');
+      const parsed = JSON.parse(trimmed + closesNeeded);
+      return parsed;
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Attempt to repair a strategy response that has the data but in the wrong shape
+function repairStrategyResponse(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  // If strategies exist but under a different key name
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (Array.isArray(val) && val.length > 0 && val[0]?.title && val[0]?.explanation) {
+      console.log(`[strategy-repair] Found strategies under key "${key}" instead of "strategies"`);
+      return { ...obj, strategies: val };
+    }
+  }
+  // If the response IS an array of strategies (no wrapper object)
+  if (Array.isArray(obj) && obj.length > 0 && obj[0]?.title) {
+    console.log(`[strategy-repair] Response was a bare array, wrapping`);
+    return { strategies: obj, top_pick_id: obj[0]?.id || 's1', top_pick_reasoning: 'First strategy selected' };
+  }
+  // If strategies exist but some are missing required fields — patch them
+  if (Array.isArray(obj.strategies)) {
+    obj.strategies = obj.strategies.filter(s => s && (s.title || s.explanation));
+    obj.strategies.forEach((s, i) => {
+      if (!s.id) s.id = `s${i + 1}`;
+      if (!s.title) s.title = s.explanation?.slice(0, 50) || `Strategy ${i + 1}`;
+      if (!s.target_persona) s.target_persona = 'General';
+      if (!s.pain_anchor) s.pain_anchor = 'Business Challenge';
+      if (!s.strategy_force) s.strategy_force = 'balanced';
+      if (!s.confidence) s.confidence = 60;
+    });
+    if (!obj.top_pick_id && obj.strategies.length > 0) obj.top_pick_id = obj.strategies[0].id;
+  }
+  return obj;
 }
 
 // ─── FIRECRAWL — JS-rendering scraper for SPAs and modern sites ─────────────
@@ -839,6 +918,57 @@ app.get('/healthz', (_req, res) => {
   });
 });
 
+// ── Clear strategy cache (memory + DB) for debugging ──
+// Clear all strategy + pain caches (POST or GET for easy browser access)
+const clearCacheHandler = async (req, res) => {
+  const memStrat = strategyCache.size;
+  const memPain = painCache.size;
+  const memIngest = ingestCache.size;
+  const clearAll = req.query?.all === 'true';
+  strategyCache.clear();
+  painCache.clear();
+  if (clearAll) ingestCache.clear();
+  let dbStratCleared = 0, dbPainCleared = 0, dbAllCleared = 0;
+  try {
+    const pool = db.getPool();
+    if (pool) {
+      const r1 = await pool.query(`DELETE FROM ingest_cache WHERE role = 'strategy'`);
+      dbStratCleared = r1.rowCount || 0;
+      const r2 = await pool.query(`DELETE FROM ingest_cache WHERE role = 'pain'`);
+      dbPainCleared = r2.rowCount || 0;
+      if (clearAll) {
+        const r3 = await pool.query(`DELETE FROM ingest_cache`);
+        dbAllCleared = r3.rowCount || 0;
+      }
+    }
+  } catch (e) {
+    console.error('[cache] DB clear error:', e.message);
+  }
+  const summary = {
+    cleared: true,
+    memory: { strategies: memStrat, pain: memPain, ...(clearAll ? { ingest: memIngest } : {}) },
+    db: { strategies: dbStratCleared, pain: dbPainCleared, ...(clearAll ? { all: dbAllCleared } : {}) }
+  };
+  console.log(`[cache] Cleared:`, JSON.stringify(summary));
+  res.json(summary);
+};
+app.post('/api/clear-strategy-cache', clearCacheHandler);
+app.get('/api/clear-strategy-cache', clearCacheHandler);
+
+// Diagnostic: test LLM connectivity
+app.get('/api/test-llm', async (_req, res) => {
+  try {
+    const result = await callLLM(
+      'You are a JSON test. Return exactly: {"ok": true, "model_works": true}',
+      'Test ping. Return the JSON now.',
+      { maxTokens: 100, retries: 0 }
+    );
+    res.json({ ok: true, model: OPENROUTER_MODEL_ID, result });
+  } catch (err) {
+    res.status(500).json({ ok: false, model: OPENROUTER_MODEL_ID, error: err.message });
+  }
+});
+
 // Main demo flow — streaming SSE
 // Phases: fetch (parallel) → ingest (parallel) → pain (immediate) → strategies (1 LLM call)
 app.post('/api/demo-flow', async (req, res) => {
@@ -1000,6 +1130,7 @@ app.post('/api/demo-flow', async (req, res) => {
 
     // ── PHASE 4: 5 strategies (cached by sender+solution+customer atoms + role) ──
     send('phase', { phase: 'strategies', message: 'Generating 5 sales strategies…' });
+    const forceFresh = req.query?.force_fresh === 'true' || req.body?.force_fresh === true;
     const sk = cacheKey({
       sender_atoms: sender.atoms,
       solution_atoms: solution.atoms,
@@ -1007,32 +1138,86 @@ app.post('/api/demo-flow', async (req, res) => {
       recipient_role: recipient_role || 'Senior executive'
     });
     let strategies;
+    const hasValidStrategies = (obj) => Array.isArray(obj?.strategies) && obj.strategies.length > 0;
 
-    // 1. In-memory
-    if (strategyCache.has(sk)) {
+    // Build the input once (shared by all attempts)
+    const stratInput = JSON.stringify({
+      sender:   { name: sender.target?.name,   summary: sender.summary,   atoms: sender.atoms },
+      solution: { name: solution.target?.name, summary: solution.summary, atoms: solution.atoms },
+      customer: { name: customer.target?.name, summary: customer.summary, atoms: customer.atoms, is_archetype: !!customer.target?.is_archetype },
+      individual: individual ? { name: individual.target?.name, summary: individual.summary, atoms: individual.atoms, accounts: (individual.scan?.accounts || []).map(a => ({ site: a.site, url: a.url })) } : null,
+      recipient_role: recipient_role || 'Senior executive'
+    });
+
+    // 1. In-memory cache (skip if force_fresh)
+    if (!forceFresh && strategyCache.has(sk) && hasValidStrategies(strategyCache.get(sk))) {
       console.log(`[strategy] Memory cache hit (${sk})`);
       strategies = strategyCache.get(sk);
-    } else {
-      // 2. Postgres
+    } else if (!forceFresh) {
+      // 2. Postgres cache
       const dbStrat = await db.getCachedIngest(sk, 'strategy');
-      if (dbStrat) {
+      if (dbStrat && hasValidStrategies(dbStrat)) {
         console.log(`[strategy] DB cache hit (${sk})`);
         strategies = dbStrat;
         setWithEvict(strategyCache, sk, strategies);
-      } else {
-        // 3. Fresh LLM call
-        console.log(`[strategy] Cache miss — calling LLM (${sk})`);
-        const stratInput = JSON.stringify({
-          sender:   { name: sender.target?.name,   summary: sender.summary,   atoms: sender.atoms },
-          solution: { name: solution.target?.name, summary: solution.summary, atoms: solution.atoms },
-          customer: { name: customer.target?.name, summary: customer.summary, atoms: customer.atoms, is_archetype: !!customer.target?.is_archetype },
-          individual: individual ? { name: individual.target?.name, summary: individual.summary, atoms: individual.atoms, accounts: (individual.scan?.accounts || []).map(a => ({ site: a.site, url: a.url })) } : null,
-          recipient_role: recipient_role || 'Senior executive'
-        });
-        strategies = await callLLM(STRATEGIES_PROMPT, stratInput, { maxTokens: 4000 });
+      }
+    }
+
+    // 3. Fresh LLM call (runs on cache miss, invalid cache, or force_fresh)
+    if (!hasValidStrategies(strategies)) {
+      if (forceFresh) console.log(`[strategy] force_fresh — bypassing cache (${sk})`);
+      else console.log(`[strategy] Cache miss or invalid — calling LLM (${sk})`);
+
+      // Try with primary model first, then with increased tokens, then fallback model
+      const attempts = [
+        { maxTokens: 6000, retries: 2, label: 'primary' },
+        { maxTokens: 8000, retries: 1, label: 'primary-large' },
+        { maxTokens: 6000, retries: 1, modelOverride: 'anthropic/claude-sonnet-4', label: 'fallback-claude' }
+      ];
+
+      for (const attemptConfig of attempts) {
+        try {
+          console.log(`[strategy] Trying ${attemptConfig.label} (maxTokens=${attemptConfig.maxTokens}, model=${attemptConfig.modelOverride || OPENROUTER_MODEL_ID})`);
+          const result = await callLLM(STRATEGIES_PROMPT, stratInput, {
+            maxTokens: attemptConfig.maxTokens,
+            retries: attemptConfig.retries,
+            ...(attemptConfig.modelOverride ? { modelOverride: attemptConfig.modelOverride } : {})
+          });
+
+          // Validate the response shape
+          if (hasValidStrategies(result)) {
+            strategies = result;
+            console.log(`[strategy] Success via ${attemptConfig.label}: ${result.strategies.length} strategies`);
+            break;
+          } else {
+            console.warn(`[strategy] ${attemptConfig.label} returned invalid shape:`, JSON.stringify(result).slice(0, 300));
+            // If response has strategies-like data under a different key, try to repair
+            const repaired = repairStrategyResponse(result);
+            if (hasValidStrategies(repaired)) {
+              strategies = repaired;
+              console.log(`[strategy] Repaired response from ${attemptConfig.label}: ${repaired.strategies.length} strategies`);
+              break;
+            }
+          }
+        } catch (err) {
+          console.error(`[strategy] ${attemptConfig.label} failed: ${err.message}`);
+        }
+      }
+
+      // Cache only valid results
+      if (hasValidStrategies(strategies)) {
         setWithEvict(strategyCache, sk, strategies);
         db.setCachedIngest(sk, 'strategy', strategies);
+      } else {
+        console.error(`[strategy] ALL attempts failed — no valid strategies produced`);
+        // Delete any stale bad cache entry so next run tries fresh
+        try { db.setCachedIngest(sk, 'strategy', null); } catch (_) {}
       }
+    }
+
+    if (!hasValidStrategies(strategies)) {
+      console.error(`[strategy] Returning empty strategies object`);
+      strategies = strategies || { strategies: [], customer_label: customer.target?.name || 'Unknown', solution_label: solution.target?.name || 'Unknown', sender_label: sender.target?.name || 'Unknown' };
     }
     send('strategies', { ...strategies, run_id });
 

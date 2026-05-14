@@ -187,7 +187,7 @@ export default function DrixApp() {
   }
 
   // ─── RUN FLOW ───────────────────────────────────────────────────────────
-  const runFlow = useCallback(async () => {
+  const runFlow = useCallback(async (forceFresh = false) => {
     setError('')
     const email = fEmail.trim()
     const sender = fSender.trim()
@@ -207,6 +207,7 @@ export default function DrixApp() {
       sender_company_url: sender,
       solution_url: solution,
       mode: mode === 'demo' ? 'demo' : 'production',
+      ...(forceFresh ? { force_fresh: true } : {}),
     }
 
     const cust = fCustomer.trim()
@@ -280,6 +281,12 @@ export default function DrixApp() {
     }
   }, [mode, appState.naics, fEmail, fSender, fSolution, fCustomer, selectedIndustry, fSubindustry, fTitle, fIndividual, fIndividualEmail])
 
+  // Expose force-fresh retry on window for the retry button
+  useEffect(() => {
+    ;(window as any).__runFlowFresh = () => runFlow(true)
+    return () => { delete (window as any).__runFlowFresh }
+  }, [runFlow])
+
   const readSSE = async (response: Response, handler: (event: string, data: any) => void) => {
     const reader = response.body!.getReader()
     const decoder = new TextDecoder()
@@ -343,6 +350,9 @@ export default function DrixApp() {
           topPickId: data.top_pick_id,
           ...(data.run_id ? { runId: data.run_id } : {})
         }))
+        if ((data.strategies || []).length === 0) {
+          console.error('[DRiX] Server returned 0 strategies — showing retry option')
+        }
         renderStrategies(data)
         setPhases((prev) =>
           prev.map((p) =>
@@ -702,6 +712,15 @@ export default function DrixApp() {
     const strats = data.strategies || []
     const topId = data.top_pick_id
 
+    // Show retry prompt if 0 strategies
+    const retryBlock = strats.length === 0 ? `
+      <div style="background:rgba(255,90,90,0.08);border:1px solid rgba(255,90,90,0.25);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:700;color:var(--red);margin-bottom:8px;">Strategy generation failed</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px;">The AI model didn't return strategies. This can happen with cached stale data or model timeouts.</div>
+        <button onclick="window.__retryStrategies()" style="background:linear-gradient(to right,#5aa9ff,#b583ff);color:#0a0e13;border:none;border-radius:10px;padding:10px 24px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">Retry with Fresh Data →</button>
+      </div>
+    ` : ''
+
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
         <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);font-weight:800;margin:0;display:flex;align-items:center;gap:8px;">
@@ -714,6 +733,7 @@ export default function DrixApp() {
           <strong>${esc(data.customer_label || 'the customer')}</strong>
         </div>
       </div>
+      ${retryBlock}
       <div style="display:flex;flex-direction:column;gap:12px;">
         ${strats.map((s: any) => renderStratCard(s, s.id === topId)).join('')}
         <div style="background:var(--bg);border:2px dashed var(--dx-border);border-radius:12px;padding:14px 16px;text-align:center;">
@@ -847,6 +867,15 @@ export default function DrixApp() {
       })
     }
 
+    window.__retryStrategies = () => {
+      // Clear the strategy cache on the server, then re-run the entire flow with force_fresh
+      fetch('/api/clear-strategy-cache', { method: 'POST' }).catch(() => {})
+      // Small delay then re-trigger with force_fresh=true
+      setTimeout(() => {
+        window.__runFlowFresh?.()
+      }, 300)
+    }
+
     window.onAdvisorStorm = () => {
       setAppState((s) => {
         const n = s.selected.size
@@ -874,6 +903,7 @@ export default function DrixApp() {
       delete window.onProceed
       delete window.onAdvisorStorm
       delete window._stormCallback
+      delete window.__retryStrategies
     }
   }, [])
 
