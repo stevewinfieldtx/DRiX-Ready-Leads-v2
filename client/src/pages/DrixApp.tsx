@@ -1765,7 +1765,7 @@ export default function DrixApp() {
                     ← Back
                   </button>
                   <button
-                    onClick={runFlow}
+                    onClick={() => runFlow()}
                     disabled={running}
                     className="dx-btn-primary px-8 py-3.5 rounded-xl text-sm font-bold hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center gap-2"
                   >
@@ -2150,5 +2150,7 @@ declare global {
     onProceed?: () => void
     onAdvisorStorm?: () => void
     _stormCallback?: (() => void) | undefined
+    __retryStrategies?: () => void
+    __runFlowFresh?: () => void
   }
 }
