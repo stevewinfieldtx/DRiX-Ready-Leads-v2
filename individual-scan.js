@@ -146,17 +146,20 @@ async function braveNewsSearch(query, count = 10) {
 
 /**
  * Deep web research on an individual.
- * Runs multiple Brave Search queries to find podcasts, talks, news, content, etc.
+ * PHASE 1: Discovery — figure out who this person actually is (bio pages, LinkedIn, org charts, announcements)
+ * PHASE 2: Deep dive — podcasts, talks, news, content, certifications, awards
+ *
+ * Does NOT depend on having the right company name upfront. Searches with and without it.
  */
-async function deepResearch(name, company, title) {
+async function deepResearch(name, company, title, companyDomain) {
   if (!BRAVE_API_KEY || !name) {
     console.log('[individual-scan] No BRAVE_API_KEY or no name — skipping deep research');
-    return { podcasts: [], videos: [], news: [], pr: [], talks: [], content: [], awards: [], volunteer: [] };
+    return { discovery: [], profile_pages: [], certifications: [], podcasts: [], videos: [], news: [], pr: [], talks: [], content: [], awards: [], volunteer: [] };
   }
 
-  console.log(`[individual-scan] Deep research: "${name}" at ${company || 'unknown'}`);
+  console.log(`[individual-scan] Deep research: "${name}" (title: ${title || 'unknown'}) at ${company || 'unknown'} (domain: ${companyDomain || 'none'})`);
 
-  const results = { podcasts: [], videos: [], news: [], pr: [], talks: [], content: [], awards: [], volunteer: [] };
+  const results = { discovery: [], profile_pages: [], certifications: [], podcasts: [], videos: [], news: [], pr: [], talks: [], content: [], awards: [], volunteer: [] };
   const seen = new Set();
 
   function dedup(items) {
@@ -168,62 +171,131 @@ async function deepResearch(name, company, title) {
     });
   }
 
-  // Helper for classification
+  // Classification helpers
   const isPodcast = (r) => /podcast|episode|ep\.|listen|spotify|apple.podcast/i.test(r.title + r.url + r.description);
   const isVideo = (r) => /youtube\.com|vimeo|video|webinar|recording/i.test(r.title + r.url);
   const isConference = (r) => /conference|summit|forum|keynote|panel|speaker|fireside/i.test(r.title + r.description);
-  const isNews = (r) => /reuters|bloomberg|techcrunch|fortune|forbes|wsj|bizjournals|cnbc/i.test(r.url);
-  const isPR = (r) => /press.release|newswire|announces|appointed|promoted|named/i.test(r.title + r.url + r.description);
+  const isPR = (r) => /press.release|newswire|announces|appointed|promoted|named|hired|joins/i.test(r.title + r.url + r.description);
   const isContent = (r) => /author|written.by|blog|medium\.com|linkedin\.com\/pulse|contributed/i.test(r.title + r.url + r.description);
   const isAward = (r) => /award|winner|recognized|honored|top.40|influential|rising.star/i.test(r.title + r.description);
   const isVolunteer = (r) => /volunteer|nonprofit|board.member|advisory|mentor|charity|foundation/i.test(r.title + r.description);
+  const isProfile = (r) => /linkedin\.com|theorg\.com|zoominfo|rocketreach|apollo|crunchbase|about|leadership|team|bio/i.test(r.url + r.title);
+  const isCert = (r) => /certif|cissp|ccsp|ccna|cism|cisa|pmp|aws.cert|azure.cert|comptia/i.test(r.title + r.description);
 
-  // Run searches with 1-second spacing to respect rate limits
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // 1. Podcasts
-  const podResults = await braveSearch(`"${name}" podcast interview`, 10);
-  results.podcasts = dedup(podResults.filter(isPodcast));
-  await delay(1000);
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 1: DISCOVERY — figure out who they are, find their full bio
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // 2. Videos / talks
-  const vidResults = await braveSearch(`"${name}" site:youtube.com OR keynote OR presentation`, 10);
-  results.videos = dedup(vidResults.filter(r => isVideo(r) || isConference(r)));
-  await delay(1000);
+  // 1a. Pure name + title search (no company dependency — catches everything)
+  const discoveryResults1 = await braveSearch(`"${name}" ${title || ''}`, 10);
+  results.discovery.push(...dedup(discoveryResults1));
+  await delay(800);
 
-  // 3. Conference speaking
-  const confResults = await braveSearch(`"${name}" speaker conference summit`, 10);
-  results.talks = dedup(confResults.filter(isConference));
-  await delay(1000);
-
-  // 4. News mentions
-  const newsResults = await braveNewsSearch(`"${name}" ${company || ''}`, 10);
-  results.news = dedup(newsResults);
-  await delay(1000);
-
-  // 5. PR announcements
+  // 1b. Name + company name (if we have one)
   if (company) {
-    const prResults = await braveSearch(`${company} "${name}" press release OR announces`, 5);
-    results.pr = dedup(prResults.filter(isPR));
-    await delay(1000);
+    const discoveryResults2 = await braveSearch(`"${name}" "${company}"`, 10);
+    results.discovery.push(...dedup(discoveryResults2));
+    await delay(800);
   }
 
-  // 6. Published content
-  const contentResults = await braveSearch(`"${name}" author blog article OR "written by"`, 10);
+  // 1c. Name + company DOMAIN (this is the URL the user gave us — use it!)
+  if (companyDomain && companyDomain !== company) {
+    const discoveryResults3 = await braveSearch(`"${name}" "${companyDomain}"`, 10);
+    results.discovery.push(...dedup(discoveryResults3));
+    await delay(800);
+  }
+
+  // 1d. Search the company's OWN WEBSITE for this person (leadership pages, bios, about us)
+  if (companyDomain) {
+    const siteResults = await braveSearch(`"${name}" site:${companyDomain}`, 10);
+    results.profile_pages.push(...dedup(siteResults));
+    await delay(800);
+  }
+
+  // 1e. Profile pages (LinkedIn, TheOrg, ZoomInfo, company team pages)
+  const profileResults = await braveSearch(`"${name}" ${title || ''} site:linkedin.com OR site:theorg.com OR site:zoominfo.com OR leadership OR "about us"`, 10);
+  results.profile_pages.push(...dedup(profileResults.filter(isProfile)));
+  await delay(800);
+
+  // 1f. Hiring / appointment announcements (these are GOLD — they contain career history summaries)
+  const appointResults = await braveSearch(`"${name}" appointed OR hired OR joins OR named OR promoted ${title || ''}`, 10);
+  results.pr.push(...dedup(appointResults.filter(isPR)));
+  results.discovery.push(...dedup(appointResults));
+  await delay(800);
+
+  // 1g. Certifications and credentials
+  const certResults = await braveSearch(`"${name}" certification OR certified OR CISSP OR CCSP OR PMP OR credentials`, 8);
+  results.certifications = dedup(certResults.filter(isCert));
+  results.discovery.push(...dedup(certResults));
+  await delay(800);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 2: DEEP DIVE — now that we know who they are, find their activity
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // 2a. Podcasts
+  const podResults = await braveSearch(`"${name}" podcast interview`, 10);
+  results.podcasts = dedup(podResults.filter(isPodcast));
+  await delay(800);
+
+  // 2b. Videos / talks / webinars
+  const vidResults = await braveSearch(`"${name}" video OR keynote OR webinar OR presentation`, 10);
+  results.videos = dedup(vidResults.filter(r => isVideo(r) || isConference(r)));
+  await delay(800);
+
+  // 2c. Conference speaking
+  const confResults = await braveSearch(`"${name}" speaker conference summit panel`, 10);
+  results.talks = dedup(confResults.filter(isConference));
+  await delay(800);
+
+  // 2d. News mentions (try with AND without company to cast a wider net)
+  const newsResults1 = await braveNewsSearch(`"${name}" ${title || ''}`, 10);
+  results.news.push(...dedup(newsResults1));
+  await delay(800);
+
+  if (company) {
+    const newsResults2 = await braveNewsSearch(`"${name}" "${company}"`, 10);
+    results.news.push(...dedup(newsResults2));
+    await delay(800);
+  }
+
+  // 2e. PR announcements from company
+  if (company) {
+    const prResults = await braveSearch(`"${company}" "${name}" press release OR announces`, 8);
+    results.pr.push(...dedup(prResults.filter(isPR)));
+    await delay(800);
+  }
+
+  // 2f. Published content / thought leadership
+  const contentResults = await braveSearch(`"${name}" author blog article OR "written by" OR contributed`, 10);
   results.content = dedup(contentResults.filter(isContent));
-  await delay(1000);
+  await delay(800);
 
-  // 7. Awards
-  const awardResults = await braveSearch(`"${name}" award OR recognized OR honored`, 5);
+  // 2g. Awards & recognition
+  const awardResults = await braveSearch(`"${name}" award OR recognized OR honored OR "top 40" OR influential`, 8);
   results.awards = dedup(awardResults.filter(isAward));
-  await delay(1000);
+  await delay(800);
 
-  // 8. Volunteer / board work
-  const volResults = await braveSearch(`"${name}" volunteer OR "board member" OR nonprofit OR advisory`, 5);
+  // 2h. Volunteer / board / community
+  const volResults = await braveSearch(`"${name}" volunteer OR "board member" OR nonprofit OR advisory OR mentor`, 8);
   results.volunteer = dedup(volResults.filter(isVolunteer));
 
+  // Dedup discovery results one final time
+  const discoveryUrls = new Set();
+  results.discovery = results.discovery.filter(item => {
+    const key = item.url || item.title;
+    if (discoveryUrls.has(key)) return false;
+    discoveryUrls.add(key);
+    return true;
+  });
+
   const total = Object.values(results).reduce((sum, arr) => sum + arr.length, 0);
-  console.log(`[individual-scan] Deep research complete: ${total} findings (${results.podcasts.length} podcasts, ${results.talks.length} talks, ${results.news.length} news, ${results.content.length} content, ${results.awards.length} awards)`);
+  console.log(`[individual-scan] Deep research complete: ${total} findings`);
+  console.log(`  Discovery: ${results.discovery.length}, Profiles: ${results.profile_pages.length}, Certs: ${results.certifications.length}`);
+  console.log(`  Podcasts: ${results.podcasts.length}, Talks: ${results.talks.length}, News: ${results.news.length}`);
+  console.log(`  PR: ${results.pr.length}, Content: ${results.content.length}, Awards: ${results.awards.length}`);
 
   return results;
 }
@@ -233,14 +305,19 @@ async function deepResearch(name, company, title) {
  * Pulls recent filings, PR, earnings, strategic moves, leadership changes, partnerships.
  */
 async function deepCompanyResearch(companyName, domain) {
-  if (!BRAVE_API_KEY || !companyName) {
-    console.log('[individual-scan] No BRAVE_API_KEY or no company — skipping company research');
-    return { sec_filings: [], press_releases: [], news: [], earnings: [], leadership: [], partnerships: [], product_launches: [], hiring_signals: [] };
+  if (!BRAVE_API_KEY || (!companyName && !domain)) {
+    console.log('[individual-scan] No BRAVE_API_KEY or no company info — skipping company research');
+    return { about: [], sec_filings: [], press_releases: [], news: [], earnings: [], leadership: [], partnerships: [], product_launches: [], hiring_signals: [], investor_relations: [] };
   }
 
-  console.log(`[individual-scan] Company deep research: "${companyName}" (${domain || 'no domain'})`);
+  // Use domain as search term if company name is garbage (short abbreviations, etc.)
+  // e.g. "ndbt" is useless but "ndbt.com" will find "North Dallas Bank and Trust"
+  const searchName = companyName || domain;
+  const altSearchName = domain && domain !== companyName ? domain : null;
 
-  const results = { sec_filings: [], press_releases: [], news: [], earnings: [], leadership: [], partnerships: [], product_launches: [], hiring_signals: [] };
+  console.log(`[individual-scan] Company deep research: "${searchName}" (domain: ${domain || 'none'}, alt: ${altSearchName || 'none'})`);
+
+  const results = { about: [], sec_filings: [], press_releases: [], news: [], earnings: [], leadership: [], partnerships: [], product_launches: [], hiring_signals: [], investor_relations: [] };
   const seen = new Set();
 
   function dedup(items) {
@@ -254,47 +331,99 @@ async function deepCompanyResearch(companyName, domain) {
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // 1. SEC filings (10-K, 10-Q, 8-K) — public companies
-  const secResults = await braveSearch(`"${companyName}" SEC 10-K OR 10-Q OR 8-K filing 2025 OR 2026`, 8);
-  results.sec_filings = dedup(secResults.filter(r => /sec\.gov|10-[kq]|8-k|annual.report|quarterly|filing/i.test(r.title + r.url + r.description)));
-  await delay(1000);
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 0: DISCOVER THE COMPANY — search THEIR website, find about pages
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // 2. Press releases (last 6 months)
-  const prResults = await braveNewsSearch(`"${companyName}" press release OR announces OR unveiled OR launched`, 10);
+  if (domain) {
+    // Search the company's own website — about pages, leadership, products, services
+    const siteResults = await braveSearch(`site:${domain} about OR leadership OR services OR products OR "about us"`, 10);
+    results.about.push(...dedup(siteResults));
+    await delay(800);
+
+    // Investor relations page (if public)
+    const irResults = await braveSearch(`site:${domain} investor OR "investor relations" OR annual report OR SEC`, 8);
+    results.investor_relations = dedup(irResults);
+    await delay(800);
+  }
+
+  // General company overview search
+  const overviewResults = await braveSearch(`"${searchName}" company overview OR about OR history`, 10);
+  results.about.push(...dedup(overviewResults));
+  await delay(800);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 1: REGULATORY & FINANCIAL FILINGS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // SEC filings (10-K, 10-Q, 8-K) — search with both name and domain
+  const secResults = await braveSearch(`"${searchName}" SEC 10-K OR 10-Q OR 8-K filing site:sec.gov`, 8);
+  results.sec_filings = dedup(secResults);
+  await delay(800);
+
+  if (altSearchName) {
+    const secResults2 = await braveSearch(`"${altSearchName}" SEC filing site:sec.gov`, 5);
+    results.sec_filings.push(...dedup(secResults2));
+    await delay(800);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 2: RECENT NEWS & PR
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Press releases
+  const prResults = await braveNewsSearch(`"${searchName}" press release OR announces OR unveiled OR launched`, 10);
   results.press_releases = dedup(prResults);
-  await delay(1000);
+  await delay(800);
 
-  // 3. General news coverage
-  const newsResults = await braveNewsSearch(`"${companyName}" ${domain ? 'site:reuters.com OR site:bloomberg.com OR site:techcrunch.com OR site:wsj.com' : ''}`, 10);
-  results.news = dedup(newsResults);
-  await delay(1000);
+  // General news
+  const newsResults = await braveNewsSearch(`"${searchName}"`, 10);
+  results.news.push(...dedup(newsResults));
+  await delay(800);
 
-  // 4. Earnings / financials
-  const earningsResults = await braveSearch(`"${companyName}" earnings OR revenue OR quarterly results 2025 OR 2026`, 8);
-  results.earnings = dedup(earningsResults.filter(r => /earning|revenue|profit|quarter|fiscal|financial.results|beat|miss/i.test(r.title + r.description)));
-  await delay(1000);
+  // Also search with domain if different
+  if (altSearchName) {
+    const newsResults2 = await braveNewsSearch(`"${altSearchName}"`, 8);
+    results.news.push(...dedup(newsResults2));
+    await delay(800);
+  }
 
-  // 5. Leadership changes
-  const leaderResults = await braveNewsSearch(`"${companyName}" CEO OR CTO OR CFO OR VP appointed OR hired OR joins`, 8);
-  results.leadership = dedup(leaderResults.filter(r => /appoint|hire|join|named|promoted|depart|resign|new.ceo|new.cto/i.test(r.title + r.description)));
-  await delay(1000);
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 3: FINANCIALS & EARNINGS
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // 6. Partnerships & acquisitions
-  const partnerResults = await braveNewsSearch(`"${companyName}" partnership OR acquisition OR merger OR "strategic alliance" OR "signed agreement"`, 8);
+  const earningsResults = await braveSearch(`"${searchName}" earnings OR revenue OR quarterly results OR annual report`, 8);
+  results.earnings = dedup(earningsResults.filter(r => /earning|revenue|profit|quarter|fiscal|financial|annual.report|growth/i.test(r.title + r.description)));
+  await delay(800);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 4: LEADERSHIP & STRATEGIC MOVES
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const leaderResults = await braveNewsSearch(`"${searchName}" CEO OR CTO OR CFO OR CIO OR VP appointed OR hired OR joins`, 8);
+  results.leadership = dedup(leaderResults);
+  await delay(800);
+
+  const partnerResults = await braveNewsSearch(`"${searchName}" partnership OR acquisition OR merger OR alliance OR agreement`, 8);
   results.partnerships = dedup(partnerResults);
-  await delay(1000);
+  await delay(800);
 
-  // 7. Product launches / major releases
-  const productResults = await braveNewsSearch(`"${companyName}" launches OR "new product" OR "new feature" OR release OR unveils`, 8);
+  const productResults = await braveNewsSearch(`"${searchName}" launches OR "new product" OR "new service" OR release OR unveils`, 8);
   results.product_launches = dedup(productResults);
-  await delay(1000);
+  await delay(800);
 
-  // 8. Hiring signals (growing, cutting, etc.)
-  const hiringResults = await braveSearch(`"${companyName}" hiring OR layoffs OR "open positions" OR headcount OR expansion`, 5);
-  results.hiring_signals = dedup(hiringResults.filter(r => /hiring|layoff|headcount|workforce|recruit|rif|downsize|expansion|new.office/i.test(r.title + r.description)));
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 5: HIRING & GROWTH SIGNALS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const hiringResults = await braveSearch(`"${searchName}" hiring OR jobs OR layoffs OR headcount OR expansion OR "open positions"`, 8);
+  results.hiring_signals = dedup(hiringResults.filter(r => /hiring|layoff|headcount|workforce|recruit|expansion|new.office|open.position|careers/i.test(r.title + r.description)));
 
   const total = Object.values(results).reduce((sum, arr) => sum + arr.length, 0);
-  console.log(`[individual-scan] Company research complete: ${total} findings (${results.sec_filings.length} filings, ${results.press_releases.length} PR, ${results.news.length} news, ${results.earnings.length} earnings, ${results.leadership.length} leadership, ${results.partnerships.length} partnerships)`);
+  console.log(`[individual-scan] Company research complete: ${total} findings`);
+  console.log(`  About: ${results.about.length}, IR: ${results.investor_relations.length}, SEC: ${results.sec_filings.length}`);
+  console.log(`  PR: ${results.press_releases.length}, News: ${results.news.length}, Earnings: ${results.earnings.length}`);
+  console.log(`  Leadership: ${results.leadership.length}, Partnerships: ${results.partnerships.length}, Products: ${results.product_launches.length}`);
 
   return results;
 }
@@ -303,9 +432,16 @@ async function deepCompanyResearch(companyName, domain) {
 // LLM PSYCHOGRAPHIC INFERENCE — Analyzes REAL data, doesn't guess
 // =============================================================================
 
-const PSYCHOGRAPHIC_PROMPT = `You are an elite B2B sales psychologist and intelligence analyst. You have been given REAL, VERIFIED data about an individual — their actual employment history, education, skills, public appearances, news mentions, and company context.
+const PSYCHOGRAPHIC_PROMPT = `You are an elite B2B sales psychologist and intelligence analyst. You have TWO sources of information:
 
-Your job is to ANALYZE this real data and produce a psychographic profile that tells a sales rep exactly WHO this person is and HOW to engage them.
+1. ENRICHED DATA — real, verified data from APIs and web searches (employment history, education, skills, public appearances, news, company filings, press releases). This is your PRIMARY source.
+2. YOUR OWN KNOWLEDGE — what you already know about this person, their company, their industry, their certifications, their role type, and how people in similar positions think and buy. USE THIS FREELY.
+
+THE CRITICAL RULE: Never return "insufficient data" or generic filler. EVERY person has a story. If the enrichment data is thin, lean harder on your own knowledge — what does a person with this title at this type of company typically care about? What do their certifications tell you? What does their industry context imply? What does their company's market position suggest?
+
+When you use enrichment data, cite it. When you use your own knowledge, say so (e.g. "Based on typical CIO priorities in community banking..."). Both are valuable. A profile that combines verified data with informed inference is infinitely better than "insufficient data."
+
+YOUR JOB: Produce a psychographic profile that tells a sales rep exactly WHO this person is and HOW to engage them. Think about what ChatGPT would say if someone asked "tell me everything about this person and how to sell to them" — then do BETTER than that because you have actual enrichment data on top of your knowledge.
 
 ARCHETYPES (pick the best fit):
 - GROWER: Ambitious, ascending trajectory, wants bigger scope, motivated by career advancement and recognition. Engaged by opportunity and competitive advantage.
@@ -321,17 +457,20 @@ DECISION STYLES:
 - Directive: Decides fast and alone
 
 CRITICAL RULES:
-- Base EVERYTHING on the actual data provided. Reference specific career moves, tenure patterns, education, public appearances.
+- NEVER return generic filler like "Generic CIO value proposition - cost optimization." That is useless garbage. Every output must be specific to THIS person at THIS company.
+- Reference specific career moves, tenure patterns, education, certifications, public appearances when available.
 - Show your evidence for every inference. "They spent 12 years at one company → defender archetype" is good. "They seem like a defender" is garbage.
 - The key_insight and opening_hook should be SPECIFIC TO THIS PERSON. If you could use the same hook for anyone with a similar title, it's too generic. Redo it.
-- NEVER fabricate data. If something isn't in the provided enrichment, don't invent it.
+- If the enrichment data includes their certifications (CISSP, CCSP, etc.) — analyze what those certifications MEAN about how they think and what they value.
 - If they have podcast/conference/published content — reference it in the hook. That's gold.
-- The COMPANY_INTELLIGENCE section contains live data: SEC filings, press releases, earnings, leadership changes, partnerships, product launches, and hiring signals. USE THIS to:
+- When enrichment data is thin, use your knowledge of the COMPANY, the INDUSTRY, and the ROLE to fill in the gaps. A CIO at a community bank has very different priorities than a CIO at a Fortune 500 tech company. Use that.
+- The COMPANY_INTELLIGENCE section contains live data: about pages, investor relations, SEC filings, press releases, earnings, leadership changes, partnerships, product launches, and hiring signals. USE THIS to:
   * Identify what the company is focused on RIGHT NOW (growth? cost-cutting? transformation?)
   * Spot pain points or priorities from filings/earnings (revenue pressure, competitive threats, strategic pivots)
   * Find timely hooks (congratulate on a recent product launch, reference a recent partnership)
   * Understand if the company is growing (hiring) or contracting (layoffs) — critical for sales approach
   * Link the person's role to the company's current strategic direction
+- Even if company_intelligence is empty, use what you KNOW about the company. If it's "North Dallas Bank and Trust" — you know it's a community bank in Texas, you know what community banks care about, you know regulatory pressures they face. USE THAT.
 
 OUTPUT (JSON only, no markdown fences):
 {
@@ -420,11 +559,18 @@ DISCIPLINE:
  * @param {string} opts.email - Email address
  * @param {string} opts.title - Job title (hint)
  * @param {string} opts.name - Name (hint)
+ * @param {string} opts.company_url - Company website URL (e.g. ndbt.com)
  * @param {number} opts.tier - 1=full, 2=quick (reserved for future)
  */
-async function scanIndividual({ linkedin_url, email, title, name, tier = 1 }) {
+async function scanIndividual({ linkedin_url, email, title, name, company_url, tier = 1 }) {
   const startTime = Date.now();
   const linkedinSlug = linkedin_url ? (linkedin_url.match(/\/in\/([^\/\?]+)/)?.[1] || null) : null;
+
+  // Extract domain from company_url if provided (strip protocol, www, trailing paths)
+  let inputCompanyDomain = '';
+  if (company_url) {
+    inputCompanyDomain = company_url.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '').trim();
+  }
 
   console.log(`\n${'═'.repeat(60)}`);
   console.log(`[individual-scan] STARTING PIPELINE`);
@@ -432,42 +578,57 @@ async function scanIndividual({ linkedin_url, email, title, name, tier = 1 }) {
   console.log(`  Email: ${email || 'N/A'}`);
   console.log(`  Name hint: ${name || 'N/A'}`);
   console.log(`  Title hint: ${title || 'N/A'}`);
+  console.log(`  Company URL: ${company_url || 'N/A'} (domain: ${inputCompanyDomain || 'N/A'})`);
   console.log(`${'═'.repeat(60)}`);
 
   // ─── STAGE 1: APOLLO ENRICHMENT ────────────────────────────────────────────
-  console.log('\n[1/4] Apollo Person Enrichment...');
+  console.log('\n[1/5] Apollo Person Enrichment...');
   const apolloPerson = await apolloEnrichPerson(linkedin_url, email);
 
   let personName = name;
   let personTitle = title;
   let personCompany = '';
-  let companyDomain = '';
+  let companyDomain = inputCompanyDomain; // Start with what the user gave us
   let apolloCompany = null;
 
   if (apolloPerson) {
     personName = apolloPerson.name || name || nameFromSlug(linkedinSlug);
     personTitle = apolloPerson.title || title;
     personCompany = apolloPerson.organization?.name || '';
-    companyDomain = apolloPerson.organization?.primary_domain || '';
-    console.log(`  ✓ Found: ${personName}, ${personTitle} @ ${personCompany}`);
-
-    // Company enrichment
-    if (companyDomain) {
-      console.log(`  [1b] Apollo Company Enrichment (${companyDomain})...`);
-      apolloCompany = await apolloEnrichCompany(companyDomain);
-      if (apolloCompany) {
-        console.log(`  ✓ Company: ~${apolloCompany.estimated_num_employees || '?'} employees, ${apolloCompany.industry || 'unknown industry'}`);
-      }
+    // Use Apollo's domain if we don't already have one, or if Apollo's is more specific
+    if (!companyDomain) {
+      companyDomain = apolloPerson.organization?.primary_domain || '';
     }
+    console.log(`  ✓ Found: ${personName}, ${personTitle} @ ${personCompany}`);
   } else {
     personName = name || nameFromSlug(linkedinSlug);
-    personCompany = companyFromEmail(email) || '';
-    console.log(`  ✗ No Apollo data — using hints: ${personName}, ${personCompany}`);
+    // Try to derive company name from the domain the user provided
+    if (inputCompanyDomain) {
+      personCompany = domainToCompanyName(inputCompanyDomain);
+      console.log(`  ✗ No Apollo data — derived company name from URL: "${personCompany}"`);
+    } else {
+      personCompany = companyFromEmail(email) || '';
+      console.log(`  ✗ No Apollo data — using hints: ${personName}, ${personCompany}`);
+    }
+  }
+
+  // Company enrichment via Apollo — try with the domain we have
+  if (companyDomain && !apolloCompany) {
+    console.log(`  [1b] Apollo Company Enrichment (${companyDomain})...`);
+    apolloCompany = await apolloEnrichCompany(companyDomain);
+    if (apolloCompany) {
+      // Apollo gave us the real company name — use it
+      if (!personCompany || personCompany.length < (apolloCompany.name || '').length) {
+        personCompany = apolloCompany.name;
+      }
+      console.log(`  ✓ Company: ${apolloCompany.name}, ~${apolloCompany.estimated_num_employees || '?'} employees, ${apolloCompany.industry || 'unknown industry'}`);
+    }
   }
 
   // ─── STAGE 2: DEEP WEB RESEARCH (INDIVIDUAL) ───────────────────────────────
   console.log('\n[2/5] Deep Web Research — Individual (podcasts, talks, news, content)...');
-  const webResearch = await deepResearch(personName, personCompany, personTitle);
+  // Pass BOTH the company name AND the domain — searches will use whichever works better
+  const webResearch = await deepResearch(personName, personCompany, personTitle, companyDomain);
 
   // ─── STAGE 3: DEEP WEB RESEARCH (COMPANY) ─────────────────────────────────
   console.log('\n[3/5] Deep Web Research — Company (filings, PR, earnings, strategy)...');
@@ -518,7 +679,7 @@ async function scanIndividual({ linkedin_url, email, title, name, tier = 1 }) {
         model: OPENROUTER_MODEL_ID,
         messages: [
           { role: 'system', content: PSYCHOGRAPHIC_PROMPT },
-          { role: 'user', content: `Analyze this individual and produce a psychographic intelligence profile.\n\nENRICHED DATA (verified from APIs — this is REAL, not guessed):\n\n${JSON.stringify(enrichmentPackage, null, 2)}` },
+          { role: 'user', content: `Analyze this individual and produce a comprehensive psychographic intelligence profile.\n\nENRICHED DATA (verified from APIs and web searches):\n\n${JSON.stringify(enrichmentPackage, null, 2)}\n\nIMPORTANT: If the enrichment data above is thin or incomplete, DO NOT return generic filler. Use your own knowledge of this person, their company, their industry, their certifications, and their role to build a thorough profile. Clearly label which insights come from the enrichment data vs. your own knowledge. A sales rep needs actionable intelligence — "insufficient data" helps nobody.` },
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
@@ -573,10 +734,12 @@ async function scanIndividual({ linkedin_url, email, title, name, tier = 1 }) {
       objections: parsed.objections || [],
       rapport_hooks: parsed.rapport_hooks || [],
       company_situation: parsed.company_situation || null,
-      // Raw enrichment data (for debugging / display)
+      // Raw data (for debugging / display)
       enrichment: enrichmentPackage,
       web_research: webResearch,
       company_research: companyResearch,
+      company_url: company_url || null,
+      company_domain: companyDomain || null,
       pipeline_time_ms: elapsed,
     };
 
@@ -618,14 +781,17 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
     company_context: null,
     company_intelligence: null,
     web_research: {
-      podcasts: webResearch.podcasts.slice(0, 5),
-      conference_talks: webResearch.talks.slice(0, 5),
-      videos: webResearch.videos.slice(0, 5),
-      news_mentions: webResearch.news.slice(0, 8),
-      pr_announcements: webResearch.pr.slice(0, 5),
-      published_content: webResearch.content.slice(0, 5),
-      awards: webResearch.awards.slice(0, 5),
-      volunteer_board: webResearch.volunteer.slice(0, 5),
+      discovery: (webResearch.discovery || []).slice(0, 15),
+      profile_pages: (webResearch.profile_pages || []).slice(0, 10),
+      certifications: (webResearch.certifications || []).slice(0, 10),
+      podcasts: webResearch.podcasts.slice(0, 8),
+      conference_talks: webResearch.talks.slice(0, 8),
+      videos: webResearch.videos.slice(0, 8),
+      news_mentions: webResearch.news.slice(0, 10),
+      pr_announcements: webResearch.pr.slice(0, 8),
+      published_content: webResearch.content.slice(0, 8),
+      awards: webResearch.awards.slice(0, 8),
+      volunteer_board: webResearch.volunteer.slice(0, 8),
     },
   };
 
@@ -678,14 +844,16 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
     const hasData = Object.values(companyResearch).some(arr => arr.length > 0);
     if (hasData) {
       pkg.company_intelligence = {
-        sec_filings: companyResearch.sec_filings.slice(0, 5),
-        recent_press_releases: companyResearch.press_releases.slice(0, 8),
-        recent_news: companyResearch.news.slice(0, 8),
-        earnings_financials: companyResearch.earnings.slice(0, 5),
-        leadership_changes: companyResearch.leadership.slice(0, 5),
-        partnerships_acquisitions: companyResearch.partnerships.slice(0, 5),
-        product_launches: companyResearch.product_launches.slice(0, 5),
-        hiring_signals: companyResearch.hiring_signals.slice(0, 5),
+        about_pages: (companyResearch.about || []).slice(0, 8),
+        investor_relations: (companyResearch.investor_relations || []).slice(0, 5),
+        sec_filings: companyResearch.sec_filings.slice(0, 8),
+        recent_press_releases: companyResearch.press_releases.slice(0, 10),
+        recent_news: companyResearch.news.slice(0, 10),
+        earnings_financials: companyResearch.earnings.slice(0, 8),
+        leadership_changes: companyResearch.leadership.slice(0, 8),
+        partnerships_acquisitions: companyResearch.partnerships.slice(0, 8),
+        product_launches: companyResearch.product_launches.slice(0, 8),
+        hiring_signals: companyResearch.hiring_signals.slice(0, 8),
       };
     }
   }
@@ -707,7 +875,19 @@ function companyFromEmail(email) {
   if (!email) return null;
   const domain = email.split('@')[1];
   if (!domain) return null;
-  return domain.replace(/\.(com|io|co|net|org|edu|gov)$/i, '').replace(/\./g, ' ').split(' ').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  return domainToCompanyName(domain);
+}
+
+/** Convert a domain like "ndbt.com" to a rough company name like "Ndbt" */
+function domainToCompanyName(domain) {
+  if (!domain) return '';
+  return domain
+    .replace(/^www\./i, '')
+    .replace(/\.(com|io|co|net|org|edu|gov|bank|finance|tech)$/i, '')
+    .replace(/\./g, ' ')
+    .split(' ')
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ');
 }
 
 // =============================================================================

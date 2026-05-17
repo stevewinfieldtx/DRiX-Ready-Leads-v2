@@ -1088,6 +1088,7 @@ app.post('/api/demo-flow', async (req, res) => {
           email: individual_email || null,
           title: recipient_role || null,
           name: individual_name || null,
+          company_url: customer_url || null,
           tier: 1,
         });
         individual = {
@@ -4039,7 +4040,7 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
 
 // ─── INDIVIDUAL SCAN (standalone test endpoint) ─────────────────────────────
 app.post('/api/individual-scan', async (req, res) => {
-  const { linkedin_url, email, title, name, tier } = req.body || {};
+  const { linkedin_url, email, title, name, company_url, tier } = req.body || {};
   if (!linkedin_url) return res.status(400).json({ error: 'linkedin_url required' });
   try {
     const result = await scanIndividual({
@@ -4047,6 +4048,7 @@ app.post('/api/individual-scan', async (req, res) => {
       email: email || null,
       title: title || null,
       name: name || null,
+      company_url: company_url || null,
       tier: tier || 1,
     });
     res.json(result);
