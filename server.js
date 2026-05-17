@@ -12,6 +12,7 @@ const unzipper = require('unzipper');
 
 const db = require('./db');
 const { scanIndividual } = require('./individual-scan');
+const { analyzeSingle, analyzeGroup, analyzeReadyLeads } = require('./meeting-analysis');
 
 const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
@@ -4143,6 +4144,96 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
   } finally {
     clearInterval(keepAlive);
     res.end();
+  }
+});
+
+// ─── MEETING ANALYSIS (three-tier intelligence) ─────────────────────────────
+app.post('/api/meeting-analysis', async (req, res) => {
+  const { tier, attendees, context } = req.body || {};
+
+  // Validate tier
+  const validTiers = ['single', 'group', 'readyleads'];
+  if (!tier || !validTiers.includes(tier)) {
+    return res.status(400).json({ error: `tier required: one of ${validTiers.join(', ')}` });
+  }
+
+  // Validate attendees
+  if (!attendees || !Array.isArray(attendees) || attendees.length === 0) {
+    return res.status(400).json({ error: 'attendees array required (at least 1 person)' });
+  }
+
+  // Tier-specific validation
+  if (tier === 'single' && attendees.length !== 1) {
+    return res.status(400).json({ error: 'single tier requires exactly 1 attendee. Upgrade to group for multiple.' });
+  }
+  if (tier === 'group' && attendees.length < 2) {
+    return res.status(400).json({ error: 'group tier requires at least 2 attendees.' });
+  }
+  if (tier === 'readyleads' && !context?.solution) {
+    return res.status(400).json({ error: 'readyleads tier requires context.solution (what you are selling).' });
+  }
+  if (attendees.length > 10) {
+    return res.status(400).json({ error: 'Maximum 10 attendees per analysis.' });
+  }
+
+  // Each attendee must have at least a name or linkedin
+  for (let i = 0; i < attendees.length; i++) {
+    const a = attendees[i];
+    if (!a.name && !a.linkedin) {
+      return res.status(400).json({ error: `attendees[${i}] requires at least name or linkedin.` });
+    }
+  }
+
+  // Build config objects for the meeting analysis engine
+  const tdeConfig = {
+    tdeRequest: (method, path, body) => tdeRequest(method, path, body),
+    warmTdeCacheAsync,
+    tdeAvailable,
+    urlToCollectionId,
+  };
+  const llmConfig = {
+    openrouterApiKey: OPENROUTER_API_KEY,
+    modelId: OPENROUTER_MODEL_ID,
+    cerebrasApiKey: CEREBRAS_API_KEY,
+  };
+
+  try {
+    let result;
+    const startTime = Date.now();
+
+    switch (tier) {
+      case 'single':
+        console.log(`\n[meeting-analysis] ═══ TIER 1: SINGLE PERSON ═══`);
+        result = {
+          tier: 'single',
+          analysis: await analyzeSingle(attendees[0], tdeConfig),
+        };
+        break;
+
+      case 'group':
+        console.log(`\n[meeting-analysis] ═══ TIER 2: GROUP DYNAMICS (${attendees.length} people) ═══`);
+        result = {
+          tier: 'group',
+          analysis: await analyzeGroup(attendees, tdeConfig, llmConfig),
+        };
+        break;
+
+      case 'readyleads':
+        console.log(`\n[meeting-analysis] ═══ TIER 3: READY LEADS FULL (${attendees.length} people) ═══`);
+        result = {
+          tier: 'readyleads',
+          analysis: await analyzeReadyLeads(attendees, context, tdeConfig, llmConfig),
+        };
+        break;
+    }
+
+    result.totalTimeMs = Date.now() - startTime;
+    console.log(`[meeting-analysis] Complete in ${(result.totalTimeMs / 1000).toFixed(1)}s`);
+    res.json(result);
+
+  } catch (err) {
+    console.error('[meeting-analysis] Error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

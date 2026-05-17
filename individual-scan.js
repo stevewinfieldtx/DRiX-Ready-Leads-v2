@@ -10,6 +10,8 @@
 //   OPENROUTER_API_KEY   — LLM for psychographic inference + brief generation
 //   OPENROUTER_MODEL_ID  — Model to use (default: anthropic/claude-sonnet-4.5)
 
+const { runOsintEnrichment } = require('./osint-enrichment');
+
 const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID || 'anthropic/claude-sonnet-4.5';
 const APOLLO_API_KEY      = process.env.APOLLO_API_KEY || '';
@@ -471,6 +473,13 @@ CRITICAL RULES:
   * Understand if the company is growing (hiring) or contracting (layoffs) — critical for sales approach
   * Link the person's role to the company's current strategic direction
 - Even if company_intelligence is empty, use what you KNOW about the company. If it's "North Dallas Bank and Trust" — you know it's a community bank in Texas, you know what community banks care about, you know regulatory pressures they face. USE THAT.
+- The OSINT_DIGITAL_FOOTPRINT section (if present) shows which online platforms this person has accounts on (GitHub, Medium, Twitter/X, Reddit, StackOverflow, Crunchbase, etc.) and the OSINT_EMAIL_INTELLIGENCE shows which services their email is registered with. USE THIS to:
+  * Identify their digital persona — are they a thought leader (Medium, Twitter, personal blog) or a builder (GitHub, GitLab, StackOverflow)?
+  * Find content signals — if they're on Medium or have a personal site, they publish content. Reference that.
+  * Spot community involvement — Reddit, HackerNews, Discord presence reveals interests and communication style.
+  * Infer tech-savviness — presence on GitHub/GitLab/npm signals hands-on technical orientation.
+  * Identify professional networks — Crunchbase presence suggests startup/investor involvement.
+  * Email footprint reveals services they trust and use — Spotify/Pinterest suggest personal interests; GitHub/npm confirm technical identity.
 
 OUTPUT (JSON only, no markdown fences):
 {
@@ -625,23 +634,35 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
     }
   }
 
-  // ─── STAGE 2: DEEP WEB RESEARCH (INDIVIDUAL) ───────────────────────────────
-  console.log('\n[2/5] Deep Web Research — Individual (podcasts, talks, news, content)...');
-  // Pass BOTH the company name AND the domain — searches will use whichever works better
-  const webResearch = await deepResearch(personName, personCompany, personTitle, companyDomain);
+  // ─── STAGE 2: DEEP WEB RESEARCH + OSINT (PARALLEL) ─────────────────────────
+  // Run all three in parallel: individual web research, company research, and OSINT enrichment
+  console.log('\n[2/6] Deep Research + OSINT Discovery (parallel)...');
+  console.log('       → Individual web research (podcasts, talks, news, content)');
+  console.log('       → Company research (filings, PR, earnings, strategy)');
+  console.log('       → OSINT enrichment (username discovery + email intelligence)');
 
-  // ─── STAGE 3: DEEP WEB RESEARCH (COMPANY) ─────────────────────────────────
-  console.log('\n[3/5] Deep Web Research — Company (filings, PR, earnings, strategy)...');
-  const companyResearch = await deepCompanyResearch(personCompany, companyDomain);
+  const [webResearch, companyResearch, osintResults] = await Promise.all([
+    deepResearch(personName, personCompany, personTitle, companyDomain),
+    deepCompanyResearch(personCompany, companyDomain),
+    runOsintEnrichment({ name: personName, linkedinUrl: linkedin_url, email }).catch(err => {
+      console.error('[individual-scan] OSINT enrichment failed (non-fatal):', err.message);
+      return null;
+    }),
+  ]);
 
-  // ─── STAGE 4: BUILD ENRICHMENT PACKAGE FOR LLM ────────────────────────────
-  console.log('\n[4/5] Assembling enrichment data...');
+  if (osintResults) {
+    console.log(`  ✓ OSINT: ${osintResults.digitalFootprint?.accountsFound || 0} accounts, ${osintResults.emailIntelligence?.registeredOn?.length || 0} email services`);
+  }
+
+  // ─── STAGE 3: BUILD ENRICHMENT PACKAGE FOR LLM ────────────────────────────
+  console.log('\n[3/6] Assembling enrichment data...');
 
   const enrichmentPackage = buildEnrichmentPackage({
     apolloPerson,
     apolloCompany,
     webResearch,
     companyResearch,
+    osintResults,
     personName,
     personTitle,
     personCompany,
@@ -650,8 +671,8 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
     supplementalDocs,
   });
 
-  // ─── STAGE 5: LLM PSYCHOGRAPHIC ANALYSIS ──────────────────────────────────
-  console.log('\n[5/5] LLM Psychographic Analysis...');
+  // ─── STAGE 4: LLM PSYCHOGRAPHIC ANALYSIS ──────────────────────────────────
+  console.log('\n[4/6] LLM Psychographic Analysis...');
 
   if (!OPENROUTER_API_KEY) {
     console.log('  ✗ No OPENROUTER_API_KEY — returning raw enrichment only');
@@ -739,6 +760,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
       enrichment: enrichmentPackage,
       web_research: webResearch,
       company_research: companyResearch,
+      osint_results: osintResults || null,
       company_url: company_url || null,
       company_domain: companyDomain || null,
       pipeline_time_ms: elapsed,
@@ -755,6 +777,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
       pitch_angles: [],
       enrichment: enrichmentPackage,
       web_research: webResearch,
+      osint_results: osintResults || null,
       pipeline_time_ms: Date.now() - startTime,
     };
   }
@@ -764,7 +787,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
 // ENRICHMENT PACKAGE BUILDER
 // =============================================================================
 
-function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, companyResearch, personName, personTitle, personCompany, linkedin_url, email, supplementalDocs }) {
+function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, companyResearch, osintResults, personName, personTitle, personCompany, linkedin_url, email, supplementalDocs }) {
   const pkg = {
     person: {
       name: personName,
@@ -857,6 +880,31 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
         hiring_signals: companyResearch.hiring_signals.slice(0, 8),
       };
     }
+  }
+
+  // OSINT digital footprint (username discovery + email intelligence)
+  if (osintResults?.digitalFootprint) {
+    const df = osintResults.digitalFootprint;
+    pkg.osint_digital_footprint = {
+      accounts_found: df.accountsFound || 0,
+      platforms: df.platforms || [],
+      tech_presence: df.techPresence || [],
+      social_presence: df.socialPresence || [],
+      content_presence: df.contentPresence || [],
+      business_presence: df.businessPresence || [],
+      email_registrations: df.emailRegistrations || [],
+      is_work_email: df.isWorkEmail,
+      breach_exposure: df.breachExposure,
+      github_url: df.githubUrl || null,
+    };
+  }
+  if (osintResults?.emailIntelligence) {
+    const ei = osintResults.emailIntelligence;
+    pkg.osint_email_intelligence = {
+      registered_on: ei.registeredOn || [],
+      not_found_on: ei.notFoundOn || [],
+      errors: ei.errors || [],
+    };
   }
 
   // Uploaded documents (first-party intel from the sales rep)
