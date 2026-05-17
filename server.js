@@ -662,25 +662,29 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
   };
 }
 
-async function ingestOne({ url, role, hint_name, demoMode }) {
+async function ingestOne({ url, role, hint_name, demoMode, skipCache = false }) {
   // Step 0a — LOCAL in-memory cache. Instant return, zero LLM calls, zero DB calls.
   const cacheKey = `${url}::${role}`;
-  if (ingestCache.has(cacheKey)) {
+  if (!skipCache && ingestCache.has(cacheKey)) {
     console.log(`[CACHE] MEM HIT ${cacheKey} — instant`);
     return { ...ingestCache.get(cacheKey), source: 'local_cache' };
   }
 
   // Step 0b — POSTGRES cache (30-day TTL). Survives deploys.
-  const dbCached = await db.getCachedIngest(url, role);
-  if (dbCached) {
-    console.log(`[CACHE] DB HIT ${url} (${role}) — no LLM call needed`);
-    // Populate memory cache too
-    ingestCache.set(cacheKey, dbCached);
-    if (ingestCache.size > INGEST_CACHE_MAX) {
-      const oldest = ingestCache.keys().next().value;
-      ingestCache.delete(oldest);
+  if (!skipCache) {
+    const dbCached = await db.getCachedIngest(url, role);
+    if (dbCached) {
+      console.log(`[CACHE] DB HIT ${url} (${role}) — no LLM call needed`);
+      // Populate memory cache too
+      ingestCache.set(cacheKey, dbCached);
+      if (ingestCache.size > INGEST_CACHE_MAX) {
+        const oldest = ingestCache.keys().next().value;
+        ingestCache.delete(oldest);
+      }
+      return { ...dbCached, source: 'db_cache' };
     }
-    return { ...dbCached, source: 'db_cache' };
+  } else {
+    console.log(`[CACHE] SKIP — user requested fresh pull for ${url} (${role})`);
   }
 
   // Step 1 — prefer TDE service cache.
@@ -987,7 +991,11 @@ app.post('/api/demo-flow', async (req, res) => {
     individual_name,
     individual_linkedin,
     individual_email,
-    mode
+    mode,
+    refresh_sender,
+    refresh_solution,
+    refresh_customer,
+    refresh_individual
   } = req.body || {};
   const isDemo = mode === 'demo';
   const DEMO_ATOMS_PER_CATEGORY = 20;
@@ -1017,13 +1025,13 @@ app.post('/api/demo-flow', async (req, res) => {
     const t0 = Date.now();
     send('phase', { phase: 'fetch', message: 'Fetching sender, solution, customer in parallel…' });
 
-    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo });
-    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', demoMode: isDemo });
+    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo, skipCache: !!refresh_sender });
+    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', demoMode: isDemo, skipCache: !!refresh_solution });
     // Per cascade spec: customer_url → real ingest; industry-only → archetype
     // synth; neither → minimal "unspecified" placeholder so strategies fall
     // back to sender + solution alone rather than us inventing a target.
     const customerPromise = customer_url
-      ? ingestOne({ url: normUrl(customer_url), role: 'customer', demoMode: isDemo })
+      ? ingestOne({ url: normUrl(customer_url), role: 'customer', demoMode: isDemo, skipCache: !!refresh_customer })
       : industry
         ? synthesizeCustomerArchetype({ industry, subindustry, region, demoMode: isDemo })
         : Promise.resolve({

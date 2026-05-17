@@ -192,6 +192,12 @@ export default function DrixApp() {
     setDepth((d) => ({ ...d, industry: true }))
   }
 
+  // ─── REFRESH INTELLIGENCE CHECKBOXES (Step 5) ───────────────────────────
+  const [refreshSender, setRefreshSender] = useState(false)
+  const [refreshSolution, setRefreshSolution] = useState(false)
+  const [refreshCustomer, setRefreshCustomer] = useState(false)
+  const [refreshIndividual, setRefreshIndividual] = useState(false)
+
   // ─── URL VALIDATION ──────────────────────────────────────────────────────
   const [urlError, setUrlError] = useState('')
 
@@ -240,6 +246,10 @@ export default function DrixApp() {
       solution_url: solution,
       mode: mode === 'demo' ? 'demo' : 'production',
       ...(forceFresh ? { force_fresh: true } : {}),
+      refresh_sender: refreshSender,
+      refresh_solution: refreshSolution,
+      refresh_customer: refreshCustomer,
+      refresh_individual: refreshIndividual,
     }
 
     const cust = fCustomer.trim()
@@ -2066,40 +2076,67 @@ export default function DrixApp() {
                   </div>
                   <div className="h-px bg-drix-border/50" />
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Reseller</span>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked={refreshSender} onChange={(e) => setRefreshSender(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" />
+                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Reseller</span>
+                    </div>
                     <span className="text-drix-text font-medium truncate max-w-[200px]">{fSender}</span>
                   </div>
                   <div className="h-px bg-drix-border/50" />
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Solution</span>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked={refreshSolution} onChange={(e) => setRefreshSolution(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" />
+                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Solution</span>
+                    </div>
                     <span className="text-drix-text font-medium truncate max-w-[200px]">{fSolution}</span>
                   </div>
                   {(selectedIndustry || fTitle || fCustomer || fIndividual) && <div className="h-px bg-drix-border/50" />}
                   {selectedIndustry && (
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Industry</span>
+                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold pl-5">Industry</span>
                       <span className="text-drix-accent font-medium">{appState.naics?.find(s => s.code === selectedIndustry)?.name}</span>
                     </div>
                   )}
                   {fTitle && (
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Persona</span>
+                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold pl-5">Persona</span>
                       <span className="text-drix-purple font-medium">{fTitle}</span>
                     </div>
                   )}
                   {fCustomer && (
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Company</span>
-                      <span className="text-drix-purple font-medium">{fCustomer}</span>
-                    </div>
+                    <>
+                      <div className="h-px bg-drix-border/50" />
+                      <div className="flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={refreshCustomer} onChange={(e) => setRefreshCustomer(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded accent-drix-purple cursor-pointer" />
+                          <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Company</span>
+                        </div>
+                        <span className="text-drix-purple font-medium">{fCustomer}</span>
+                      </div>
+                    </>
                   )}
                   {fIndividual && (
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Individual</span>
-                      <span className="text-drix-orange font-medium truncate max-w-[200px]">{fIndividual}</span>
-                    </div>
+                    <>
+                      <div className="h-px bg-drix-border/50" />
+                      <div className="flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={refreshIndividual} onChange={(e) => setRefreshIndividual(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded accent-drix-orange cursor-pointer" />
+                          <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Individual</span>
+                        </div>
+                        <span className="text-drix-orange font-medium truncate max-w-[200px]">{fIndividual}</span>
+                      </div>
+                    </>
                   )}
                 </div>
+                {(refreshSender || refreshSolution || refreshCustomer || refreshIndividual) && (
+                  <p className="text-[11px] text-drix-yellow mt-2 text-center font-medium">
+                    Checked items will pull fresh intelligence. This may change strategy recommendations.
+                  </p>
+                )}
                 <div className="flex items-center justify-between mt-8">
                   <button
                     onClick={() => setWizardStep(4)}
