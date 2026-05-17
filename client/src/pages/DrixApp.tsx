@@ -1736,20 +1736,11 @@ export default function DrixApp() {
             <span className={`text-[11px] font-extrabold tracking-widest uppercase ${mode === 'production' ? 'text-drix-green' : 'text-drix-muted'}`}>
               PRODUCTION
             </span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={mode === 'demo'}
-                onChange={(e) => setMode(e.target.checked ? 'demo' : 'production')}
-              />
-              <div className="w-10 h-[22px] bg-drix-green peer-checked:bg-drix-yellow rounded-full peer transition-colors duration-200 after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-[18px]" />
-            </label>
-            <span className={`text-[11px] font-extrabold tracking-widest uppercase ${mode === 'demo' ? 'text-drix-yellow' : 'text-drix-muted'}`}>
-              DEMO
+            <span className="text-[11px] font-extrabold tracking-widest uppercase text-drix-green">
+              PRODUCTION
             </span>
             <span className="text-[11px] text-drix-dim ml-2">
-              {mode === 'demo' ? 'Limited to 20 atoms per category' : 'Full atom generation (50-150 per source)'}
+              Full intelligence — 100-200 atoms per source
             </span>
           </div>
 
@@ -2186,8 +2177,11 @@ export default function DrixApp() {
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
                       <input type="checkbox" checked={refreshSender} onChange={(e) => setRefreshSender(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" />
-                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Reseller</span>
+                        className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" id="refresh-sender" />
+                      <label htmlFor="refresh-sender" className="cursor-pointer">
+                        <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Reseller</span>
+                        <span className="text-drix-dim text-[10px] ml-1.5">— add fresh intel</span>
+                      </label>
                       {docsSender.length > 0 && <span className="text-[9px] bg-drix-green/20 text-drix-green px-1.5 py-0.5 rounded-full font-bold">{docsSender.length} doc{docsSender.length > 1 ? 's' : ''}</span>}
                     </div>
                     <span className="text-drix-text font-medium truncate max-w-[200px]">{fSender}</span>
@@ -2196,8 +2190,11 @@ export default function DrixApp() {
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
                       <input type="checkbox" checked={refreshSolution} onChange={(e) => setRefreshSolution(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" />
-                      <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Solution</span>
+                        className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" id="refresh-solution" />
+                      <label htmlFor="refresh-solution" className="cursor-pointer">
+                        <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Solution</span>
+                        <span className="text-drix-dim text-[10px] ml-1.5">— add fresh intel</span>
+                      </label>
                       {docsSolution.length > 0 && <span className="text-[9px] bg-drix-green/20 text-drix-green px-1.5 py-0.5 rounded-full font-bold">{docsSolution.length} doc{docsSolution.length > 1 ? 's' : ''}</span>}
                     </div>
                     <span className="text-drix-text font-medium truncate max-w-[200px]">{fSolution}</span>
@@ -2221,8 +2218,11 @@ export default function DrixApp() {
                       <div className="flex justify-between items-center text-sm">
                         <div className="flex items-center gap-2">
                           <input type="checkbox" checked={refreshCustomer} onChange={(e) => setRefreshCustomer(e.target.checked)}
-                            className="w-3.5 h-3.5 rounded accent-drix-purple cursor-pointer" />
-                          <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Company</span>
+                            className="w-3.5 h-3.5 rounded accent-drix-purple cursor-pointer" id="refresh-customer" />
+                          <label htmlFor="refresh-customer" className="cursor-pointer">
+                            <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Company</span>
+                            <span className="text-drix-dim text-[10px] ml-1.5">— add fresh intel</span>
+                          </label>
                           {docsCustomer.length > 0 && <span className="text-[9px] bg-drix-purple/20 text-drix-purple px-1.5 py-0.5 rounded-full font-bold">{docsCustomer.length} doc{docsCustomer.length > 1 ? 's' : ''}</span>}
                         </div>
                         <span className="text-drix-purple font-medium">{fCustomer}</span>
@@ -2235,8 +2235,11 @@ export default function DrixApp() {
                       <div className="flex justify-between items-center text-sm">
                         <div className="flex items-center gap-2">
                           <input type="checkbox" checked={refreshIndividual} onChange={(e) => setRefreshIndividual(e.target.checked)}
-                            className="w-3.5 h-3.5 rounded accent-drix-orange cursor-pointer" />
-                          <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Individual</span>
+                            className="w-3.5 h-3.5 rounded accent-drix-orange cursor-pointer" id="refresh-individual" />
+                          <label htmlFor="refresh-individual" className="cursor-pointer">
+                            <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Individual</span>
+                            <span className="text-drix-dim text-[10px] ml-1.5">— add fresh intel</span>
+                          </label>
                           {docsIndividual.length > 0 && <span className="text-[9px] bg-drix-orange/20 text-drix-orange px-1.5 py-0.5 rounded-full font-bold">{docsIndividual.length} doc{docsIndividual.length > 1 ? 's' : ''}</span>}
                         </div>
                         <span className="text-drix-orange font-medium truncate max-w-[200px]">{fIndividual}</span>
@@ -2246,7 +2249,7 @@ export default function DrixApp() {
                 </div>
                 {(refreshSender || refreshSolution || refreshCustomer || refreshIndividual) && (
                   <p className="text-[11px] text-drix-yellow mt-2 text-center font-medium">
-                    Checked items will pull fresh intelligence. This may change strategy recommendations.
+                    Checked items will research fresh intelligence and ADD new atoms to existing knowledge. Nothing is lost.
                   </p>
                 )}
                 <div className="flex items-center justify-between mt-8">

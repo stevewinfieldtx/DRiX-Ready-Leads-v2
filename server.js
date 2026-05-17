@@ -140,11 +140,11 @@ OUTPUT (JSON only, no markdown fences):
   {
     "target": { "name": "<entity name>", "url": "<url>", "role": "<sender|solution|customer>" },
     "summary": "<2-3 sentence positioning paragraph>",
-    "atoms": [ 50-150 atoms ]
+    "atoms": [ 100-200 atoms ]
   }
 
 DISCIPLINE:
-- 50-150 atoms. Each stands alone. Don't invent facts. MORE IS BETTER — extract every distinct fact.
+- 100-200 atoms. Each stands alone. Don't invent facts. MORE IS BETTER — extract every distinct fact.
 - Pick the SINGLE best match for each dimension — no arrays, no hedges.
 - "mission_gap" atoms — flag when stated mission is broader than current offering.
 - Evidence = paraphrase, NOT a direct quote.
@@ -156,13 +156,13 @@ INPUT: industry (required), optional subindustry, optional region.
 
 TASK: synthesize a REPRESENTATIVE target profile for that industry (and, if provided, narrowed by subindustry + region) — the kind of atoms that characterize companies in this segment as a CLASS. Label it clearly as a synthetic archetype.
 
-SAME SCHEMA as INGEST: 50-150 atoms, each tagged with ALL 9 d_* dimensions. Include d_persona, d_buying_stage, d_emotional_driver, d_evidence_type, d_credibility, d_recency, d_economic_driver, d_status_quo_pressure, and d_industry.
+SAME SCHEMA as INGEST: 100-200 atoms, each tagged with ALL 9 d_* dimensions. Include d_persona, d_buying_stage, d_emotional_driver, d_evidence_type, d_credibility, d_recency, d_economic_driver, d_status_quo_pressure, and d_industry.
 
 OUTPUT (JSON only):
   {
     "target": { "name": "<e.g. 'Archetype: Discrete Manufacturer (Northern Europe)' — omit region qualifier if none provided>", "url": null, "role": "customer", "is_archetype": true, "industry": "<echo>", "subindustry": "<echo or null>", "region": "<echo or null>" },
     "summary": "<2-3 sentence positioning paragraph for the typical company in this class>",
-    "atoms": [ 50-150 atoms with full 9D tags ]
+    "atoms": [ 100-200 atoms with full 9D tags ]
   }
 
 CRITICAL ANTI-FABRICATION RULES (violate these and the output is a lie):
@@ -667,52 +667,70 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
   };
 }
 
-async function ingestOne({ url, role, hint_name, demoMode, skipCache = false, supplementalDocs = null }) {
-  // Step 0a — LOCAL in-memory cache. Instant return, zero LLM calls, zero DB calls.
+async function ingestOne({ url, role, hint_name, demoMode = false, skipCache = false, supplementalDocs = null }) {
   const cacheKey = `${url}::${role}`;
-  if (!skipCache && ingestCache.has(cacheKey)) {
-    console.log(`[CACHE] MEM HIT ${cacheKey} — instant`);
-    return { ...ingestCache.get(cacheKey), source: 'local_cache' };
+
+  // ─── LOAD EXISTING INTELLIGENCE (always — we never throw atoms away) ────
+  let existingResult = null;
+
+  // Check memory cache first
+  if (ingestCache.has(cacheKey)) {
+    existingResult = ingestCache.get(cacheKey);
+    console.log(`[CACHE] MEM HIT ${cacheKey} — ${existingResult.atoms?.length || 0} existing atoms`);
   }
 
-  // Step 0b — POSTGRES cache (30-day TTL). Survives deploys.
-  if (!skipCache) {
+  // Check Postgres if not in memory
+  if (!existingResult) {
     const dbCached = await db.getCachedIngest(url, role);
     if (dbCached) {
-      console.log(`[CACHE] DB HIT ${url} (${role}) — no LLM call needed`);
-      // Populate memory cache too
-      ingestCache.set(cacheKey, dbCached);
+      existingResult = dbCached;
+      console.log(`[CACHE] DB HIT ${url} (${role}) — ${existingResult.atoms?.length || 0} existing atoms`);
+      // Populate memory cache
+      ingestCache.set(cacheKey, existingResult);
       if (ingestCache.size > INGEST_CACHE_MAX) {
         const oldest = ingestCache.keys().next().value;
         ingestCache.delete(oldest);
       }
-      return { ...dbCached, source: 'db_cache' };
     }
-  } else {
-    console.log(`[CACHE] SKIP — user requested fresh pull for ${url} (${role})`);
   }
 
-  // Step 1 — prefer TDE service cache.
-  const cached = await ingestFromTdeCache({ url, role, hint_name }).catch(e => {
-    console.log(`[TDE] Cache lookup error: ${e.message}`);
-    return null;
-  });
-  if (cached) {
-    // Store in both memory + Postgres for next time
-    ingestCache.set(cacheKey, cached);
-    if (ingestCache.size > INGEST_CACHE_MAX) {
-      const oldest = ingestCache.keys().next().value;
-      ingestCache.delete(oldest);
+  // Check TDE if still nothing
+  if (!existingResult) {
+    const tdeCached = await ingestFromTdeCache({ url, role, hint_name }).catch(e => {
+      console.log(`[TDE] Cache lookup error: ${e.message}`);
+      return null;
+    });
+    if (tdeCached) {
+      existingResult = tdeCached;
+      console.log(`[TDE] HIT ${url} (${role}) — ${existingResult.atoms?.length || 0} existing atoms`);
+      ingestCache.set(cacheKey, existingResult);
+      if (ingestCache.size > INGEST_CACHE_MAX) {
+        const oldest = ingestCache.keys().next().value;
+        ingestCache.delete(oldest);
+      }
+      db.setCachedIngest(url, role, existingResult).catch(e => console.error('[db] cache write:', e.message));
     }
-    db.setCachedIngest(url, role, cached).catch(e => console.error('[db] cache write:', e.message));
-    return cached;
   }
 
-  // Step 2 — fresh demo-lightweight ingest (scrape the URL, run our INGEST_PROMPT).
+  // ─── IF NOT REFRESHING: return existing cache as-is ─────────────────────
+  if (!skipCache && existingResult) {
+    return { ...existingResult, source: existingResult.source || 'cache' };
+  }
+
+  // ─── FRESH RESEARCH: scrape + LLM analysis ─────────────────────────────
+  // This runs either when: (a) no cache exists, or (b) user checked refresh
+  console.log(`[INGEST] Fresh research for ${url} (${role})${existingResult ? ` — will ADD to ${existingResult.atoms?.length || 0} existing atoms` : ''}`);
+
   const fetched = await fetchAndStrip(url);
   if (!fetched.text || fetched.text.length < 200) {
+    // If we have existing atoms but fresh scrape failed, return existing rather than error
+    if (existingResult) {
+      console.log(`[INGEST] Fresh scrape too thin (${fetched.text.length} chars) — returning existing ${existingResult.atoms?.length || 0} atoms`);
+      return { ...existingResult, source: 'cache_scrape_failed' };
+    }
     throw new Error(`Fetched ${url} had too little text (${fetched.text.length} chars). Try a richer page.`);
   }
+
   // Build content block — web-scraped page + any uploaded documents
   let contentBlock = `PAGE TITLE: ${fetched.title || ''}\nMETA DESCRIPTION: ${fetched.description || ''}\n\n${fetched.text}`;
   if (supplementalDocs && supplementalDocs.length > 0) {
@@ -727,29 +745,48 @@ async function ingestOne({ url, role, hint_name, demoMode, skipCache = false, su
     target_url: url,
     content: contentBlock
   });
-  // In demo mode, use a smaller token limit since we'll cap atoms anyway
-  const ingestTokens = demoMode ? 8000 : 32000;
-  const ingestPrompt = demoMode
-    ? INGEST_PROMPT.replace('50-150 atoms', '15-25 atoms').replace('50-150 atoms. Each stands alone.', '15-25 atoms. Each stands alone.')
-    : INGEST_PROMPT;
-  const parsed = await callLLM(ingestPrompt, userContent, { maxTokens: ingestTokens });
-  if (!parsed?.atoms?.length) throw new Error(`Ingest for ${url} returned no atoms`);
 
-  // Step 3 — fire TDE warmup in the background so next time this URL is a cache hit.
+  const ingestTokens = 32000;
+  const ingestPrompt = INGEST_PROMPT;
+  const parsed = await callLLM(ingestPrompt, userContent, { maxTokens: ingestTokens });
+  if (!parsed?.atoms?.length) {
+    // If fresh LLM returned nothing but we have existing, keep existing
+    if (existingResult) {
+      console.log(`[INGEST] Fresh LLM returned no atoms — keeping existing ${existingResult.atoms?.length || 0}`);
+      return { ...existingResult, source: 'cache_llm_empty' };
+    }
+    throw new Error(`Ingest for ${url} returned no atoms`);
+  }
+
+  // ─── MERGE: existing atoms + new atoms (deduplicate by atom_id) ─────────
+  let mergedAtoms = parsed.atoms;
+  if (existingResult?.atoms?.length) {
+    const existingIds = new Set(existingResult.atoms.map(a => a.atom_id));
+    const newAtoms = parsed.atoms.filter(a => !existingIds.has(a.atom_id));
+    mergedAtoms = [...existingResult.atoms, ...newAtoms];
+    console.log(`[INGEST] MERGED: ${existingResult.atoms.length} existing + ${newAtoms.length} new = ${mergedAtoms.length} total atoms`);
+  } else {
+    console.log(`[INGEST] First ingest: ${mergedAtoms.length} atoms`);
+  }
+
+  // Fire TDE warmup in the background
   const collectionId = urlToCollectionId(url);
   warmTdeCacheAsync(collectionId, url, role, parsed.target?.name || hint_name);
 
   const result = {
     target: { ...parsed.target, role, url },
-    summary: parsed.summary,
-    atoms: parsed.atoms,
+    summary: parsed.summary, // Use fresh summary (more current)
+    atoms: mergedAtoms,
+    atom_count_before: existingResult?.atoms?.length || 0,
+    atom_count_after: mergedAtoms.length,
+    atom_count_new: mergedAtoms.length - (existingResult?.atoms?.length || 0),
     source_url: url,
-    source: 'fresh',
+    source: existingResult ? 'refresh_merged' : 'fresh',
     tde_collection: collectionId,
     ingested_at: new Date().toISOString()
   };
 
-  // Store in memory cache + Postgres (30-day TTL) for instant repeats
+  // Store merged result in all caches
   ingestCache.set(cacheKey, result);
   if (ingestCache.size > INGEST_CACHE_MAX) {
     const oldest = ingestCache.keys().next().value;
@@ -765,7 +802,7 @@ function industryCacheKey(industry, subindustry, region) {
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120);
 }
 
-async function synthesizeCustomerArchetype({ industry, subindustry, region, demoMode }) {
+async function synthesizeCustomerArchetype({ industry, subindustry, region }) {
   const industryKey = industryCacheKey(industry, subindustry, region);
   const tdeKey = 'tde_demo_archetype';
 
@@ -813,12 +850,10 @@ async function synthesizeCustomerArchetype({ industry, subindustry, region, demo
     }
   }
 
-  // Step 2 — synthesize fresh via LLM (the demo-lightweight path).
+  // Step 2 — synthesize fresh via LLM (full production — 100-200 atoms).
   const userContent = JSON.stringify({ industry, subindustry, region });
-  const archetypeTokens = demoMode ? 8000 : 32000;
-  const archetypePrompt = demoMode
-    ? INDUSTRY_ARCHETYPE_PROMPT.replace('50-150 atoms', '15-25 atoms').replace('50-150 atoms, each tagged', '15-25 atoms, each tagged')
-    : INDUSTRY_ARCHETYPE_PROMPT;
+  const archetypeTokens = 32000;
+  const archetypePrompt = INDUSTRY_ARCHETYPE_PROMPT;
   const parsed = await callLLM(archetypePrompt, userContent, { maxTokens: archetypeTokens });
   if (!parsed?.atoms?.length) throw new Error('Archetype synthesis returned no atoms');
 
@@ -1097,8 +1132,7 @@ app.post('/api/demo-flow', async (req, res) => {
     docs_customer,
     docs_individual
   } = req.body || {};
-  const isDemo = mode === 'demo';
-  const DEMO_ATOMS_PER_CATEGORY = 20;
+  // Demo mode removed — always full production intelligence (100-200 atoms per entity)
 
   // Validation — per DRiX pitch cascade spec, only Reseller + Solution are
   // required. Industry / Subindustry / Title / Company URL / Individual are
@@ -1125,15 +1159,15 @@ app.post('/api/demo-flow', async (req, res) => {
     const t0 = Date.now();
     send('phase', { phase: 'fetch', message: 'Fetching sender, solution, customer in parallel…' });
 
-    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo, skipCache: !!refresh_sender, supplementalDocs: docs_sender || null });
-    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', demoMode: isDemo, skipCache: !!refresh_solution, supplementalDocs: docs_solution || null });
+    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', skipCache: !!refresh_sender, supplementalDocs: docs_sender || null });
+    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', skipCache: !!refresh_solution, supplementalDocs: docs_solution || null });
     // Per cascade spec: customer_url → real ingest; industry-only → archetype
     // synth; neither → minimal "unspecified" placeholder so strategies fall
     // back to sender + solution alone rather than us inventing a target.
     const customerPromise = customer_url
-      ? ingestOne({ url: normUrl(customer_url), role: 'customer', demoMode: isDemo, skipCache: !!refresh_customer, supplementalDocs: docs_customer || null })
+      ? ingestOne({ url: normUrl(customer_url), role: 'customer', skipCache: !!refresh_customer, supplementalDocs: docs_customer || null })
       : industry
-        ? synthesizeCustomerArchetype({ industry, subindustry, region, demoMode: isDemo })
+        ? synthesizeCustomerArchetype({ industry, subindustry, region })
         : Promise.resolve({
             target: { name: 'Unspecified target', url: null, role: 'customer', is_archetype: true },
             summary: 'No customer URL and no industry supplied. Strategies will lean on the reseller + solution only — no fabricated target context.',
@@ -1155,23 +1189,7 @@ app.post('/api/demo-flow', async (req, res) => {
     const solution = solutionRes.value;
     const customer = customerRes.value;
 
-    // DEMO MODE: limit atoms to N per category (atom type)
-    if (isDemo) {
-      [sender, solution, customer].forEach(entry => {
-        if (!entry || !entry.atoms) return;
-        const byType = {};
-        entry.atoms.forEach(a => {
-          const t = a.type || 'unknown';
-          if (!byType[t]) byType[t] = [];
-          byType[t].push(a);
-        });
-        const trimmed = [];
-        Object.values(byType).forEach(group => {
-          trimmed.push(...group.slice(0, DEMO_ATOMS_PER_CATEGORY));
-        });
-        entry.atoms = trimmed;
-      });
-    }
+    // All atoms pass through — no demo trimming. Intelligence accumulates.
 
     const ingestMs = Date.now() - t0;
     const allCached = [sender, solution, customer].every(e => ['local_cache', 'db_cache'].includes(e.source));
@@ -3247,7 +3265,7 @@ async function prewarmDemoDocs() {
   for (const [company, docs] of Object.entries(DEMO_DOCS)) {
     for (const doc of docs) {
       try {
-        const result = await ingestOne({ url: doc.url, role: 'customer', hint_name: company, demoMode: true });
+        const result = await ingestOne({ url: doc.url, role: 'customer', hint_name: company, demoMode: false });
         doc._cached = true;
         doc._atomCount = result.atoms?.length || 0;
         console.log(`[PREWARM] OK ${company} / ${doc.label}: ${doc._atomCount} atoms`);
@@ -3474,7 +3492,7 @@ app.post('/api/comparison', async (req, res) => {
         url: normUrl(company_url),
         role: 'customer',
         hint_name: company_name,
-        demoMode: true
+        demoMode: false
       });
     } catch (ingestErr) {
       send('tde_error', { message: `Customer ingest failed: ${ingestErr.message}` });
@@ -3811,7 +3829,7 @@ app.post('/api/atomize', async (req, res) => {
       const f = fetched[fi];
       try {
         const result = await ingestOne({
-          url: f.url, role: 'customer', hint_name: company_name, demoMode: true
+          url: f.url, role: 'customer', hint_name: company_name, demoMode: false
         });
         const docAtoms = (result.atoms || []).map(a => ({
           atom_id: a.atom_id || a.id,

@@ -434,127 +434,176 @@ async function deepCompanyResearch(companyName, domain) {
 // LLM PSYCHOGRAPHIC INFERENCE — Analyzes REAL data, doesn't guess
 // =============================================================================
 
-const PSYCHOGRAPHIC_PROMPT = `You are an elite B2B sales psychologist and intelligence analyst. You have TWO sources of information:
+const PSYCHOGRAPHIC_PROMPT = `You are an elite B2B sales intelligence analyst. Your job: produce a CONFIDENCE-SCORED psychographic profile that tells a sales rep exactly what they KNOW vs. what they're GUESSING about this person.
 
-1. ENRICHED DATA — real, verified data from APIs and web searches (employment history, education, skills, public appearances, news, company filings, press releases). This is your PRIMARY source.
-2. YOUR OWN KNOWLEDGE — what you already know about this person, their company, their industry, their certifications, their role type, and how people in similar positions think and buy. USE THIS FREELY.
+YOU HAVE THREE SOURCES — each with different reliability:
 
-THE CRITICAL RULE: Never return "insufficient data" or generic filler. EVERY person has a story. If the enrichment data is thin, lean harder on your own knowledge — what does a person with this title at this type of company typically care about? What do their certifications tell you? What does their industry context imply? What does their company's market position suggest?
+1. ENRICHED DATA (Apollo, web searches, company filings) — HIGHEST confidence. Real API data with employment history, certifications, education, company financials. Cite directly.
+2. YOUR OWN KNOWLEDGE — what you already know about this person, their company, their industry, their certifications, their role type. This is STRONG when the person/company is well-known. Label it clearly (e.g. "Based on known banking CIO priorities...").
+3. OSINT DIGITAL FOOTPRINT (if present) — LOWEST confidence. These are UNVERIFIED username matches. A platform check found an account matching a derived username — but it could be a DIFFERENT person with the same name. NEVER build core profile conclusions on OSINT alone. Treat as "possible digital presence — unverified" unless corroborated by other data (e.g., a GitHub profile that mentions the same company).
 
-When you use enrichment data, cite it. When you use your own knowledge, say so (e.g. "Based on typical CIO priorities in community banking..."). Both are valuable. A profile that combines verified data with informed inference is infinitely better than "insufficient data."
+CONFIDENCE SCALE (use percentages):
+- 95-100%: Directly verified from authoritative source (Apollo employment record, public filing, official company page)
+- 80-94%: Strongly supported by multiple data points or well-known facts about the company/person
+- 60-79%: Reasonable professional inference from role + industry + company type
+- 40-59%: Speculative but plausible based on patterns for this role/industry
+- Below 40%: Weak inference — acknowledge it and say WHY you're guessing
 
-YOUR JOB: Produce a psychographic profile that tells a sales rep exactly WHO this person is and HOW to engage them. Think about what ChatGPT would say if someone asked "tell me everything about this person and how to sell to them" — then do BETTER than that because you have actual enrichment data on top of your knowledge.
+THE GOLDEN RULE: A rep who knows what they DON'T know is better prepared than one who thinks they know everything. NEVER present a 60% inference as a fact. Label everything.
 
-ARCHETYPES (pick the best fit):
-- GROWER: Ambitious, ascending trajectory, wants bigger scope, motivated by career advancement and recognition. Engaged by opportunity and competitive advantage.
-- DEFENDER: Protective of what works, risk-averse, long tenure, values stability. Engaged by risk reduction and proven solutions.
-- OPTIMIZER: Efficiency-focused, data-driven, iterates and improves. Engaged by measurable ROI and specific metrics.
-- PIONEER: Cutting-edge seeker, early adopter, thought leader, speaks at conferences. Engaged by innovation and being first.
-- BUILDER: Creates from scratch, entrepreneurial, long-term thinker. Engaged by ownership, extensibility, and compounding value.
+CRITICAL RULES ON OSINT:
+- OSINT username matches are 30-50% confidence AT BEST unless corroborated
+- Do NOT build archetype classification primarily on OSINT platform presence
+- A "PyPI account found" does NOT mean this CIO writes Python packages — it means SOMEONE with a similar username has an account
+- Only elevate OSINT confidence if: the profile bio mentions the same company/role, OR multiple OSINT signals align with verified employment data
+- When OSINT contradicts verified data (e.g., OSINT suggests "developer-influencer" but Apollo shows "security-focused banking CIO with CISSP"), TRUST THE VERIFIED DATA
+
+ARCHETYPE CLASSIFICATION (must be grounded in VERIFIED data, not OSINT):
+- DEFENDER: Protective of what works, risk-averse, long tenure, security-focused, values stability. Evidence: long tenures, security certifications, regulated industry, conservative company.
+- GROWER: Ambitious, ascending trajectory, wants bigger scope. Evidence: frequent moves up, expanding responsibilities, growth-stage companies.
+- OPTIMIZER: Efficiency-focused, data-driven, iterates. Evidence: operations background, process certifications, cost-center leadership.
+- PIONEER: Cutting-edge seeker, early adopter, thought leader. Evidence: VERIFIED conference talks, published articles, emerging-tech certifications.
+- BUILDER: Creates from scratch, entrepreneurial, long-term thinker. Evidence: startup experience, greenfield projects, architect-level certifications.
 
 DECISION STYLES:
-- Analytical: Needs data, proof, methodology
-- Intuitive: Goes with gut after initial validation
-- Consensus: Needs team buy-in before moving
-- Directive: Decides fast and alone
+- Analytical: Needs data, proof, methodology — common with security/compliance backgrounds
+- Intuitive: Goes with gut after initial validation — common with serial entrepreneurs
+- Consensus: Needs team buy-in — common in matrixed orgs
+- Directive: Decides fast and alone — common with founder-CIOs
 
-CRITICAL RULES:
-- NEVER return generic filler like "Generic CIO value proposition - cost optimization." That is useless garbage. Every output must be specific to THIS person at THIS company.
-- Reference specific career moves, tenure patterns, education, certifications, public appearances when available.
-- Show your evidence for every inference. "They spent 12 years at one company → defender archetype" is good. "They seem like a defender" is garbage.
-- The key_insight and opening_hook should be SPECIFIC TO THIS PERSON. If you could use the same hook for anyone with a similar title, it's too generic. Redo it.
-- If the enrichment data includes their certifications (CISSP, CCSP, etc.) — analyze what those certifications MEAN about how they think and what they value.
-- If they have podcast/conference/published content — reference it in the hook. That's gold.
-- When enrichment data is thin, use your knowledge of the COMPANY, the INDUSTRY, and the ROLE to fill in the gaps. A CIO at a community bank has very different priorities than a CIO at a Fortune 500 tech company. Use that.
-- The COMPANY_INTELLIGENCE section contains live data: about pages, investor relations, SEC filings, press releases, earnings, leadership changes, partnerships, product launches, and hiring signals. USE THIS to:
-  * Identify what the company is focused on RIGHT NOW (growth? cost-cutting? transformation?)
-  * Spot pain points or priorities from filings/earnings (revenue pressure, competitive threats, strategic pivots)
-  * Find timely hooks (congratulate on a recent product launch, reference a recent partnership)
-  * Understand if the company is growing (hiring) or contracting (layoffs) — critical for sales approach
-  * Link the person's role to the company's current strategic direction
-- Even if company_intelligence is empty, use what you KNOW about the company. If it's "North Dallas Bank and Trust" — you know it's a community bank in Texas, you know what community banks care about, you know regulatory pressures they face. USE THAT.
-- The OSINT_DIGITAL_FOOTPRINT section (if present) shows which online platforms this person has accounts on (GitHub, Medium, Twitter/X, Reddit, StackOverflow, Crunchbase, etc.) and the OSINT_EMAIL_INTELLIGENCE shows which services their email is registered with. USE THIS to:
-  * Identify their digital persona — are they a thought leader (Medium, Twitter, personal blog) or a builder (GitHub, GitLab, StackOverflow)?
-  * Find content signals — if they're on Medium or have a personal site, they publish content. Reference that.
-  * Spot community involvement — Reddit, HackerNews, Discord presence reveals interests and communication style.
-  * Infer tech-savviness — presence on GitHub/GitLab/npm signals hands-on technical orientation.
-  * Identify professional networks — Crunchbase presence suggests startup/investor involvement.
-  * Email footprint reveals services they trust and use — Spotify/Pinterest suggest personal interests; GitHub/npm confirm technical identity.
+USING ENRICHMENT DATA SECTIONS:
+- APOLLO DATA: Employment history, certifications, education — this is your highest-confidence source. Build the core profile from this.
+- WEB RESEARCH: Podcasts, talks, articles, news — verify these are about THIS person (check name + company match). Conference talks and published content are gold for hooks.
+- COMPANY INTELLIGENCE: Filings, press releases, earnings, leadership changes, hiring signals — use to understand company context and timing. A company hiring aggressively = different sale than one in cost-cutting mode.
+- OSINT (if present): Username matches across platforms. TREAT WITH EXTREME CAUTION. Only reference if corroborated. If you include OSINT-based inferences, explicitly mark them as "unverified — possible digital presence."
 
 OUTPUT (JSON only, no markdown fences):
 {
   "recognized": true,
-  "confidence": "high" | "medium" | "low",
+  "overall_confidence": "<percentage — how confident you are in the TOTAL profile>",
+  "confidence_basis": "<1 sentence explaining what drove overall confidence up or down>",
   "individual": {
     "name": "<full name>",
     "title": "<current role>",
-    "company": "<current company>",
+    "company": "<current company — USE FULL CORRECT NAME, not abbreviations>",
     "linkedin_url": "<as provided>",
-    "key_insight": "<the single most important thing a salesperson should know — WHY this person will or won't buy, based on real evidence>"
+    "key_insight": "<the single most important thing a salesperson should know>",
+    "key_insight_confidence": "<percentage>",
+    "key_insight_basis": "<what evidence supports this>"
   },
-  "psychographic": {
-    "archetype": "<grower|defender|optimizer|pioneer|builder>",
-    "archetype_confidence": "<high|medium|low>",
-    "archetype_evidence": ["<specific evidence from their data>"],
-    "decision_style": "<analytical|intuitive|consensus|directive>",
-    "decision_speed": "<fast|moderate|deliberate>",
-    "risk_appetite": "<risk-seeking|calculated|risk-averse>",
-    "primary_motivation": "<what drives them — based on evidence>",
-    "secondary_motivation": "<what else matters>",
-    "communication_style": "<data-driven|narrative|direct|collaborative>",
-    "status_sensitivity": "<high|moderate|low>",
-    "engagement_approach": "<2-3 sentences: exactly HOW to approach this specific person>"
-  },
-  "summary": "<3-5 sentence profile — who they are, career arc, what they care about>",
-  "career_highlights": ["<key moves and patterns>"],
-  "public_signals": ["<podcasts, talks, articles, news — reference specific titles>"],
-  "leadership_style": "<how they lead based on evidence>",
-  "opening_hook": "<exact words to open a cold outreach — must reference something specific about them>",
-  "conversation_starters": ["<4 specific things to reference in a meeting — from their real data>"],
-  "pitch_angles": ["<5 specific angles grounded in their psychographic profile and real data>"],
-  "phrases_to_use": ["<words that resonate with their archetype>"],
-  "phrases_to_avoid": ["<words that will shut them down based on archetype>"],
-  "objections": [
-    { "objection": "<likely objection based on their profile>", "response": "<specific counter>" }
+  "verified_facts": [
+    {
+      "statement": "<factual claim>",
+      "confidence": "<percentage 85-100>",
+      "source": "<apollo_employment|apollo_certification|web_search|company_filing|public_record|personal_knowledge>"
+    }
   ],
-  "rapport_hooks": ["<specific things from their background to reference for rapport>"],
-  "pain_signals": ["<likely pain points — label as inferred vs known>"],
+  "strong_inferences": [
+    {
+      "statement": "<inference>",
+      "confidence": "<percentage 70-84>",
+      "basis": "<what evidence supports this inference>"
+    }
+  ],
+  "moderate_inferences": [
+    {
+      "statement": "<inference>",
+      "confidence": "<percentage 50-69>",
+      "basis": "<why this is plausible but not certain>"
+    }
+  ],
+  "speculative": [
+    {
+      "statement": "<guess>",
+      "confidence": "<percentage 25-49>",
+      "basis": "<why you're guessing this — be honest about weakness>"
+    }
+  ],
+  "psychographic": {
+    "archetype": "<defender|grower|optimizer|pioneer|builder>",
+    "archetype_confidence": "<percentage>",
+    "archetype_evidence": ["<specific VERIFIED evidence — not OSINT>"],
+    "decision_style": "<analytical|intuitive|consensus|directive>",
+    "decision_style_confidence": "<percentage>",
+    "decision_style_evidence": "<what supports this>",
+    "risk_appetite": "<risk-seeking|calculated|risk-averse>",
+    "risk_confidence": "<percentage>",
+    "primary_motivation": "<what drives them>",
+    "motivation_confidence": "<percentage>",
+    "communication_style": "<data-driven|narrative|direct|collaborative>",
+    "engagement_approach": "<2-3 sentences: exactly HOW to approach this specific person>",
+    "engagement_confidence": "<percentage>"
+  },
+  "summary": "<3-5 sentence profile — who they are, career arc, what they care about. Include confidence caveats where appropriate.>",
+  "sales_strategy": {
+    "recommended_approach": "<2-3 sentences — the core strategy>",
+    "approach_confidence": "<percentage>",
+    "opening_hook": "<exact words to open — must reference something VERIFIED about them>",
+    "hook_confidence": "<percentage>",
+    "conversation_starters": [
+      { "topic": "<specific topic>", "confidence": "<percentage>", "basis": "<why this will land>" }
+    ],
+    "pitch_angles": [
+      { "angle": "<specific angle>", "confidence": "<percentage>", "basis": "<why this resonates with their profile>" }
+    ],
+    "phrases_to_use": ["<words that resonate with their archetype>"],
+    "phrases_to_avoid": ["<words that will shut them down>"],
+    "objections": [
+      { "objection": "<likely objection>", "confidence": "<percentage>", "response": "<specific counter>", "basis": "<why you expect this objection>" }
+    ]
+  },
   "company_situation": {
-    "strategic_direction": "<what the company is focused on based on filings, PR, earnings>",
-    "financial_health": "<growing|stable|contracting|restructuring — based on earnings/filings>",
-    "recent_moves": ["<notable recent events: launches, partnerships, leadership changes>"],
-    "market_position": "<competitive context from news>",
-    "hiring_trajectory": "<expanding|stable|contracting — based on hiring signals>",
-    "relevance_to_sale": "<how the company situation creates opportunity or risk for our pitch>"
+    "company_full_name": "<correct full company name>",
+    "industry": "<specific industry>",
+    "strategic_direction": "<what the company is focused on>",
+    "strategic_confidence": "<percentage>",
+    "financial_health": "<growing|stable|contracting|restructuring>",
+    "financial_confidence": "<percentage>",
+    "recent_moves": [{ "event": "<what happened>", "confidence": "<percentage>" }],
+    "hiring_trajectory": "<expanding|stable|contracting>",
+    "relevance_to_sale": "<how company situation creates opportunity or risk>"
+  },
+  "technology_interests": [
+    { "area": "<technology area>", "confidence": "<percentage>", "basis": "<why you believe this>" }
+  ],
+  "digital_presence": {
+    "verified_accounts": ["<only accounts CONFIRMED to belong to this person — same company/bio match>"],
+    "possible_accounts": ["<OSINT matches that are UNVERIFIED — flag as possible>"],
+    "content_signals": ["<verified publications, talks, podcasts — with titles if known>"]
+  },
+  "reliability_summary": {
+    "strongest_sections": "<what parts of this profile are most reliable and why>",
+    "weakest_sections": "<what parts are most speculative and why>",
+    "what_would_improve_this": "<what additional data would increase confidence — e.g. a direct conversation, their LinkedIn activity, a mutual connection>"
   },
   "atoms": [
     {
       "atom_id": "<kebab-case-id>",
-      "type": "<career_history|public_statement|thought_leadership|conference_talk|community_membership|publication|endorsement|leadership_style|professional_focus|personal_signal|vendor_opinion|pain_signal|decision_pattern|psychographic_signal|company_financial|company_strategic|company_product|company_leadership|company_hiring|company_partnership>",
-      "claim": "<one clear sentence about this person>",
-      "evidence": "<specific data point this is based on>",
-      "confidence": "high" | "medium" | "low",
-      "d_persona": "<their role category>",
-      "d_buying_stage": "<inferred>",
+      "type": "<career_history|certification|public_statement|thought_leadership|conference_talk|community_membership|publication|leadership_style|professional_focus|personal_signal|vendor_opinion|pain_signal|decision_pattern|psychographic_signal|company_financial|company_strategic|company_product|company_leadership|company_hiring|company_partnership|osint_unverified>",
+      "claim": "<one clear sentence>",
+      "evidence": "<specific data point>",
+      "confidence_pct": <number 1-100>,
+      "source": "<apollo|web_search|company_intel|osint_unverified|personal_knowledge|certification_record>",
+      "d_persona": "<role category>",
       "d_emotional_driver": "<what motivates them>",
       "d_evidence_type": "<source type>",
       "d_credibility": 1-5,
-      "d_recency": "<best guess>",
-      "d_economic_driver": "<what economic lever they care about>",
-      "d_status_quo_pressure": "<inertia signals>",
       "d_industry": { "naics": "<sector>", "sic": "<division>" }
     }
   ]
 }
 
 DISCIPLINE:
-- Generate AS MANY ATOMS AS THE DATA SUPPORTS. No artificial limit. If there are 200 data points, create 200 atoms. More is better — thoroughness over speed. This is a preparation tool, not a real-time lookup.
-- Every atom must cite specific evidence from the provided data.
-- Include atoms for company-level intelligence too: financial signals, strategic pivots, leadership changes, product launches, hiring patterns. These are just as valuable as personal atoms.
-- The psychographic section is THE MOST IMPORTANT OUTPUT. It must be evidence-based and actionable.
-- pitch_angles must be specific to this person's archetype + situation. No generic BS.
-- conversation_starters should include at least 8 items — draw from personal background AND company situation.
-- objections should include at least 6 with specific counters tailored to the archetype.`;
+- Generate AS MANY ATOMS AS THE DATA SUPPORTS. No artificial limit. Thoroughness over speed.
+- Every atom MUST have a confidence_pct and source. Atoms from OSINT must use type "osint_unverified" and source "osint_unverified" unless corroborated.
+- The verified_facts section should contain 10+ items if Apollo data is rich. These are your foundation.
+- strong_inferences should flow LOGICALLY from verified_facts. "CISSP + CCSP + banking CIO → evaluates through risk lens (94%)" is good.
+- NEVER put an OSINT-only inference in verified_facts or strong_inferences. It goes in moderate_inferences at best, speculative if uncorroborated.
+- technology_interests must be grounded in certifications, company industry, and role — not OSINT platform presence.
+- The reliability_summary is MANDATORY. A rep needs to know "the archetype classification is 92% because we have 13 years of employment history" vs "the technology interests are 55% because we're inferring from industry patterns."
+- conversation_starters: at least 8, each with confidence. Draw from VERIFIED career data and company situation.
+- objections: at least 6, each with confidence and basis.
+- If you would not bet money on a claim, do not put it above 70%.`;
 
 // =============================================================================
 // MAIN PIPELINE
@@ -701,7 +750,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
         model: OPENROUTER_MODEL_ID,
         messages: [
           { role: 'system', content: PSYCHOGRAPHIC_PROMPT },
-          { role: 'user', content: `Analyze this individual and produce a comprehensive psychographic intelligence profile.\n\nENRICHED DATA (verified from APIs and web searches):\n\n${JSON.stringify(enrichmentPackage, null, 2)}\n\nIMPORTANT: If the enrichment data above is thin or incomplete, DO NOT return generic filler. Use your own knowledge of this person, their company, their industry, their certifications, and their role to build a thorough profile. Clearly label which insights come from the enrichment data vs. your own knowledge. A sales rep needs actionable intelligence — "insufficient data" helps nobody.` },
+          { role: 'user', content: `Analyze this individual and produce a CONFIDENCE-SCORED psychographic intelligence profile. Every claim must have a confidence percentage and basis.\n\nENRICHED DATA:\n\n${JSON.stringify(enrichmentPackage, null, 2)}\n\nINSTRUCTIONS:\n1. Start with VERIFIED FACTS from Apollo/web data. These are your foundation (85-100% confidence).\n2. Build STRONG INFERENCES from verified facts + your knowledge of the person/company/industry (70-84%).\n3. Add MODERATE INFERENCES where role + industry patterns suggest likely behaviors (50-69%).\n4. Be HONEST about SPECULATIVE claims — label them clearly (25-49%).\n5. If OSINT data is present, note the _WARNING field. Username matches are UNVERIFIED. Do not treat them as confirmed identity.\n6. Use your own knowledge FREELY but label it. If you know this company is a community bank in Texas, say so and use it.\n7. The reliability_summary at the end is MANDATORY — tell the rep what's solid and what's a guess.\n8. NEVER present an inference as a fact. A rep who walks in calibrated beats one who walks in overconfident.` },
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
@@ -725,9 +774,10 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
     const elapsed = Date.now() - startTime;
     console.log(`\n${'═'.repeat(60)}`);
     console.log(`[individual-scan] PIPELINE COMPLETE in ${(elapsed / 1000).toFixed(1)}s`);
-    console.log(`  Archetype: ${parsed.psychographic?.archetype?.toUpperCase() || 'unknown'}`);
+    console.log(`  Overall confidence: ${parsed.overall_confidence || 'unknown'}`);
+    console.log(`  Archetype: ${parsed.psychographic?.archetype?.toUpperCase() || 'unknown'} (${parsed.psychographic?.archetype_confidence || '?'})`);
     console.log(`  Decision style: ${parsed.psychographic?.decision_style || 'unknown'}`);
-    console.log(`  Risk appetite: ${parsed.psychographic?.risk_appetite || 'unknown'}`);
+    console.log(`  Verified facts: ${(parsed.verified_facts || []).length}`);
     console.log(`  Atoms: ${(parsed.atoms || []).length}`);
     console.log(`${'═'.repeat(60)}\n`);
 
@@ -737,25 +787,33 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
         accounts: [],
         web_results: Object.values(webResearch).reduce((s, a) => s + a.length, 0),
         recognized: parsed.recognized ?? true,
-        confidence: parsed.confidence || 'medium',
+        confidence: parsed.overall_confidence || 'medium',
       },
       atoms: parsed.atoms || [],
       individual: parsed.individual || { name: personName, title: personTitle, company: personCompany, linkedin_url, email },
       psychographic: parsed.psychographic || null,
       summary: parsed.summary || '',
-      pitch_angles: parsed.pitch_angles || [],
+      // Confidence-scored intelligence tiers
+      verified_facts: parsed.verified_facts || [],
+      strong_inferences: parsed.strong_inferences || [],
+      moderate_inferences: parsed.moderate_inferences || [],
+      speculative: parsed.speculative || [],
+      // Sales strategy (replaces flat pitch_angles/conversation_starters)
+      sales_strategy: parsed.sales_strategy || null,
       key_insight: parsed.individual?.key_insight || null,
-      opening_hook: parsed.opening_hook || null,
-      conversation_starters: parsed.conversation_starters || [],
-      career_highlights: parsed.career_highlights || [],
-      public_signals: parsed.public_signals || [],
-      leadership_style: parsed.leadership_style || null,
-      pain_signals: parsed.pain_signals || [],
-      phrases_to_use: parsed.phrases_to_use || [],
-      phrases_to_avoid: parsed.phrases_to_avoid || [],
-      objections: parsed.objections || [],
-      rapport_hooks: parsed.rapport_hooks || [],
+      key_insight_confidence: parsed.individual?.key_insight_confidence || null,
+      opening_hook: parsed.sales_strategy?.opening_hook || null,
+      conversation_starters: parsed.sales_strategy?.conversation_starters || [],
+      pitch_angles: parsed.sales_strategy?.pitch_angles || [],
+      phrases_to_use: parsed.sales_strategy?.phrases_to_use || [],
+      phrases_to_avoid: parsed.sales_strategy?.phrases_to_avoid || [],
+      objections: parsed.sales_strategy?.objections || [],
+      // Company & technology
       company_situation: parsed.company_situation || null,
+      technology_interests: parsed.technology_interests || [],
+      digital_presence: parsed.digital_presence || null,
+      // Reliability meta
+      reliability_summary: parsed.reliability_summary || null,
       // Raw data (for debugging / display)
       enrichment: enrichmentPackage,
       web_research: webResearch,
@@ -883,9 +941,13 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
   }
 
   // OSINT digital footprint (username discovery + email intelligence)
+  // ⚠️ IMPORTANT: These are UNVERIFIED username matches. A 200 HTTP response at a URL
+  // like pypi.org/user/shaneharkins does NOT confirm this is the same person.
+  // The LLM prompt instructs the model to treat these as low-confidence signals.
   if (osintResults?.digitalFootprint) {
     const df = osintResults.digitalFootprint;
     pkg.osint_digital_footprint = {
+      _WARNING: "UNVERIFIED USERNAME MATCHES. These accounts matched a derived username but have NOT been confirmed to belong to this person. A different person with the same or similar name may own these accounts. Do NOT build core profile conclusions on this data alone.",
       accounts_found: df.accountsFound || 0,
       platforms: df.platforms || [],
       tech_presence: df.techPresence || [],
@@ -901,6 +963,7 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
   if (osintResults?.emailIntelligence) {
     const ei = osintResults.emailIntelligence;
     pkg.osint_email_intelligence = {
+      _WARNING: "Email service checks indicate this email address may be registered on these platforms, but registration alone does not confirm active use or identity.",
       registered_on: ei.registeredOn || [],
       not_found_on: ei.notFoundOn || [],
       errors: ei.errors || [],
