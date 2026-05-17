@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { motion } from 'framer-motion'
 import {
   Zap, AlertCircle,
-  MessageSquare, Download, X, Send, Mic
+  MessageSquare, Download, X, Send, Mic, Upload, FileText, Trash2
 } from 'lucide-react'
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -198,6 +198,41 @@ export default function DrixApp() {
   const [refreshCustomer, setRefreshCustomer] = useState(false)
   const [refreshIndividual, setRefreshIndividual] = useState(false)
 
+  // ─── FILE UPLOADS PER ENTITY ───────────────────────────────────────────
+  const [docsSender, setDocsSender] = useState<{ filename: string; text: string; size: number }[]>([])
+  const [docsSolution, setDocsSolution] = useState<{ filename: string; text: string; size: number }[]>([])
+  const [docsCustomer, setDocsCustomer] = useState<{ filename: string; text: string; size: number }[]>([])
+  const [docsIndividual, setDocsIndividual] = useState<{ filename: string; text: string; size: number }[]>([])
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null) // which entity is currently uploading
+
+  const handleFileUpload = async (files: FileList | null, entity: 'sender' | 'solution' | 'customer' | 'individual') => {
+    if (!files || files.length === 0) return
+    const setDocs = { sender: setDocsSender, solution: setDocsSolution, customer: setDocsCustomer, individual: setDocsIndividual }[entity]
+    setUploadingFor(entity)
+    for (const file of Array.from(files)) {
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await fetch('/api/upload-doc', { method: 'POST', body: formData })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          alert(`Upload failed: ${(err as any).error || res.statusText}`)
+          continue
+        }
+        const data = await res.json()
+        setDocs(prev => [...prev, { filename: data.filename, text: data.text, size: data.size || file.size }])
+      } catch (e: any) {
+        alert(`Upload error: ${e.message}`)
+      }
+    }
+    setUploadingFor(null)
+  }
+
+  const removeDoc = (entity: 'sender' | 'solution' | 'customer' | 'individual', index: number) => {
+    const setDocs = { sender: setDocsSender, solution: setDocsSolution, customer: setDocsCustomer, individual: setDocsIndividual }[entity]
+    setDocs(prev => prev.filter((_, i) => i !== index))
+  }
+
   // ─── URL VALIDATION ──────────────────────────────────────────────────────
   const [urlError, setUrlError] = useState('')
 
@@ -250,6 +285,11 @@ export default function DrixApp() {
       refresh_solution: refreshSolution,
       refresh_customer: refreshCustomer,
       refresh_individual: refreshIndividual,
+      // Uploaded document texts per entity
+      ...(docsSender.length > 0 ? { docs_sender: docsSender.map(d => ({ filename: d.filename, text: d.text })) } : {}),
+      ...(docsSolution.length > 0 ? { docs_solution: docsSolution.map(d => ({ filename: d.filename, text: d.text })) } : {}),
+      ...(docsCustomer.length > 0 ? { docs_customer: docsCustomer.map(d => ({ filename: d.filename, text: d.text })) } : {}),
+      ...(docsIndividual.length > 0 ? { docs_individual: docsIndividual.map(d => ({ filename: d.filename, text: d.text })) } : {}),
     }
 
     const cust = fCustomer.trim()
@@ -1802,6 +1842,40 @@ export default function DrixApp() {
                       className="bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green focus:shadow-[0_0_20px_rgba(61,220,132,0.15)] transition-all h-[46px]"
                     />
                   </div>
+                  {/* ── File Uploads for Reseller ── */}
+                  <div className="flex flex-col gap-1.5 pt-2">
+                    <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted flex items-center gap-1">
+                      <FileText size={10} /> Supporting docs — Reseller <span className="text-drix-dim font-normal">(optional)</span>
+                    </label>
+                    <label className="flex items-center justify-center gap-2 cursor-pointer bg-drix-surface2 border border-dashed border-drix-border rounded-xl px-4 py-2.5 text-xs text-drix-dim hover:border-drix-green hover:text-drix-text transition-all">
+                      <Upload size={14} /> {uploadingFor === 'sender' ? 'Uploading…' : 'Drop PDF, DOCX, PPTX, or TXT'}
+                      <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.txt" multiple
+                        onChange={(e) => handleFileUpload(e.target.files, 'sender')} />
+                    </label>
+                    {docsSender.map((doc, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-drix-surface rounded-lg px-3 py-1.5 border border-drix-border/50">
+                        <span className="text-drix-text truncate">{doc.filename}</span>
+                        <button onClick={() => removeDoc('sender', i)} className="text-drix-dim hover:text-drix-red ml-2"><Trash2 size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                  {/* ── File Uploads for Solution ── */}
+                  <div className="flex flex-col gap-1.5 pt-1">
+                    <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted flex items-center gap-1">
+                      <FileText size={10} /> Supporting docs — Solution <span className="text-drix-dim font-normal">(optional)</span>
+                    </label>
+                    <label className="flex items-center justify-center gap-2 cursor-pointer bg-drix-surface2 border border-dashed border-drix-border rounded-xl px-4 py-2.5 text-xs text-drix-dim hover:border-drix-green hover:text-drix-text transition-all">
+                      <Upload size={14} /> {uploadingFor === 'solution' ? 'Uploading…' : 'Drop PDF, DOCX, PPTX, or TXT'}
+                      <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.txt" multiple
+                        onChange={(e) => handleFileUpload(e.target.files, 'solution')} />
+                    </label>
+                    {docsSolution.map((doc, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-drix-surface rounded-lg px-3 py-1.5 border border-drix-border/50">
+                        <span className="text-drix-text truncate">{doc.filename}</span>
+                        <button onClick={() => removeDoc('solution', i)} className="text-drix-dim hover:text-drix-red ml-2"><Trash2 size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {urlError && wizardStep === 1 && (
                   <p className="text-xs text-drix-red mt-3 text-center font-medium">{urlError}</p>
@@ -1957,6 +2031,23 @@ export default function DrixApp() {
                       className="bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-purple focus:shadow-[0_0_20px_rgba(181,131,255,0.15)] transition-all h-[46px]"
                     />
                   </div>
+                  {/* ── File Uploads for Customer/Company ── */}
+                  <div className="flex flex-col gap-1.5 pt-2">
+                    <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted flex items-center gap-1">
+                      <FileText size={10} /> Supporting docs — Company <span className="text-drix-dim font-normal">(optional)</span>
+                    </label>
+                    <label className="flex items-center justify-center gap-2 cursor-pointer bg-drix-surface2 border border-dashed border-drix-border rounded-xl px-4 py-2.5 text-xs text-drix-dim hover:border-drix-purple hover:text-drix-text transition-all">
+                      <Upload size={14} /> {uploadingFor === 'customer' ? 'Uploading…' : 'Drop PDF, DOCX, PPTX, or TXT'}
+                      <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.txt" multiple
+                        onChange={(e) => handleFileUpload(e.target.files, 'customer')} />
+                    </label>
+                    {docsCustomer.map((doc, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-drix-surface rounded-lg px-3 py-1.5 border border-drix-border/50">
+                        <span className="text-drix-text truncate">{doc.filename}</span>
+                        <button onClick={() => removeDoc('customer', i)} className="text-drix-dim hover:text-drix-red ml-2"><Trash2 size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {urlError && wizardStep === 3 && (
                   <p className="text-xs text-drix-red mt-3 text-center font-medium">{urlError}</p>
@@ -2024,6 +2115,23 @@ export default function DrixApp() {
                       className="bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-orange focus:shadow-[0_0_20px_rgba(255,157,90,0.15)] transition-all h-[46px]"
                     />
                   </div>
+                  {/* ── File Uploads for Individual ── */}
+                  <div className="flex flex-col gap-1.5 pt-2">
+                    <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted flex items-center gap-1">
+                      <FileText size={10} /> Supporting docs — Individual <span className="text-drix-dim font-normal">(optional)</span>
+                    </label>
+                    <label className="flex items-center justify-center gap-2 cursor-pointer bg-drix-surface2 border border-dashed border-drix-border rounded-xl px-4 py-2.5 text-xs text-drix-dim hover:border-drix-orange hover:text-drix-text transition-all">
+                      <Upload size={14} /> {uploadingFor === 'individual' ? 'Uploading…' : 'Drop PDF, DOCX, PPTX, or TXT'}
+                      <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.txt" multiple
+                        onChange={(e) => handleFileUpload(e.target.files, 'individual')} />
+                    </label>
+                    {docsIndividual.map((doc, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-drix-surface rounded-lg px-3 py-1.5 border border-drix-border/50">
+                        <span className="text-drix-text truncate">{doc.filename}</span>
+                        <button onClick={() => removeDoc('individual', i)} className="text-drix-dim hover:text-drix-red ml-2"><Trash2 size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {urlError && wizardStep === 4 && (
                   <p className="text-xs text-drix-red mt-3 text-center font-medium">{urlError}</p>
@@ -2080,6 +2188,7 @@ export default function DrixApp() {
                       <input type="checkbox" checked={refreshSender} onChange={(e) => setRefreshSender(e.target.checked)}
                         className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" />
                       <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Reseller</span>
+                      {docsSender.length > 0 && <span className="text-[9px] bg-drix-green/20 text-drix-green px-1.5 py-0.5 rounded-full font-bold">{docsSender.length} doc{docsSender.length > 1 ? 's' : ''}</span>}
                     </div>
                     <span className="text-drix-text font-medium truncate max-w-[200px]">{fSender}</span>
                   </div>
@@ -2089,6 +2198,7 @@ export default function DrixApp() {
                       <input type="checkbox" checked={refreshSolution} onChange={(e) => setRefreshSolution(e.target.checked)}
                         className="w-3.5 h-3.5 rounded accent-drix-accent cursor-pointer" />
                       <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Solution</span>
+                      {docsSolution.length > 0 && <span className="text-[9px] bg-drix-green/20 text-drix-green px-1.5 py-0.5 rounded-full font-bold">{docsSolution.length} doc{docsSolution.length > 1 ? 's' : ''}</span>}
                     </div>
                     <span className="text-drix-text font-medium truncate max-w-[200px]">{fSolution}</span>
                   </div>
@@ -2113,6 +2223,7 @@ export default function DrixApp() {
                           <input type="checkbox" checked={refreshCustomer} onChange={(e) => setRefreshCustomer(e.target.checked)}
                             className="w-3.5 h-3.5 rounded accent-drix-purple cursor-pointer" />
                           <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Company</span>
+                          {docsCustomer.length > 0 && <span className="text-[9px] bg-drix-purple/20 text-drix-purple px-1.5 py-0.5 rounded-full font-bold">{docsCustomer.length} doc{docsCustomer.length > 1 ? 's' : ''}</span>}
                         </div>
                         <span className="text-drix-purple font-medium">{fCustomer}</span>
                       </div>
@@ -2126,6 +2237,7 @@ export default function DrixApp() {
                           <input type="checkbox" checked={refreshIndividual} onChange={(e) => setRefreshIndividual(e.target.checked)}
                             className="w-3.5 h-3.5 rounded accent-drix-orange cursor-pointer" />
                           <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Individual</span>
+                          {docsIndividual.length > 0 && <span className="text-[9px] bg-drix-orange/20 text-drix-orange px-1.5 py-0.5 rounded-full font-bold">{docsIndividual.length} doc{docsIndividual.length > 1 ? 's' : ''}</span>}
                         </div>
                         <span className="text-drix-orange font-medium truncate max-w-[200px]">{fIndividual}</span>
                       </div>

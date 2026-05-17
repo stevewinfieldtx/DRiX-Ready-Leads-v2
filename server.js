@@ -5,6 +5,10 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
+const multer = require('multer');
+const mammoth = require('mammoth');
+const pdfParse = require('pdf-parse');
+const unzipper = require('unzipper');
 
 const db = require('./db');
 const { scanIndividual } = require('./individual-scan');
@@ -13,7 +17,7 @@ const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
 const PORT = process.env.PORT || 3001;
 
-app.use(express.json({ limit: '500kb' }));
+app.use(express.json({ limit: '2mb' }));
 // Serve the React build (from client/build → dist/) first, then legacy public/
 app.use(express.static(path.join(__dirname, 'dist')));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -662,7 +666,7 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
   };
 }
 
-async function ingestOne({ url, role, hint_name, demoMode, skipCache = false }) {
+async function ingestOne({ url, role, hint_name, demoMode, skipCache = false, supplementalDocs = null }) {
   // Step 0a — LOCAL in-memory cache. Instant return, zero LLM calls, zero DB calls.
   const cacheKey = `${url}::${role}`;
   if (!skipCache && ingestCache.has(cacheKey)) {
@@ -708,11 +712,19 @@ async function ingestOne({ url, role, hint_name, demoMode, skipCache = false }) 
   if (!fetched.text || fetched.text.length < 200) {
     throw new Error(`Fetched ${url} had too little text (${fetched.text.length} chars). Try a richer page.`);
   }
+  // Build content block — web-scraped page + any uploaded documents
+  let contentBlock = `PAGE TITLE: ${fetched.title || ''}\nMETA DESCRIPTION: ${fetched.description || ''}\n\n${fetched.text}`;
+  if (supplementalDocs && supplementalDocs.length > 0) {
+    contentBlock += '\n\n══════════════════════════════════════════════════\nUPLOADED DOCUMENTS (provided by the sales rep — treat as first-party intel, label atoms from this section with source:"uploaded_doc"):\n';
+    for (const doc of supplementalDocs) {
+      contentBlock += `\n── FILE: ${doc.filename} ──\n${doc.text}\n`;
+    }
+  }
   const userContent = JSON.stringify({
     role,
     target_name: hint_name || fetched.title || 'unknown',
     target_url: url,
-    content: `PAGE TITLE: ${fetched.title || ''}\nMETA DESCRIPTION: ${fetched.description || ''}\n\n${fetched.text}`
+    content: contentBlock
   });
   // In demo mode, use a smaller token limit since we'll cap atoms anyway
   const ingestTokens = demoMode ? 8000 : 32000;
@@ -906,6 +918,88 @@ async function extractPainPoints(customerEntry, { industry, subindustry, recipie
 
 // ─── ENDPOINTS ───────────────────────────────────────────────────────────────
 
+// ─── FILE UPLOAD & TEXT EXTRACTION ──────────────────────────────────────────
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB max
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain',
+      'application/msword', // .doc (legacy)
+    ];
+    // Also allow by extension in case MIME detection is off
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = ['.pdf', '.docx', '.pptx', '.txt', '.doc'];
+    if (allowed.includes(file.mimetype) || allowedExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Unsupported file type: ${ext || file.mimetype}. Accepted: PDF, DOCX, PPTX, TXT`));
+    }
+  }
+});
+
+/** Extract text from a PPTX buffer (ZIP of XML slides) */
+async function extractPptxText(buffer) {
+  const texts = [];
+  const directory = await unzipper.Open.buffer(buffer);
+  // Sort slide files numerically (slide1.xml, slide2.xml, ...)
+  const slideFiles = directory.files
+    .filter(f => /^ppt\/slides\/slide\d+\.xml$/i.test(f.path))
+    .sort((a, b) => {
+      const numA = parseInt(a.path.match(/slide(\d+)/)?.[1] || '0');
+      const numB = parseInt(b.path.match(/slide(\d+)/)?.[1] || '0');
+      return numA - numB;
+    });
+  for (const file of slideFiles) {
+    const content = (await file.buffer()).toString('utf-8');
+    // Extract text from <a:t> tags (PowerPoint text runs)
+    const matches = content.match(/<a:t>([^<]*)<\/a:t>/g) || [];
+    const slideText = matches.map(m => m.replace(/<\/?a:t>/g, '')).join(' ').trim();
+    if (slideText) texts.push(slideText);
+  }
+  return texts.join('\n\n');
+}
+
+app.post('/api/upload-doc', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file provided' });
+
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let text = '';
+
+    if (ext === '.txt') {
+      text = req.file.buffer.toString('utf-8');
+    } else if (ext === '.pdf') {
+      const result = await pdfParse(req.file.buffer);
+      text = result.text || '';
+    } else if (ext === '.docx') {
+      const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+      text = result.value || '';
+    } else if (ext === '.pptx') {
+      text = await extractPptxText(req.file.buffer);
+    } else {
+      return res.status(400).json({ error: `Cannot extract text from ${ext} files` });
+    }
+
+    // Trim and cap at ~100k chars to avoid blowing up the LLM context
+    text = text.trim().slice(0, 100000);
+
+    res.json({
+      ok: true,
+      filename: req.file.originalname,
+      size: req.file.size,
+      chars: text.length,
+      text
+    });
+  } catch (err) {
+    console.error('[upload-doc] extraction error:', err.message);
+    res.status(500).json({ error: `Failed to extract text: ${err.message}` });
+  }
+});
+
 // Health
 app.get('/healthz', (_req, res) => {
   res.json({
@@ -995,7 +1089,12 @@ app.post('/api/demo-flow', async (req, res) => {
     refresh_sender,
     refresh_solution,
     refresh_customer,
-    refresh_individual
+    refresh_individual,
+    // Uploaded document text per entity (extracted client-side via /api/upload-doc)
+    docs_sender,
+    docs_solution,
+    docs_customer,
+    docs_individual
   } = req.body || {};
   const isDemo = mode === 'demo';
   const DEMO_ATOMS_PER_CATEGORY = 20;
@@ -1025,13 +1124,13 @@ app.post('/api/demo-flow', async (req, res) => {
     const t0 = Date.now();
     send('phase', { phase: 'fetch', message: 'Fetching sender, solution, customer in parallel…' });
 
-    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo, skipCache: !!refresh_sender });
-    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', demoMode: isDemo, skipCache: !!refresh_solution });
+    const senderPromise   = ingestOne({ url: normUrl(sender_company_url), role: 'sender', demoMode: isDemo, skipCache: !!refresh_sender, supplementalDocs: docs_sender || null });
+    const solutionPromise = ingestOne({ url: normUrl(solution_url),       role: 'solution', demoMode: isDemo, skipCache: !!refresh_solution, supplementalDocs: docs_solution || null });
     // Per cascade spec: customer_url → real ingest; industry-only → archetype
     // synth; neither → minimal "unspecified" placeholder so strategies fall
     // back to sender + solution alone rather than us inventing a target.
     const customerPromise = customer_url
-      ? ingestOne({ url: normUrl(customer_url), role: 'customer', demoMode: isDemo, skipCache: !!refresh_customer })
+      ? ingestOne({ url: normUrl(customer_url), role: 'customer', demoMode: isDemo, skipCache: !!refresh_customer, supplementalDocs: docs_customer || null })
       : industry
         ? synthesizeCustomerArchetype({ industry, subindustry, region, demoMode: isDemo })
         : Promise.resolve({
@@ -1098,6 +1197,7 @@ app.post('/api/demo-flow', async (req, res) => {
           name: individual_name || null,
           company_url: customer_url || null,
           tier: 1,
+          supplementalDocs: docs_individual || null,
         });
         individual = {
           target: {

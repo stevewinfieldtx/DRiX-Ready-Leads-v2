@@ -562,7 +562,7 @@ DISCIPLINE:
  * @param {string} opts.company_url - Company website URL (e.g. ndbt.com)
  * @param {number} opts.tier - 1=full, 2=quick (reserved for future)
  */
-async function scanIndividual({ linkedin_url, email, title, name, company_url, tier = 1 }) {
+async function scanIndividual({ linkedin_url, email, title, name, company_url, tier = 1, supplementalDocs = null }) {
   const startTime = Date.now();
   const linkedinSlug = linkedin_url ? (linkedin_url.match(/\/in\/([^\/\?]+)/)?.[1] || null) : null;
 
@@ -647,6 +647,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
     personCompany,
     linkedin_url,
     email,
+    supplementalDocs,
   });
 
   // ─── STAGE 5: LLM PSYCHOGRAPHIC ANALYSIS ──────────────────────────────────
@@ -763,7 +764,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
 // ENRICHMENT PACKAGE BUILDER
 // =============================================================================
 
-function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, companyResearch, personName, personTitle, personCompany, linkedin_url, email }) {
+function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, companyResearch, personName, personTitle, personCompany, linkedin_url, email, supplementalDocs }) {
   const pkg = {
     person: {
       name: personName,
@@ -856,6 +857,15 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
         hiring_signals: companyResearch.hiring_signals.slice(0, 8),
       };
     }
+  }
+
+  // Uploaded documents (first-party intel from the sales rep)
+  if (supplementalDocs && supplementalDocs.length > 0) {
+    pkg.uploaded_documents = supplementalDocs.map(doc => ({
+      filename: doc.filename,
+      content: doc.text.slice(0, 30000), // Cap each doc at 30k chars to stay in context
+      source: 'uploaded_doc',
+    }));
   }
 
   return pkg;
