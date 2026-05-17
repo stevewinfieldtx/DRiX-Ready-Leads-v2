@@ -13,6 +13,7 @@ const unzipper = require('unzipper');
 const db = require('./db');
 const { scanIndividual } = require('./individual-scan');
 const { analyzeSingle, analyzeGroup, analyzeReadyLeads } = require('./meeting-analysis');
+const { discoverCompetitors } = require('./competitive-intel');
 
 const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
@@ -38,6 +39,7 @@ const TDE_API_KEY         = process.env.TDE_API_KEY || '';
 const TDE_MIN_ATOMS       = parseInt(process.env.TDE_MIN_ATOMS || '15', 10);
 const FIRECRAWL_API_KEY   = process.env.FIRECRAWL_API_KEY || '';
 const APOLLO_API_KEY      = process.env.APOLLO_API_KEY || '';
+const BRAVE_API_KEY       = process.env.BRAVE_API_KEY || '';
 
 if (!OPENROUTER_API_KEY) console.warn('⚠️  OPENROUTER_API_KEY not set.');
 if (!LEADHYDRATION_URL)  console.warn('⚠️  LEADHYDRATION_URL not set — hydration step will fail loud.');
@@ -45,6 +47,7 @@ if (!RESEND_API_KEY)     console.warn('⚠️  RESEND_API_KEY not set — email 
 if (!TDE_API_KEY)        console.warn('⚠️  TDE_API_KEY not set — TDE cache lookups will be skipped (fresh ingest every time).');
 if (!FIRECRAWL_API_KEY)  console.warn('⚠️  FIRECRAWL_API_KEY not set — fetches use basic HTTP (SPAs may return empty content).');
 if (!APOLLO_API_KEY)     console.warn('⚠️  APOLLO_API_KEY not set — decision-maker lookup will be skipped.');
+if (!BRAVE_API_KEY)      console.warn('⚠️  BRAVE_API_KEY not set — competitive discovery and deep research will be skipped.');
 if (!CLEARSIGNALS_URL)   console.warn('⚠️  CLEARSIGNALS_URL not set — will fall back to LEADHYDRATION_URL for thread analysis.');
 const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY || '';
 if (!CEREBRAS_API_KEY)   console.warn('⚠️  CEREBRAS_API_KEY not set — comparison synthesis will fall back to OpenRouter.');
@@ -667,7 +670,7 @@ async function ingestFromTdeCache({ url, role, hint_name }) {
   };
 }
 
-async function ingestOne({ url, role, hint_name, demoMode = false, skipCache = false, supplementalDocs = null }) {
+async function ingestOne({ url, role, hint_name, skipCache = false, supplementalDocs = null }) {
   const cacheKey = `${url}::${role}`;
 
   // ─── LOAD EXISTING INTELLIGENCE (always — we never throw atoms away) ────
@@ -1201,6 +1204,64 @@ app.post('/api/demo-flow', async (req, res) => {
       solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source, tde_collection: solution.tde_collection, tde_atom_count: solution.tde_atom_count },
       customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms, source: customer.source, tde_collection: customer.tde_collection, tde_atom_count: customer.tde_atom_count }
     });
+
+    // ── COMPETITIVE INTELLIGENCE: Discover competitors, generate battlecard atoms
+    //    Runs after solution ingest. Battlecard atoms merge INTO solution.atoms.
+    //    Competitor stubs stored in TDE (for Clear Signals / future hydration).
+    let competitiveIntel = null;
+    if (solution?.atoms?.length && BRAVE_API_KEY) {
+      try {
+        send('phase', { phase: 'competitive', message: `Discovering competitors and generating battlecard…` });
+        competitiveIntel = await discoverCompetitors({
+          solutionName: solution.target?.name || 'Solution',
+          solutionUrl: solution.source_url || normUrl(solution_url),
+          solutionContent: '', // Already ingested — LLM has its knowledge + we pass the summary
+          callLLM,
+          fetchAndStrip,
+          onProgress: (msg) => send('phase', { phase: 'competitive', message: msg }),
+        });
+
+        if (competitiveIntel?.battlecard_atoms?.length) {
+          // Merge battlecard atoms INTO the solution's atom set
+          solution.atoms = [...solution.atoms, ...competitiveIntel.battlecard_atoms];
+          console.log(`[competitive] Merged ${competitiveIntel.battlecard_atoms.length} battlecard atoms into solution (total: ${solution.atoms.length})`);
+          send('competitive', {
+            competitors_found: competitiveIntel.competitors_found.map(c => c.name),
+            battlecard_summary: competitiveIntel.battlecard_summary,
+            total_new_atoms: competitiveIntel.total_battlecard_atoms,
+          });
+        }
+
+        // Store competitor stubs in TDE (background — don't block the pipeline)
+        if (competitiveIntel?.competitor_stubs?.length) {
+          for (const stub of competitiveIntel.competitor_stubs) {
+            const stubUrl = stub.url || `competitor://${stub.company_name?.toLowerCase().replace(/\s+/g, '-')}`;
+            const stubCacheKey = `${stubUrl}::competitor_stub`;
+            // Only store if we don't already have a richer record
+            if (!ingestCache.has(stubCacheKey)) {
+              const stubRecord = {
+                target: { name: stub.company_name, role: 'competitor_stub', url: stubUrl },
+                summary: stub.positioning || '',
+                atoms: stub.atoms || [],
+                terminology: stub.terminology || [],
+                their_competitive_claims: stub.their_competitive_claims || [],
+                source: 'competitive_discovery',
+                source_solution: competitiveIntel.solution_name,
+                ingested_at: stub.created_at,
+              };
+              ingestCache.set(stubCacheKey, stubRecord);
+              db.setCachedIngest(stubUrl, 'competitor_stub', stubRecord).catch(e =>
+                console.error(`[competitive] Stub cache write for ${stub.company_name}:`, e.message)
+              );
+            }
+          }
+          console.log(`[competitive] Stored ${competitiveIntel.competitor_stubs.length} competitor stubs`);
+        }
+      } catch (err) {
+        console.error('[competitive] Competitive discovery failed (non-fatal):', err.message);
+        send('phase', { phase: 'competitive', message: `Competitive analysis skipped: ${err.message}` });
+      }
+    }
 
     // ── INDIVIDUAL OSINT: Separate entity, like sender/solution/customer.
     //    Scanned independently, sent to frontend independently, passed to
@@ -3265,7 +3326,7 @@ async function prewarmDemoDocs() {
   for (const [company, docs] of Object.entries(DEMO_DOCS)) {
     for (const doc of docs) {
       try {
-        const result = await ingestOne({ url: doc.url, role: 'customer', hint_name: company, demoMode: false });
+        const result = await ingestOne({ url: doc.url, role: 'customer', hint_name: company });
         doc._cached = true;
         doc._atomCount = result.atoms?.length || 0;
         console.log(`[PREWARM] OK ${company} / ${doc.label}: ${doc._atomCount} atoms`);
@@ -3492,7 +3553,6 @@ app.post('/api/comparison', async (req, res) => {
         url: normUrl(company_url),
         role: 'customer',
         hint_name: company_name,
-        demoMode: false
       });
     } catch (ingestErr) {
       send('tde_error', { message: `Customer ingest failed: ${ingestErr.message}` });
@@ -3829,7 +3889,7 @@ app.post('/api/atomize', async (req, res) => {
       const f = fetched[fi];
       try {
         const result = await ingestOne({
-          url: f.url, role: 'customer', hint_name: company_name, demoMode: false
+          url: f.url, role: 'customer', hint_name: company_name
         });
         const docAtoms = (result.atoms || []).map(a => ({
           atom_id: a.atom_id || a.id,

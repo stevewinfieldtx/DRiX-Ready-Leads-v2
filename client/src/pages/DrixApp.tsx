@@ -57,7 +57,8 @@ export default function DrixApp() {
   })
   const [statusText, setStatusText] = useState('Checking…')
   const [statusWarn, setStatusWarn] = useState(false)
-  const [mode, setMode] = useState<'production' | 'demo'>('production')
+  // Always production mode — demo mode removed
+  const mode = 'production'
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [phases, setPhases] = useState<{ id: string; text: string; state: 'pending' | 'running' | 'done' | 'error' }[]>([
@@ -279,7 +280,7 @@ export default function DrixApp() {
       email,
       sender_company_url: sender,
       solution_url: solution,
-      mode: mode === 'demo' ? 'demo' : 'production',
+      mode: 'production',
       ...(forceFresh ? { force_fresh: true } : {}),
       refresh_sender: refreshSender,
       refresh_solution: refreshSolution,
