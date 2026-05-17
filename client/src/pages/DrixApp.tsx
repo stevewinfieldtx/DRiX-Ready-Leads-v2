@@ -192,6 +192,27 @@ export default function DrixApp() {
     setDepth((d) => ({ ...d, industry: true }))
   }
 
+  // ─── URL VALIDATION ──────────────────────────────────────────────────────
+  const [urlError, setUrlError] = useState('')
+
+  /** Returns true if the value looks like a URL (domain with dot, or starts with http/https) */
+  const isValidUrl = (val: string): boolean => {
+    const v = val.trim()
+    if (!v) return true // empty is fine (field is optional unless required separately)
+    // Must have at least one dot and no spaces — catches "Acme Corp" vs "acme.com"
+    if (/\s/.test(v)) return false
+    if (!/\./.test(v)) return false
+    // If they typed a full URL or just a domain, both are fine
+    return /^(https?:\/\/)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+/i.test(v)
+  }
+
+  /** Returns true if value looks like a LinkedIn profile URL */
+  const isValidLinkedIn = (val: string): boolean => {
+    const v = val.trim()
+    if (!v) return true // empty is fine (optional field)
+    return /linkedin\.com\/in\//i.test(v)
+  }
+
   // ─── UPDATE DEPTH ───────────────────────────────────────────────────────
   const updateDepth = (field: keyof typeof depth, value: string) => {
     setDepth((d) => ({ ...d, [field]: !!value.trim() }))
@@ -1772,15 +1793,30 @@ export default function DrixApp() {
                     />
                   </div>
                 </div>
+                {urlError && wizardStep === 1 && (
+                  <p className="text-xs text-drix-red mt-3 text-center font-medium">{urlError}</p>
+                )}
                 <div className="flex items-center justify-between mt-8">
                   <button
-                    onClick={() => setWizardStep(0)}
+                    onClick={() => { setUrlError(''); setWizardStep(0) }}
                     className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all"
                   >
                     ← Back
                   </button>
                   <button
-                    onClick={() => fSender.trim() && fSolution.trim() && setWizardStep(2)}
+                    onClick={() => {
+                      if (!fSender.trim() || !fSolution.trim()) return
+                      if (!isValidUrl(fSender)) {
+                        setUrlError('Your company field needs a URL (e.g. yourcompany.com), not a company name.')
+                        return
+                      }
+                      if (!isValidUrl(fSolution)) {
+                        setUrlError('Solution field needs a URL (e.g. yourcompany.com/product), not a product name.')
+                        return
+                      }
+                      setUrlError('')
+                      setWizardStep(2)
+                    }}
                     disabled={!fSender.trim() || !fSolution.trim()}
                     className="dx-btn-green px-7 py-3 rounded-xl text-sm font-bold hover:shadow-glow transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
@@ -1912,15 +1948,25 @@ export default function DrixApp() {
                     />
                   </div>
                 </div>
+                {urlError && wizardStep === 3 && (
+                  <p className="text-xs text-drix-red mt-3 text-center font-medium">{urlError}</p>
+                )}
                 <div className="flex items-center justify-between mt-8">
                   <button
-                    onClick={() => setWizardStep(2)}
+                    onClick={() => { setUrlError(''); setWizardStep(2) }}
                     className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all"
                   >
                     ← Back
                   </button>
                   <button
-                    onClick={() => setWizardStep(4)}
+                    onClick={() => {
+                      if (fCustomer.trim() && !isValidUrl(fCustomer)) {
+                        setUrlError('Company field needs a URL (e.g. targetcompany.com), not a company name.')
+                        return
+                      }
+                      setUrlError('')
+                      setWizardStep(4)
+                    }}
                     className="dx-btn-purple-pink px-7 py-3 rounded-xl text-sm font-bold hover:shadow-glow transition-all hover:-translate-y-0.5"
                   >
                     {(fTitle || fCustomer) ? 'Next →' : 'Skip →'}
@@ -1969,15 +2015,25 @@ export default function DrixApp() {
                     />
                   </div>
                 </div>
+                {urlError && wizardStep === 4 && (
+                  <p className="text-xs text-drix-red mt-3 text-center font-medium">{urlError}</p>
+                )}
                 <div className="flex items-center justify-between mt-8">
                   <button
-                    onClick={() => setWizardStep(3)}
+                    onClick={() => { setUrlError(''); setWizardStep(3) }}
                     className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all"
                   >
                     ← Back
                   </button>
                   <button
-                    onClick={() => setWizardStep(5)}
+                    onClick={() => {
+                      if (fIndividual.trim() && !isValidLinkedIn(fIndividual)) {
+                        setUrlError('This needs a LinkedIn URL (e.g. linkedin.com/in/janedoe), not a person\'s name.')
+                        return
+                      }
+                      setUrlError('')
+                      setWizardStep(5)
+                    }}
                     className="dx-btn-orange px-7 py-3 rounded-xl text-sm font-bold hover:shadow-glow transition-all hover:-translate-y-0.5"
                   >
                     {(fIndividual || fIndividualEmail) ? 'Next →' : 'Skip →'}
