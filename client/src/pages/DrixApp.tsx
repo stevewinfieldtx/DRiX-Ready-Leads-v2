@@ -342,6 +342,10 @@ export default function DrixApp() {
     setPhases([
       { id: 'ph-fetch', text: 'Fetching sender, solution, customer in parallel…', state: 'running' },
       { id: 'ph-ingest', text: 'Waiting to decompose…', state: 'pending' },
+      ...(individual || individualEmail ? [
+        { id: 'ph-individual_verification', text: 'Verifying individual identity…', state: 'pending' as const },
+        { id: 'ph-individual_scan', text: 'Scanning individual intelligence…', state: 'pending' as const },
+      ] : []),
       { id: 'ph-pain', text: 'Waiting to extract pain points…', state: 'pending' },
       { id: 'ph-strategies', text: 'Waiting to generate strategies…', state: 'pending' },
     ])
@@ -488,6 +492,9 @@ export default function DrixApp() {
       sourceBadge = `<span style="font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;padding:2px 7px;border-radius:8px;background:rgba(61,220,132,0.14);color:var(--green);border:1px solid rgba(61,220,132,0.35)">⚡ DB cache (30d)</span>`
     } else if (entry.source === 'tde_cache') {
       sourceBadge = `<span style="font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;padding:2px 7px;border-radius:8px;background:rgba(181,131,255,0.14);color:var(--purple);border:1px solid rgba(181,131,255,0.35)">◈ DRiX cache</span>`
+    } else if (entry.source === 'refresh_merged') {
+      const newCount = entry.atom_count_new || 0
+      sourceBadge = `<span style="font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;padding:2px 7px;border-radius:8px;background:rgba(255,199,87,0.18);color:var(--yellow);border:1px solid rgba(255,199,87,0.4)">⟳ Refreshed — ${newCount > 0 ? `+${newCount} new atoms` : 'no new atoms found'}</span>`
     } else if (entry.source === 'fresh') {
       sourceBadge = `<span style="font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;padding:2px 7px;border-radius:8px;background:rgba(90,212,255,0.10);color:var(--cyan);border:1px solid rgba(90,212,255,0.30)">⌁ Fresh (warming DRiX)</span>`
     }
@@ -633,6 +640,7 @@ export default function DrixApp() {
     const atomCount = (data.atoms || []).length
     const recognized = data.scan?.recognized
     const confidence = data.scan?.confidence || ''
+    const verification = data.verification
 
     const listItems = (items: string[]) =>
       items
@@ -655,6 +663,25 @@ export default function DrixApp() {
           </div>
           ${confidence ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:4px 10px;border-radius:12px;${recognized ? 'background:rgba(61,220,132,0.12);color:var(--green)' : 'background:rgba(245,158,11,0.12);color:#f59e0b'}">${recognized ? 'Recognized' : 'Inferred'} · ${esc(confidence)}</div>` : ''}
         </div>
+        ${verification && verification.verified === false && verification.mismatch ? `
+        <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-left:3px solid #ef4444;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#ef4444;margin-bottom:4px;">⚠ Verification Mismatch</div>
+          <div style="font-size:13px;line-height:1.5;color:var(--text-dim)">${esc(verification.mismatch_details || 'Name or title does not match company records.')}</div>
+          ${verification.actual_name ? `<div style="font-size:12px;margin-top:6px;color:var(--text-dim)">Found: <strong style="color:var(--drix-text)">${esc(verification.actual_name)}</strong>${verification.actual_title ? `, ${esc(verification.actual_title)}` : ''}</div>` : ''}
+          ${verification.suggestions && verification.suggestions.length > 0 ? `
+          <div style="font-size:11px;margin-top:8px;color:var(--text-muted)">
+            Suggestions: ${verification.suggestions.map((s: any) => `<span style="background:var(--surface-2);padding:2px 8px;border-radius:10px;margin:0 3px;font-size:10px">${esc(typeof s === 'string' ? s : s.name || '')}</span>`).join('')}
+          </div>` : ''}
+        </div>` : ''}
+        ${verification && verification.verified === true && verification.resolved_from_title ? `
+        <div style="background:rgba(61,220,132,0.08);border:1px solid rgba(61,220,132,0.2);border-left:3px solid var(--green);padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:4px;">✓ Identity Resolved from Title</div>
+          <div style="font-size:13px;line-height:1.5;color:var(--text-dim)">Matched: <strong style="color:var(--drix-text)">${esc(verification.actual_name || '')}</strong>${verification.actual_title ? `, ${esc(verification.actual_title)}` : ''} — ${verification.confidence || '?'}% confidence</div>
+        </div>` : ''}
+        ${verification && verification.verified === true && !verification.resolved_from_title ? `
+        <div style="background:rgba(61,220,132,0.06);border-left:3px solid var(--green);padding:8px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;">
+          <div style="font-size:11px;color:var(--green);font-weight:700;">✓ Verified at company</div>
+        </div>` : ''}
         ${keyInsight ? `
         <div style="background:rgba(90,169,255,0.08);border-left:3px solid var(--cyan);padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;">
           <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:4px;">Key Insight</div>
@@ -677,6 +704,57 @@ export default function DrixApp() {
           <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#a78bfa;margin-bottom:4px;">Leadership Style</div>
           <div style="font-size:12px;line-height:1.5;">${esc(leadershipStyle)}</div>
         </div>` : ''}
+        ${data.cultural_brief ? (() => {
+          const cb = data.cultural_brief;
+          const csg = data.cultural_sales_guidance;
+          const dimKeys = Object.keys(cb.dimension_guidance || {});
+          return `
+          <div style="margin-top:16px;border-top:1px solid var(--dx-border);padding-top:16px;">
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#C9A84C;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+              <span style="font-size:14px">🌐</span> Cultural Intelligence — ${esc(cb.target_country || '')}
+              <span style="font-size:9px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(201,168,76,0.12);color:#C9A84C;margin-left:auto;">TheCultureSync</span>
+            </div>
+            ${cb.cross_culture_warning ? `
+            <div style="background:rgba(255,179,0,0.08);border:1px solid rgba(255,179,0,0.25);border-left:3px solid #FFB300;padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:12px;">
+              <div style="font-size:11px;line-height:1.5;color:var(--text-dim)">${esc(cb.cross_culture_warning)}</div>
+            </div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:4px;">Baseline</div>
+                <div style="font-size:13px;font-weight:600;">${esc(cb.baseline || 'Unknown')}</div>
+                <div style="font-size:11px;color:var(--text-dim)">${esc(cb.region || '')}</div>
+              </div>
+              ${cb.digital_communication ? `
+              <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:4px;">Email Approach</div>
+                <div style="font-size:12px;line-height:1.4;">${esc(cb.digital_communication.email_tone || '')}</div>
+                ${cb.digital_communication.formality ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(cb.digital_communication.formality)}</div>` : ''}
+              </div>` : ''}
+            </div>
+            ${cb.digital_communication ? `
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+              ${cb.digital_communication.preferred_channels ? `<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:3px;">Channels</div><div style="font-size:11px;line-height:1.4">${esc(cb.digital_communication.preferred_channels)}</div></div>` : ''}
+              ${cb.digital_communication.response_time ? `<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:3px;">Response Time</div><div style="font-size:11px;line-height:1.4">${esc(cb.digital_communication.response_time)}</div></div>` : ''}
+              ${cb.digital_communication.cta_style ? `<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:3px;">CTA Style</div><div style="font-size:11px;line-height:1.4">${esc(cb.digital_communication.cta_style)}</div></div>` : ''}
+            </div>` : ''}
+            ${cb.offline_behavioral ? `
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+              ${cb.offline_behavioral.greetings ? `<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:3px;">Greetings</div><div style="font-size:11px;line-height:1.4">${esc(cb.offline_behavioral.greetings)}</div></div>` : ''}
+              ${cb.offline_behavioral.meetings ? `<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:3px;">Meetings</div><div style="font-size:11px;line-height:1.4">${esc(cb.offline_behavioral.meetings)}</div></div>` : ''}
+              ${cb.offline_behavioral.negotiations ? `<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:3px;">Negotiations</div><div style="font-size:11px;line-height:1.4">${esc(cb.offline_behavioral.negotiations)}</div></div>` : ''}
+            </div>` : ''}
+            ${csg && csg.key_adaptations && csg.key_adaptations.length ? `
+            <div style="margin-bottom:10px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#C9A84C;margin-bottom:6px;">Key Adaptations</div>
+              ${csg.key_adaptations.map((a: string) => `<div style="background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.15);border-radius:6px;padding:6px 10px;margin:4px 0;font-size:11px;line-height:1.5">${esc(a)}</div>`).join('')}
+            </div>` : ''}
+            ${csg && csg.trust_building_strategy ? `
+            <div style="background:rgba(201,168,76,0.06);border-left:3px solid #C9A84C;padding:8px 12px;border-radius:0 8px 8px 0;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#C9A84C;margin-bottom:3px;">Trust-Building Strategy</div>
+              <div style="font-size:12px;line-height:1.5;">${esc(csg.trust_building_strategy)}</div>
+            </div>` : ''}
+          </div>`;
+        })() : ''}
         <div style="margin-top:12px;font-size:11px;color:var(--text-muted)">${atomCount} behavioral atoms extracted</div>
       </div>
     `
@@ -1108,9 +1186,11 @@ export default function DrixApp() {
   const renderHydration = (data: any) => {
     const h = data.hydration || {}
     const chosen = data.chosen_strategy || {}
-    const score = h.score || 0
+    // Unified score: strategy confidence is the canonical "Fit Score" everywhere.
+    // Server already injects it into h.score, but fallback to chosen.confidence just in case.
+    const score = h.score || parseInt(chosen.confidence) || 0
     const scoreColor =
-      score >= 80 ? 'var(--red)' : score >= 60 ? 'var(--orange)' : score >= 40 ? 'var(--yellow)' : 'var(--text-muted)'
+      score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--dx-accent)' : score >= 40 ? 'var(--yellow)' : 'var(--text-muted)'
 
     const painsHtml = (h.painIndicators || [])
       .map(
@@ -1271,113 +1351,150 @@ export default function DrixApp() {
   // ─── RENDER: Tier 1 — Forward-looking coaching (no backward commentary) ──
   const renderClearSignals = (a: any) => {
     const d = a.result || a
-    const health = d.deal_health || {}
-    const final = d.final || {}
 
-    // ClearSignalsAI coaching mode returns: final.deal_health, final.trajectory,
-    // final.recommended_actions, final.coach, final.unresolved_items, etc.
-    // LeadHydration fallback returns: deal_health, next_steps, thread_analysis, etc.
-    // We handle both shapes.
+    // ── v2 Status Report shape ──
+    const momentumScore = d.momentum_score || 3
+    const momentumLabel = d.momentum_label || 'Average'
+    const winPct = d.predictive_win_pct ?? 0
+    const closeDays = d.estimated_close_days ?? null
+    const closeConf = d.close_confidence || ''
+    const summary = d.current_state_summary || ''
+    const nextActions = Array.isArray(d.next_actions) ? d.next_actions : []
+    const riskFactors = Array.isArray(d.risk_factors) ? d.risk_factors : []
+    const oppSignals = Array.isArray(d.opportunity_signals) ? d.opportunity_signals : []
+    const culturalFlags = Array.isArray(d.cultural_flags) ? d.cultural_flags : []
+    const patternFlags = Array.isArray(d.pattern_flags) ? d.pattern_flags : []
 
-    const score = health.score ?? final.win_pct ?? '?'
-    const scoreNum = typeof score === 'number' ? score : parseInt(score) || 0
-    const scoreColor =
-      scoreNum >= 70 ? 'var(--green)' : scoreNum >= 40 ? 'var(--yellow)' : 'var(--red)'
-    const label = health.label || final.deal_health || ''
-    const summary = health.status_summary || health.summary || final.summary || ''
-    const winProb = health.win_probability ?? final.win_pct ?? null
-    const trajectory = final.trajectory || health.sentiment_trend || ''
-
-    // Next steps — adapt to both ClearSignalsAI and LeadHydration shapes
-    const nextSteps = Array.isArray(final.recommended_actions)
-      ? final.recommended_actions
-      : Array.isArray(d.next_steps)
-        ? d.next_steps
-        : Array.isArray(d.recommended_actions)
-          ? d.recommended_actions
-          : []
-
-    // Unresolved items from ClearSignalsAI coaching mode
-    const unresolved = Array.isArray(final.unresolved_items) ? final.unresolved_items : []
-
-    // Coach headline from ClearSignalsAI
-    const coachLine = final.coach || ''
-
-    // Qualification gaps (ClearSignalsAI or LeadHydration)
-    const qualGaps = d.qualification_gaps || {}
+    // Momentum color mapping (matches v2 .score-ring.s1–s5)
+    const momentumColors: Record<number, string> = { 5: 'var(--green)', 4: '#66BB6A', 3: 'var(--yellow)', 2: '#FF7043', 1: 'var(--red)' }
+    const mColor = momentumColors[momentumScore] || momentumColors[3]
 
     let html = ''
 
-    // ── Deal health badge ──
+    // ── Top stats row: Momentum · Win % · Est Close ──
     html += `
-      <div style="display:flex;gap:14px;align-items:center;padding:12px 14px;background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;margin-bottom:16px;">
-        <div style="border:2px solid ${scoreColor};border-radius:50%;width:70px;height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;color:${scoreColor}">
-          <div style="font-size:22px;font-weight:800;line-height:1;">${esc(score)}</div>
-          <div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:0.7;margin-top:2px;">HEALTH</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr${closeDays != null ? ' 1fr' : ''};gap:12px;margin-bottom:20px;">
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Momentum</div>
+          <div style="width:64px;height:64px;border-radius:50%;border:3px solid ${mColor};display:flex;align-items:center;justify-content:center;margin:0 auto;">
+            <span style="font-size:28px;font-weight:800;color:${mColor};">${momentumScore}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">${esc(momentumLabel)}</div>
         </div>
-        <div>
-          <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px;">${esc(label)} ${winProb != null ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px">Win likelihood: ${winProb}%</span>` : ''} ${trajectory ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px;margin-left:8px;">Trajectory: ${esc(trajectory)}</span>` : ''}</div>
-          <div style="font-size:12px;color:var(--text-dim);line-height:1.55;">${esc(summary)}</div>
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Win Probability</div>
+          <div style="font-size:28px;font-weight:800;color:var(--dx-accent);">${winPct}%</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">Predictive score</div>
         </div>
+        ${closeDays != null ? `
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Est. Close</div>
+          <div style="font-size:28px;font-weight:800;color:var(--text);">${closeDays}d</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">${closeConf ? esc(closeConf) + ' confidence' : ''}</div>
+        </div>` : ''}
       </div>
     `
 
-    // ── Coach headline — the ONE most important thing ──
-    if (coachLine) {
+    // ── Current State ──
+    if (summary) {
       html += `
-        <div style="background:linear-gradient(135deg, rgba(90,169,255,0.08), rgba(168,85,247,0.08));border:1px solid var(--dx-accent);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
-          <div style="font-size:10px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--dx-accent);margin-bottom:6px;">What you need to do right now</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.55;">${esc(coachLine)}</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Current State</div>
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:10px;padding:16px 20px;margin-bottom:20px;">
+          <div style="font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap;">${esc(summary)}</div>
         </div>
       `
     }
 
-    // ── Recommended next moves (forward-looking actions) ──
-    if (nextSteps.length) {
-      html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--purple);margin:14px 0 8px;">Recommended next moves</div>`
-      html += nextSteps
-        .map((s: any) => {
-          if (typeof s === 'string')
-            return `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:12px;font-weight:700;color:var(--text);">${esc(s)}</div></div>`
-          const action = s.action || ''
-          const timing = s.timing || s.priority ? `P${s.priority}` : ''
-          const reasoning = s.reasoning || ''
-          const methodology = s.methodology || ''
-          const script = s.script || ''
-          return `
-          <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <div style="font-size:12px;font-weight:700;color:var(--text);flex:1;">${esc(action)}</div>
-              ${timing ? `<span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(168,85,247,0.15);color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;">${esc(timing)}</span>` : ''}
-            </div>
-            ${reasoning ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:4px;">${esc(reasoning)}</div>` : ''}
-            ${methodology ? `<div style="font-size:9px;color:var(--text-dim);font-weight:600;letter-spacing:0.3px;margin-bottom:4px;">${esc(methodology)}</div>` : ''}
-            ${script ? `<div onclick="navigator.clipboard.writeText(this.innerText).then(()=>{this.style.outline='2px solid var(--green)';setTimeout(()=>this.style.outline='',800)})" style="font-size:12px;color:var(--text-dim);line-height:1.55;padding:8px 10px;background:var(--bg);border:1px solid var(--dx-border);border-radius:6px;white-space:pre-wrap;cursor:pointer;" title="Click to copy">${esc(script)}</div>` : ''}
-          </div>`
-        })
-        .join('')
+    // ── Next Actions + Risk Factors side by side ──
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">`
+
+    // Next Actions column
+    html += `<div>`
+    html += `<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Next Actions</div>`
+    if (nextActions.length) {
+      html += nextActions.map((a: any, i: number) => `
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-left:3px solid var(--yellow);border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="background:var(--yellow);color:var(--surface);width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">${a.priority || i + 1}</span>
+            <span style="font-weight:600;font-size:12px;color:var(--text);">${esc(a.action || '')}</span>
+          </div>
+          ${a.rationale ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-left:28px;">${esc(a.rationale)}</div>` : ''}
+        </div>
+      `).join('')
+    } else {
+      html += `<div style="font-size:12px;color:var(--text-dim);">No actions identified.</div>`
+    }
+    html += `</div>`
+
+    // Risk Factors column
+    html += `<div>`
+    html += `<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Risk Factors</div>`
+    if (riskFactors.length) {
+      html += riskFactors.map((r: any) => {
+        const sevColor = r.severity === 'high' ? 'var(--red)' : r.severity === 'medium' ? 'var(--yellow)' : 'var(--green)'
+        const sevBg = r.severity === 'high' ? 'rgba(229,57,53,0.15)' : r.severity === 'medium' ? 'rgba(255,179,0,0.15)' : 'rgba(76,175,80,0.15)'
+        return `
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:10px 14px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${sevColor};flex-shrink:0;"></span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:0.6px;padding:2px 8px;border-radius:3px;text-transform:uppercase;background:${sevBg};color:${sevColor};">${esc(r.severity || '')}</span>
+            <span style="font-weight:600;font-size:12px;color:var(--text);flex:1;">${esc(r.factor || '')}</span>
+          </div>
+          ${r.mitigation ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-left:28px;">${esc(r.mitigation)}</div>` : ''}
+        </div>`
+      }).join('')
+    } else {
+      html += `<div style="font-size:12px;color:var(--text-dim);">No risks identified.</div>`
+    }
+    html += `</div>`
+    html += `</div>` // close grid
+
+    // ── Opportunity Signals ──
+    if (oppSignals.length) {
+      html += `<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Opportunity Signals</div>`
+      html += oppSignals.map((s: any) => `
+        <div style="background:var(--surface-2);border:1px solid var(--dx-border);border-left:3px solid var(--green);border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;">
+          <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:4px;">${esc(s.signal || '')}</div>
+          ${s.leverage ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;">Leverage: ${esc(s.leverage)}</div>` : ''}
+        </div>
+      `).join('')
     }
 
-    // ── Unresolved items — things the buyer asked that never got addressed ──
-    if (unresolved.length) {
-      html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--red);margin:14px 0 8px;">Unanswered buyer questions</div>`
-      html += unresolved.map((item: string) =>
-        `<div style="font-size:12px;color:var(--text);line-height:1.55;padding:6px 10px;border-left:2px solid var(--red);margin-bottom:6px;background:rgba(239,68,68,0.04);border-radius:0 6px 6px 0;">${esc(item)}</div>`
-      ).join('')
+    // ── Cultural Flags ──
+    if (culturalFlags.length) {
+      html += `<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin:16px 0 8px;">Cultural Intelligence</div>`
+      html += culturalFlags.map((f: any) => {
+        const typeColors: Record<string, { bg: string; border: string; icon: string }> = {
+          positive: { bg: 'rgba(76,175,80,0.1)', border: 'var(--green)', icon: '✓' },
+          concern:  { bg: 'rgba(239,83,80,0.1)', border: 'var(--red)', icon: '!' },
+          info:     { bg: 'rgba(156,39,176,0.1)', border: '#CE93D8', icon: 'i' }
+        }
+        const c = typeColors[f.type] || typeColors.info
+        return `
+        <div style="background:${c.bg};border:1px solid var(--dx-border);border-left:3px solid ${c.border};border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="background:${c.border};color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">${c.icon}</span>
+            <span style="font-weight:600;font-size:12px;color:var(--text);">🌍 ${esc(f.flag || '')}</span>
+          </div>
+          ${f.detail ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-left:26px;">${esc(f.detail)}</div>` : ''}
+        </div>`
+      }).join('')
     }
 
-    // ── MEDDPICC qualification gaps ──
-    if (qualGaps.gaps?.length) {
-      const missing = qualGaps.gaps.filter((g: any) => g.status === 'missing' || g.status === 'unknown')
-      if (missing.length) {
-        html += `<div style="font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--yellow);margin:14px 0 8px;">Qualification gaps ${qualGaps.meddpicc_score ? `(${esc(qualGaps.meddpicc_score)})` : ''}</div>`
-        html += missing.slice(0, 4).map((g: any) =>
-          `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:8px;padding:8px 12px;margin-bottom:6px;">
-            <div style="font-size:11px;font-weight:700;color:var(--text);">${esc(g.letter)} — ${esc(g.element)}</div>
-            ${g.coaching ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.45;margin-top:4px;">${esc(g.coaching)}</div>` : ''}
-          </div>`
-        ).join('')
-      }
+    // ── Pattern Flags ──
+    if (patternFlags.length) {
+      html += `<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin:16px 0 8px;">Historical Pattern Matching</div>`
+      html += patternFlags.map((f: any) => {
+        const isPos = f.type === 'positive'
+        return `
+        <div style="background:${isPos ? 'rgba(76,175,80,0.1)' : 'rgba(239,83,80,0.1)'};border:1px solid var(--dx-border);border-left:3px solid ${isPos ? 'var(--green)' : 'var(--red)'};border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="background:${isPos ? 'var(--green)' : 'var(--red)'};color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">${isPos ? '✓' : '!'}</span>
+            <span style="font-weight:600;font-size:12px;color:var(--text);">📊 ${esc(f.flag || '')}</span>
+          </div>
+          ${f.detail ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-left:26px;">${esc(f.detail)}</div>` : ''}
+        </div>`
+      }).join('')
     }
 
     setCsOutput(html)
@@ -1825,7 +1942,7 @@ export default function DrixApp() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted">Solution URL <span className="text-drix-red">*</span></label>
+                    <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted">URL of the service or solution being offered <span className="text-drix-red">*</span></label>
                     <input
                       type="text"
                       value={fSolution}
@@ -2567,44 +2684,29 @@ export default function DrixApp() {
               {csOutput && (
                 <>
                   <div className="mt-4" dangerouslySetInnerHTML={{ __html: csOutput }} />
-                  {/* Mode 2 & 3 buttons — only show after initial Situation Report */}
-                  <div className="mt-4 pt-4 border-t border-drix-border flex gap-3">
-                    <button
-                      onClick={showPlayByPlay}
-                      disabled={!csFullResponse}
-                      className="flex-1 py-3 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-accent/15 to-drix-accent/5 border border-drix-accent/30 text-drix-accent hover:border-drix-accent/60 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-                    >
-                      <MessageSquare size={14} />
-                      Play-by-Play
-                    </button>
-                    <button
-                      onClick={submitLookBack}
-                      disabled={lookBackLoading}
-                      className="flex-1 py-3 rounded-lg text-xs font-bold bg-gradient-to-r from-drix-purple/20 to-drix-purple/5 border border-drix-purple/30 text-drix-purple hover:border-drix-purple/60 transition-all disabled:opacity-40 disabled:cursor-wait flex items-center justify-center gap-2"
-                    >
-                      <Zap size={14} />
-                      {lookBackLoading ? 'Analyzing...' : 'Look Back'}
-                    </button>
-                  </div>
-                  <div className="text-[10px] text-drix-dim mt-2 flex gap-6">
-                    <span><strong>Play-by-Play:</strong> Email-by-email breakdown — what happened at each step</span>
-                    <span><strong>Look Back:</strong> Holistic retrospective — lessons learned from the full thread</span>
-                  </div>
-                  {lookBackLoading && (
-                    <div className="text-[11px] text-drix-dim mt-2 text-center">
-                      ClearSignals is running a full retrospective — this takes a moment.
+                  {/* Upsell: Full ClearSignals AI offering */}
+                  <div className="mt-4 pt-4 border-t border-drix-border">
+                    <div style={{ background: 'linear-gradient(135deg, rgba(90,169,255,0.06), rgba(168,85,247,0.06))', border: '1px solid var(--dx-border)', borderRadius: '10px', padding: '14px 16px' }}>
+                      <div className="text-[10px] font-extrabold tracking-widest uppercase text-drix-dim mb-2">Want deeper analysis?</div>
+                      <div className="flex gap-3 mb-2">
+                        <div className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-drix-surface2 border border-drix-border text-drix-dim flex items-center justify-center gap-2 opacity-50">
+                          <MessageSquare size={14} />
+                          Play-by-Play
+                        </div>
+                        <div className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-drix-surface2 border border-drix-border text-drix-dim flex items-center justify-center gap-2 opacity-50">
+                          <Zap size={14} />
+                          Look Back
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-drix-dim leading-relaxed">
+                        <strong>Play-by-Play</strong> (email-by-email coaching), <strong>Look Back</strong> (holistic retrospective), <strong>Review Board</strong>, <strong>Response Engine</strong>, and more are available as part of the full <span className="text-drix-accent font-bold">ClearSignals AI</span> offering.
+                      </div>
                     </div>
-                  )}
-                  {playByPlayOutput && (
-                    <div className="mt-4" dangerouslySetInnerHTML={{ __html: playByPlayOutput }} />
-                  )}
-                  {lookBackOutput && (
-                    <div className="mt-4" dangerouslySetInnerHTML={{ __html: lookBackOutput }} />
-                  )}
+                  </div>
                   {/* ── PDF Export panel ── */}
                   <div className="mt-5 pt-4 border-t border-drix-border">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-[10px] font-bold tracking-wide uppercase text-drix-dim">Export Report as PDF</div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] font-bold tracking-wide uppercase text-drix-dim">Export Summary as PDF</div>
                       <button
                         onClick={exportClearSignalsPDF}
                         disabled={exporting}
@@ -2613,20 +2715,6 @@ export default function DrixApp() {
                         <Download size={12} />
                         {exporting ? 'Generating PDF...' : 'Download PDF'}
                       </button>
-                    </div>
-                    <div className="flex gap-5">
-                      <label className="flex items-center gap-2 text-[11px] text-drix-text cursor-pointer">
-                        <input type="checkbox" checked={exportModes.situation} onChange={(e) => setExportModes((m) => ({ ...m, situation: e.target.checked }))} className="accent-drix-accent rounded" />
-                        Situation Report
-                      </label>
-                      <label className="flex items-center gap-2 text-[11px] text-drix-text cursor-pointer">
-                        <input type="checkbox" checked={exportModes.playbyplay} onChange={(e) => setExportModes((m) => ({ ...m, playbyplay: e.target.checked }))} className="accent-drix-accent rounded" />
-                        Play-by-Play
-                      </label>
-                      <label className="flex items-center gap-2 text-[11px] text-drix-text cursor-pointer">
-                        <input type="checkbox" checked={exportModes.lookback} onChange={(e) => setExportModes((m) => ({ ...m, lookback: e.target.checked }))} className="accent-drix-accent rounded" />
-                        Look Back
-                      </label>
                     </div>
                   </div>
                 </>

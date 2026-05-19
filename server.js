@@ -14,6 +14,7 @@ const db = require('./db');
 const { scanIndividual } = require('./individual-scan');
 const { analyzeSingle, analyzeGroup, analyzeReadyLeads } = require('./meeting-analysis');
 const { discoverCompetitors } = require('./competitive-intel');
+const { enrichCompany, extractDomain } = require('./company-intel');
 
 const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
@@ -742,11 +743,33 @@ async function ingestOne({ url, role, hint_name, skipCache = false, supplemental
       contentBlock += `\n── FILE: ${doc.filename} ──\n${doc.text}\n`;
     }
   }
+
+  // ─── REFRESH MODE: tell the LLM what atoms already exist so it finds NEW ones ──
+  let refreshPreamble = '';
+  if (skipCache && existingResult?.atoms?.length) {
+    const existingSummary = existingResult.atoms.map(a =>
+      `[${a.atom_id}] (${a.type}) ${(a.claim || '').slice(0, 80)}`
+    ).join('\n');
+    refreshPreamble = `\n\n══════════════════════════════════════════════════
+REFRESH MODE — EXISTING ATOMS ALREADY CAPTURED (${existingResult.atoms.length} total):
+${existingSummary}
+
+CRITICAL INSTRUCTION: The atoms above have ALREADY been captured. Your job is to find ADDITIONAL facts, signals, and intelligence that the previous pass MISSED. Focus on:
+- Deeper second-order insights (implications, not just facts)
+- Signals between the lines (what's NOT said but implied)
+- Competitive positioning clues
+- Buying triggers and timing signals
+- Weakness indicators and mission gaps
+- Any facts from uploaded documents not yet captured
+Generate atoms with DIFFERENT atom_ids than the ones listed above. Use a "refresh-" prefix on new atom_ids.
+══════════════════════════════════════════════════`;
+  }
+
   const userContent = JSON.stringify({
     role,
     target_name: hint_name || fetched.title || 'unknown',
     target_url: url,
-    content: contentBlock
+    content: contentBlock + refreshPreamble
   });
 
   const ingestTokens = 32000;
@@ -1200,9 +1223,9 @@ app.post('/api/demo-flow', async (req, res) => {
       ? `All three from cache — ${ingestMs}ms (no LLM calls)`
       : `All three decomposed into 9D-tagged atoms (${Math.round(ingestMs/1000)}s).` });
     send('atoms', {
-      sender:   { target: sender.target,   summary: sender.summary,   atoms: sender.atoms,   source: sender.source,   tde_collection: sender.tde_collection,   tde_atom_count: sender.tde_atom_count },
-      solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source, tde_collection: solution.tde_collection, tde_atom_count: solution.tde_atom_count },
-      customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms, source: customer.source, tde_collection: customer.tde_collection, tde_atom_count: customer.tde_atom_count }
+      sender:   { target: sender.target,   summary: sender.summary,   atoms: sender.atoms,   source: sender.source,   tde_collection: sender.tde_collection,   tde_atom_count: sender.tde_atom_count,   atom_count_new: sender.atom_count_new || 0 },
+      solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source, tde_collection: solution.tde_collection, tde_atom_count: solution.tde_atom_count, atom_count_new: solution.atom_count_new || 0 },
+      customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms, source: customer.source, tde_collection: customer.tde_collection, tde_atom_count: customer.tde_atom_count, atom_count_new: customer.atom_count_new || 0 }
     });
 
     // ── COMPETITIVE INTELLIGENCE: Discover competitors, generate battlecard atoms
@@ -1298,8 +1321,23 @@ app.post('/api/demo-flow', async (req, res) => {
           leadership_style: individualResult.leadership_style || null,
           pain_signals: individualResult.pain_signals || [],
           scan: individualResult.scan || {},
+          verification: individualResult.verification || null,
+          cultural_brief: individualResult.cultural_brief || null,
+          cultural_sales_guidance: individualResult.cultural_sales_guidance || null,
           source: 'llm_research'
         };
+
+        // ── Report verification status to client ──
+        if (individualResult.verification) {
+          const v = individualResult.verification;
+          if (v.verified === false && v.mismatch) {
+            send('phase', { phase: 'individual_verification', message: `⚠ VERIFICATION MISMATCH: ${v.mismatch_details}`, mismatch: true, verification: v });
+          } else if (v.verified === true && v.resolved_from_title) {
+            send('phase', { phase: 'individual_verification', message: `✓ Title resolved → ${v.actual_name} (${v.actual_title}) — ${v.confidence}% confidence`, verification: v });
+          } else if (v.verified === true) {
+            send('phase', { phase: 'individual_verification', message: `✓ Verified: ${v.actual_name}, ${v.actual_title}`, verification: v });
+          }
+        }
         send('individual', individual);
         const webCount = individualResult.scan?.web_results || 0;
         const accountCount = (individualResult.scan?.accounts || []).length;
@@ -1310,6 +1348,60 @@ app.post('/api/demo-flow', async (req, res) => {
         send('phase', { phase: 'individual_scan', message: `Individual scan skipped: ${err.message}` });
       }
     }
+
+    // ── PHASE 2.5: Company Intelligence Enrichment ──────────────────────────
+    // Runs after all ingests (including individual scan), before pain generation.
+    // Adds: email security posture, FDIC/SEC financial intel, tech stack signals,
+    // org signals (job postings/hires), buying committee roles + Apollo name resolution,
+    // deal signals, compliance hooks, and 9D-tagged intel atoms merged into customer.
+    // All layers are non-blocking — enrichment failure never stops the flow.
+    send('phase', { phase: 'company_intel', message: 'Running company intelligence enrichment…' });
+    try {
+      const customerDomain = extractDomain(customer_url || customer?.target?.url || '');
+      if (customerDomain) {
+        const intelResult = await enrichCompany(
+          customerDomain,
+          customer?.target?.name || customerDomain,
+          {
+            solutionCategory: solution?.target?.name || solution_category || 'software',
+            industry:         customer?.target?.industry || industry || null,
+            apolloKey:        APOLLO_API_KEY,
+            braveKey:         BRAVE_API_KEY,
+            openRouterKey:    OPENROUTER_API_KEY,
+            modelId:          OPENROUTER_MODEL_ID,
+          }
+        );
+        // Merge 9D-tagged intel atoms into customer atoms — richer pain + strategies
+        if (intelResult?.intelAtoms?.length > 0) {
+          customer.atoms = [...(customer.atoms || []), ...intelResult.intelAtoms];
+          console.log(`[demo-flow] +${intelResult.intelAtoms.length} company intel atoms merged (customer total: ${customer.atoms.length})`);
+        }
+        // Persist intel to runStore for downstream access (hydration, PDF, etc.)
+        runStore.set(run_id, { ...(runStore.get(run_id) || {}), companyIntel: intelResult });
+        // Stream intel package to client
+        send('company_intel', {
+          emailSecurity:    intelResult.emailSecurity,
+          financial:        intelResult.financial,
+          buyingCommittee:  intelResult.buyingCommittee,
+          dealSignals:      intelResult.dealSignals,
+          complianceHooks:  intelResult.complianceHooks,
+          accountSummary:   intelResult.accountSummary,
+          criticalFindings: intelResult.criticalFindings,
+          isGreenfield:     intelResult.isGreenfield,
+          isBankRegulated:  intelResult.isBankRegulated,
+          orgSignals:       intelResult.orgSignals,
+          techStack:        intelResult.techStack,
+        });
+        console.log(`[demo-flow] company intel: greenfield=${intelResult.isGreenfield} | dmarc=${intelResult.emailSecurity?.dmarcPolicy} | signals=${intelResult.dealSignals?.length}`);
+      } else {
+        console.warn('[demo-flow] company intel skipped — no resolvable domain from customer_url');
+        send('phase', { phase: 'company_intel', message: 'Company intel skipped (no domain)' });
+      }
+    } catch (err) {
+      console.error('[demo-flow] company intel failed (non-blocking):', err.message);
+      send('phase', { phase: 'company_intel', message: `Company intel skipped: ${err.message}` });
+    }
+    // ── END PHASE 2.5 ────────────────────────────────────────────────────────
 
     // ── PHASE 3: Pain points — dedicated LLM pass that always returns company,
     //    sub-industry, and industry pain groups (not just an atom-type filter).
@@ -1603,6 +1695,14 @@ app.post('/api/hydrate', async (req, res) => {
       throw new Error(`LeadHydration /company-pain failed (${painRes.status}): ${txt.slice(0, 300)}`);
     }
     if (!hydration) throw new Error('LeadHydration returned no data after 3 attempts');
+
+    // ── Unify score: carry the strategy's confidence as the hydration fit score ──
+    // The strategy confidence (0-100) is the user-facing "Fit Score" everywhere.
+    // Override whatever the external service returned so the number is consistent
+    // from strategy selection → hydration → report.
+    if (chosenStrategy.confidence != null) {
+      hydration.score = parseInt(chosenStrategy.confidence) || hydration.score || 0;
+    }
 
     // Persist so the email report can include the hydration result.
     run.chosen_strategy = chosenStrategy;
@@ -4330,6 +4430,34 @@ app.post('/api/individual-scan', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── COMPANY INTEL (standalone endpoint) ────────────────────────────────────
+// POST /api/company-intel
+// Body: { url, company_name, solution_category, industry }
+// Returns the full enrichCompany() package for any domain.
+// Useful for: pre-meeting research, buying committee lookup, email security audit.
+app.post('/api/company-intel', async (req, res) => {
+  const { url, company_name, solution_category, industry } = req.body || {};
+  if (!url) return res.status(400).json({ error: 'url required' });
+
+  const domain = extractDomain(url);
+  const name = company_name || domain;
+
+  try {
+    const intel = await enrichCompany(domain, name, {
+      solutionCategory: solution_category || null,
+      industry:         industry || null,
+      apolloKey:        APOLLO_API_KEY,
+      braveKey:         BRAVE_API_KEY,
+      openRouterKey:    OPENROUTER_API_KEY,
+      modelId:          OPENROUTER_MODEL_ID,
+    });
+    res.json(intel);
+  } catch (err) {
+    console.error('[company-intel] endpoint error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

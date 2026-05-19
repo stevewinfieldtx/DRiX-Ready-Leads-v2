@@ -16,6 +16,68 @@ const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID || 'anthropic/claude-sonnet-4.5';
 const APOLLO_API_KEY      = process.env.APOLLO_API_KEY || '';
 const BRAVE_API_KEY       = process.env.BRAVE_API_KEY || '';
+const CULTURESYNC_API_URL = process.env.CULTURESYNC_API_URL || 'http://localhost:8100';
+
+// =============================================================================
+// THECULTURALSYNC — CULTURAL INTELLIGENCE
+// =============================================================================
+
+/**
+ * Fetch a cultural sales brief from TheCultureSync API.
+ * Tries email-based country detection first; falls back to Apollo country data.
+ * Returns null gracefully if the API is unreachable or the country can't be resolved.
+ */
+async function fetchCulturalBrief(email, apolloCountry, sellerCountry = 'United States') {
+  try {
+    let country = null;
+
+    // Step 1: Try email-based country detection
+    if (email) {
+      const emailRes = await fetch(`${CULTURESYNC_API_URL}/api/resolve/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, fallback_country: apolloCountry || null }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (emailRes.ok) {
+        const emailData = await emailRes.json();
+        if (emailData.resolved) {
+          country = emailData.country;
+          console.log(`  ✓ CultureSync: resolved country from email → ${country} (${emailData.detection_method})`);
+        }
+      }
+    }
+
+    // Step 2: Fall back to Apollo-provided country
+    if (!country && apolloCountry) {
+      country = apolloCountry;
+      console.log(`  ✓ CultureSync: using Apollo country → ${country}`);
+    }
+
+    if (!country) {
+      console.log('  ✗ CultureSync: no country detected — skipping cultural brief');
+      return null;
+    }
+
+    // Step 3: Fetch the sales brief
+    const briefRes = await fetch(
+      `${CULTURESYNC_API_URL}/api/sales-brief/${encodeURIComponent(country)}?seller_country=${encodeURIComponent(sellerCountry)}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (!briefRes.ok) {
+      console.log(`  ✗ CultureSync: sales-brief ${briefRes.status} for ${country}`);
+      return null;
+    }
+
+    const brief = await briefRes.json();
+    console.log(`  ✓ CultureSync: sales brief for ${country} (${brief.baseline} baseline, ${brief.region} region)`);
+    return brief;
+
+  } catch (err) {
+    console.log(`  ✗ CultureSync: ${err.message} (non-fatal — skipping cultural intel)`);
+    return null;
+  }
+}
 
 // =============================================================================
 // APOLLO ENRICHMENT
@@ -609,6 +671,173 @@ DISCIPLINE:
 // MAIN PIPELINE
 // =============================================================================
 
+// =============================================================================
+// PERSON VERIFICATION — verify name+title at company before researching
+// =============================================================================
+
+/**
+ * Verify that a named person actually holds the stated title at the stated company.
+ * Uses Apollo people search to cross-reference.
+ * Returns { verified, actual_name, actual_title, mismatch_details, confidence }
+ */
+async function verifyPerson({ name, title, company_url }) {
+  if (!APOLLO_API_KEY || !name || !company_url) {
+    return { verified: null, reason: 'Insufficient data for verification (need name + company_url + Apollo API key)' };
+  }
+
+  const domain = company_url.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '').trim();
+  if (!domain) return { verified: null, reason: 'Could not extract domain from company_url' };
+
+  try {
+    // Search Apollo for this person at this company
+    const response = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Api-Key ${APOLLO_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        person_titles: title ? [title] : undefined,
+        q_organization_domains: domain,
+        q_keywords: name,
+        per_page: 5,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      console.log(`[verify-person] Apollo search failed: ${response.status}`);
+      return { verified: null, reason: `Apollo search returned ${response.status}` };
+    }
+
+    const data = await response.json();
+    const people = data.people || [];
+
+    if (people.length === 0) {
+      // Nobody found at that company matching the name
+      return {
+        verified: false,
+        mismatch: 'not_found',
+        mismatch_details: `No person named "${name}" found at ${domain}. The person may have left, or the name may be incorrect.`,
+        confidence: 70,
+        suggestions: [],
+      };
+    }
+
+    // Check for exact or close name match
+    const nameLower = name.toLowerCase().trim();
+    const exactMatch = people.find(p =>
+      (p.name || '').toLowerCase().trim() === nameLower ||
+      (p.first_name + ' ' + p.last_name).toLowerCase().trim() === nameLower
+    );
+
+    if (exactMatch) {
+      // Name found — now check title match
+      const actualTitle = exactMatch.title || '';
+      const titleMatch = title && actualTitle.toLowerCase().includes(title.toLowerCase().split(/[,\/]/)[0].trim());
+
+      if (!title || titleMatch) {
+        return {
+          verified: true,
+          actual_name: exactMatch.name || `${exactMatch.first_name} ${exactMatch.last_name}`,
+          actual_title: actualTitle,
+          actual_email: exactMatch.email || null,
+          actual_linkedin: exactMatch.linkedin_url || null,
+          confidence: 90,
+        };
+      } else {
+        return {
+          verified: false,
+          mismatch: 'title_mismatch',
+          actual_name: exactMatch.name || `${exactMatch.first_name} ${exactMatch.last_name}`,
+          actual_title: actualTitle,
+          expected_title: title,
+          mismatch_details: `"${name}" is at ${domain}, but their title is "${actualTitle}" — not "${title}".`,
+          confidence: 85,
+        };
+      }
+    }
+
+    // Partial matches — flag for review
+    const closestPeople = people.slice(0, 3).map(p => ({
+      name: p.name || `${p.first_name} ${p.last_name}`,
+      title: p.title || '',
+      email: p.email || null,
+      linkedin_url: p.linkedin_url || null,
+    }));
+
+    return {
+      verified: false,
+      mismatch: 'name_mismatch',
+      mismatch_details: `Exact name "${name}" not found at ${domain}. Closest matches found.`,
+      suggestions: closestPeople,
+      confidence: 60,
+    };
+
+  } catch (err) {
+    console.error('[verify-person] Verification failed:', err.message);
+    return { verified: null, reason: `Verification error: ${err.message}` };
+  }
+}
+
+/**
+ * When only a title is given (no name), try to find the real person at the company.
+ * Returns { found, name, title, email, linkedin_url, confidence }
+ */
+async function resolvePersonByTitle({ title, company_url }) {
+  if (!APOLLO_API_KEY || !title || !company_url) {
+    return { found: false, reason: 'Need title + company_url + Apollo API key' };
+  }
+
+  const domain = company_url.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '').trim();
+  if (!domain) return { found: false, reason: 'Could not extract domain' };
+
+  try {
+    const response = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Api-Key ${APOLLO_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        person_titles: [title],
+        q_organization_domains: domain,
+        per_page: 3,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      return { found: false, reason: `Apollo returned ${response.status}` };
+    }
+
+    const data = await response.json();
+    const people = data.people || [];
+
+    if (people.length === 0) {
+      return { found: false, reason: `No one with title "${title}" found at ${domain}` };
+    }
+
+    const best = people[0];
+    return {
+      found: true,
+      name: best.name || `${best.first_name} ${best.last_name}`,
+      title: best.title || title,
+      email: best.email || null,
+      linkedin_url: best.linkedin_url || null,
+      confidence: people.length === 1 ? 85 : 65, // Higher confidence if only one match
+      alternatives: people.length > 1 ? people.slice(1).map(p => ({
+        name: p.name || `${p.first_name} ${p.last_name}`,
+        title: p.title || '',
+      })) : [],
+    };
+
+  } catch (err) {
+    console.error('[resolve-by-title] Resolution failed:', err.message);
+    return { found: false, reason: err.message };
+  }
+}
+
 /**
  * Run complete individual intelligence pipeline.
  *
@@ -619,9 +848,62 @@ DISCIPLINE:
  * @param {string} opts.name - Name (hint)
  * @param {string} opts.company_url - Company website URL (e.g. ndbt.com)
  * @param {number} opts.tier - 1=full, 2=quick (reserved for future)
+ * @param {string} opts.solution_url - Solution being sold (for closing intel)
  */
-async function scanIndividual({ linkedin_url, email, title, name, company_url, tier = 1, supplementalDocs = null }) {
+async function scanIndividual({ linkedin_url, email, title, name, company_url, tier = 1, supplementalDocs = null, solution_url = null }) {
   const startTime = Date.now();
+
+  // ─── STAGE 0: PERSON VERIFICATION ──────────────────────────────────────────
+  // Before any research, verify the person is who the user says they are.
+  let verification = null;
+  const hasName = name && name.trim().length > 0;
+  const hasTitle = title && title.trim().length > 0;
+  const hasCompanyUrl = company_url && company_url.trim().length > 0;
+
+  if (hasName && hasCompanyUrl) {
+    // ── Named person: verify name+title at company ──
+    console.log(`\n[0/6] VERIFICATION: Confirming "${name}" is "${title || 'unknown title'}" at ${company_url}...`);
+    verification = await verifyPerson({ name, title, company_url });
+    if (verification.verified === true) {
+      console.log(`  ✓ VERIFIED: ${verification.actual_name}, ${verification.actual_title}`);
+      // Use verified data going forward
+      if (verification.actual_name) name = verification.actual_name;
+      if (verification.actual_title) title = verification.actual_title;
+      if (verification.actual_email && !email) email = verification.actual_email;
+      if (verification.actual_linkedin && !linkedin_url) linkedin_url = verification.actual_linkedin;
+    } else if (verification.verified === false) {
+      console.log(`  ⚠ MISMATCH: ${verification.mismatch_details}`);
+      // Don't stop — flag it and continue with best available data
+    } else {
+      console.log(`  ? Could not verify: ${verification.reason}`);
+    }
+  } else if (!hasName && hasTitle && hasCompanyUrl) {
+    // ── Title only (no name): try to find the real person ──
+    console.log(`\n[0/6] TITLE RESOLUTION: Finding the "${title}" at ${company_url}...`);
+    const resolution = await resolvePersonByTitle({ title, company_url });
+    if (resolution.found) {
+      console.log(`  ✓ RESOLVED: ${resolution.name} (${resolution.title}) — ${resolution.confidence}% confidence`);
+      name = resolution.name;
+      title = resolution.title;
+      if (resolution.email && !email) email = resolution.email;
+      if (resolution.linkedin_url && !linkedin_url) linkedin_url = resolution.linkedin_url;
+      verification = {
+        verified: true,
+        resolved_from_title: true,
+        actual_name: resolution.name,
+        actual_title: resolution.title,
+        confidence: resolution.confidence,
+        alternatives: resolution.alternatives || [],
+      };
+    } else {
+      console.log(`  ✗ Could not resolve: ${resolution.reason}`);
+      verification = {
+        verified: null,
+        resolved_from_title: false,
+        reason: resolution.reason,
+      };
+    }
+  }
   const linkedinSlug = linkedin_url ? (linkedin_url.match(/\/in\/([^\/\?]+)/)?.[1] || null) : null;
 
   // Extract domain from company_url if provided (strip protocol, www, trailing paths)
@@ -683,18 +965,26 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
     }
   }
 
-  // ─── STAGE 2: DEEP WEB RESEARCH + OSINT (PARALLEL) ─────────────────────────
-  // Run all three in parallel: individual web research, company research, and OSINT enrichment
-  console.log('\n[2/6] Deep Research + OSINT Discovery (parallel)...');
+  // ─── STAGE 2: DEEP WEB RESEARCH + OSINT + CULTURAL INTEL (PARALLEL) ────────
+  // Run all four in parallel: web research, company research, OSINT, and cultural brief
+  console.log('\n[2/6] Deep Research + OSINT + Cultural Intelligence (parallel)...');
   console.log('       → Individual web research (podcasts, talks, news, content)');
   console.log('       → Company research (filings, PR, earnings, strategy)');
   console.log('       → OSINT enrichment (username discovery + email intelligence)');
+  console.log('       → TheCultureSync cultural sales brief');
 
-  const [webResearch, companyResearch, osintResults] = await Promise.all([
+  // Detect the prospect's country from Apollo data for cultural brief
+  const apolloCountry = apolloPerson?.country || apolloCompany?.country || apolloPerson?.organization?.country || null;
+
+  const [webResearch, companyResearch, osintResults, culturalBrief] = await Promise.all([
     deepResearch(personName, personCompany, personTitle, companyDomain),
     deepCompanyResearch(personCompany, companyDomain),
     runOsintEnrichment({ name: personName, linkedinUrl: linkedin_url, email }).catch(err => {
       console.error('[individual-scan] OSINT enrichment failed (non-fatal):', err.message);
+      return null;
+    }),
+    fetchCulturalBrief(email, apolloCountry).catch(err => {
+      console.error('[individual-scan] Cultural brief failed (non-fatal):', err.message);
       return null;
     }),
   ]);
@@ -712,6 +1002,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
     webResearch,
     companyResearch,
     osintResults,
+    culturalBrief,
     personName,
     personTitle,
     personCompany,
@@ -733,6 +1024,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
       pitch_angles: [],
       enrichment: enrichmentPackage,
       web_research: webResearch,
+      verification: verification || null,
       pipeline_time_ms: Date.now() - startTime,
     };
   }
@@ -750,7 +1042,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
         model: OPENROUTER_MODEL_ID,
         messages: [
           { role: 'system', content: PSYCHOGRAPHIC_PROMPT },
-          { role: 'user', content: `Analyze this individual and produce a CONFIDENCE-SCORED psychographic intelligence profile. Every claim must have a confidence percentage and basis.\n\nENRICHED DATA:\n\n${JSON.stringify(enrichmentPackage, null, 2)}\n\nINSTRUCTIONS:\n1. Start with VERIFIED FACTS from Apollo/web data. These are your foundation (85-100% confidence).\n2. Build STRONG INFERENCES from verified facts + your knowledge of the person/company/industry (70-84%).\n3. Add MODERATE INFERENCES where role + industry patterns suggest likely behaviors (50-69%).\n4. Be HONEST about SPECULATIVE claims — label them clearly (25-49%).\n5. If OSINT data is present, note the _WARNING field. Username matches are UNVERIFIED. Do not treat them as confirmed identity.\n6. Use your own knowledge FREELY but label it. If you know this company is a community bank in Texas, say so and use it.\n7. The reliability_summary at the end is MANDATORY — tell the rep what's solid and what's a guess.\n8. NEVER present an inference as a fact. A rep who walks in calibrated beats one who walks in overconfident.` },
+          { role: 'user', content: `Analyze this individual and produce a CONFIDENCE-SCORED psychographic intelligence profile. Every claim must have a confidence percentage and basis.\n\nENRICHED DATA:\n\n${JSON.stringify(enrichmentPackage, null, 2)}\n\nINSTRUCTIONS:\n1. Start with VERIFIED FACTS from Apollo/web data. These are your foundation (85-100% confidence).\n2. Build STRONG INFERENCES from verified facts + your knowledge of the person/company/industry (70-84%).\n3. Add MODERATE INFERENCES where role + industry patterns suggest likely behaviors (50-69%).\n4. Be HONEST about SPECULATIVE claims — label them clearly (25-49%).\n5. If OSINT data is present, note the _WARNING field. Username matches are UNVERIFIED. Do not treat them as confirmed identity.\n6. Use your own knowledge FREELY but label it. If you know this company is a community bank in Texas, say so and use it.\n7. The reliability_summary at the end is MANDATORY — tell the rep what's solid and what's a guess.\n8. NEVER present an inference as a fact. A rep who walks in calibrated beats one who walks in overconfident.${enrichmentPackage.cultural_intelligence ? `\n9. CULTURAL INTELLIGENCE is available from TheCultureSync. The prospect is in ${enrichmentPackage.cultural_intelligence.target_country} (${enrichmentPackage.cultural_intelligence.cultural_baseline} baseline, ${enrichmentPackage.cultural_intelligence.region} region). Factor cultural norms into your sales_strategy: adapt pitch_angles for their communication style, adjust conversation_starters for cultural appropriateness, note phrases_to_use/avoid that respect their cultural context, and tailor meeting/negotiation advice. Include a "cultural_sales_guidance" section in your output with: country, baseline, key_adaptations (3-5 specific things to do differently), email_approach, meeting_approach, and trust_building_strategy. ${enrichmentPackage.cultural_intelligence.cross_culture_warning ? 'WARNING: ' + enrichmentPackage.cultural_intelligence.cross_culture_warning : ''}` : ''}` },
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
@@ -814,6 +1106,9 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
       digital_presence: parsed.digital_presence || null,
       // Reliability meta
       reliability_summary: parsed.reliability_summary || null,
+      // Cultural intelligence from TheCultureSync
+      cultural_brief: culturalBrief || null,
+      cultural_sales_guidance: parsed.cultural_sales_guidance || null,
       // Raw data (for debugging / display)
       enrichment: enrichmentPackage,
       web_research: webResearch,
@@ -821,6 +1116,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
       osint_results: osintResults || null,
       company_url: company_url || null,
       company_domain: companyDomain || null,
+      verification: verification || null,
       pipeline_time_ms: elapsed,
     };
 
@@ -836,6 +1132,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
       enrichment: enrichmentPackage,
       web_research: webResearch,
       osint_results: osintResults || null,
+      verification: verification || null,
       pipeline_time_ms: Date.now() - startTime,
     };
   }
@@ -845,7 +1142,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
 // ENRICHMENT PACKAGE BUILDER
 // =============================================================================
 
-function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, companyResearch, osintResults, personName, personTitle, personCompany, linkedin_url, email, supplementalDocs }) {
+function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, companyResearch, osintResults, culturalBrief, personName, personTitle, personCompany, linkedin_url, email, supplementalDocs }) {
   const pkg = {
     person: {
       name: personName,
@@ -967,6 +1264,21 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
       registered_on: ei.registeredOn || [],
       not_found_on: ei.notFoundOn || [],
       errors: ei.errors || [],
+    };
+  }
+
+  // Cultural intelligence from TheCultureSync API
+  if (culturalBrief) {
+    pkg.cultural_intelligence = {
+      source: 'TheCultureSync API (theculturalsync.com)',
+      target_country: culturalBrief.target_country,
+      seller_country: culturalBrief.seller_country,
+      cultural_baseline: culturalBrief.baseline,
+      region: culturalBrief.region,
+      dimension_guidance: culturalBrief.dimension_guidance || {},
+      digital_communication: culturalBrief.digital_communication || null,
+      offline_behavioral: culturalBrief.offline_behavioral || null,
+      cross_culture_warning: culturalBrief.cross_culture_warning || null,
     };
   }
 
