@@ -16,7 +16,7 @@ const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID || 'anthropic/claude-sonnet-4.5';
 const APOLLO_API_KEY      = process.env.APOLLO_API_KEY || '';
 const BRAVE_API_KEY       = process.env.BRAVE_API_KEY || '';
-const CULTURESYNC_API_URL = process.env.CULTURESYNC_API_URL || 'http://localhost:8100';
+const CULTURESYNC_API_URL = process.env.CULTURESYNC_API_URL || 'https://theculturalsync.com';
 
 // =============================================================================
 // THECULTURALSYNC — CULTURAL INTELLIGENCE

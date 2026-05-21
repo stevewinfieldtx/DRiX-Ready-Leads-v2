@@ -208,8 +208,13 @@ function buildEmailFindings(provider, dmarcPolicy, dmarcInfo, isM365, spfStrict)
 async function getFDICData(companyName) {
   try {
     // Search by name
-    const searchName = companyName.replace(/[^a-zA-Z0-9\s]/g, '').trim();
-    const url = `https://banks.data.fdic.gov/api/institutions?search=${encodeURIComponent(searchName)}&fields=NAME,CERT,ASSET,NETINC,REPDTE,CITY,STALP,ACTIVE,ESTYMD,EQ,DEP,INTINC,NONII,NONIX,EFFICIENCYRATE,ROA,NIM,LVRATIO&limit=3&sort_by=ASSET&sort_order=DESC&output=json`;
+    // FDIC BankFind API — use filters= with NAME contains search
+    // Strip legal suffixes for better matching ("Bank and Trust" → "North Dallas Bank")
+    const searchName = companyName
+      .replace(/[^a-zA-Z0-9\s]/g, '')
+      .replace(/\b(and Trust|Trust Co|Trust Company|National Association|NA|Corp|Inc|LLC|Co)\b/gi, '')
+      .trim();
+    const url = `https://banks.data.fdic.gov/api/institutions?filters=NAME%3A${encodeURIComponent(searchName)}&fields=NAME,CERT,ASSET,NETINC,REPDTE,CITY,STALP,ACTIVE,ESTYMD,EQ,DEP,INTINC,NONII,NONIX,EFFICIENCYRATE,ROA,NIM,LVRATIO&limit=3&sort_by=ASSET&sort_order=DESC&output=json`;
     
     const res = await fetch(url, {
       headers: { 'User-Agent': 'DRiX-CompanyIntel/1.0' },
@@ -508,14 +513,14 @@ async function getBuyingCommittee(companyName, domain, industry, solutionCategor
           'X-Title': 'DRiX Company Intel',
         },
         body: JSON.stringify({
-          model: modelId || 'anthropic/claude-sonnet-4.5',
+          model: 'google/gemini-2.5-flash', // Fast model for structured committee generation
           messages: [
             { role: 'system', content: 'You generate structured buying committee intelligence. Return JSON only, no markdown.' },
             { role: 'user', content: prompt },
           ],
           response_format: { type: 'json_object' },
           temperature: 0.2,
-          max_tokens: 2000,
+          max_tokens: 1200,
         }),
         signal: AbortSignal.timeout(30000),
       });
@@ -666,15 +671,15 @@ async function synthesizeDealSignals(companyName, emailSecurity, financial, tech
         'HTTP-Referer': 'https://drix.nyniimpact.com',
         'X-Title': 'DRiX Company Intel',
       },
-      body: JSON.stringify({
-        model: modelId || 'anthropic/claude-sonnet-4.5',
-        messages: [
-          { role: 'system', content: 'You are a B2B sales intelligence synthesizer. Return JSON only.' },
-          { role: 'user', content: prompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.2,
-        max_tokens: 3000,
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'You are a B2B sales intelligence synthesizer. Return JSON only.' },
+            { role: 'user', content: prompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.2,
+          max_tokens: 2000,
       }),
       signal: AbortSignal.timeout(45000),
     });

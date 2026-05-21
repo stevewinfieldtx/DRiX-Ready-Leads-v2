@@ -1134,6 +1134,118 @@ app.get('/api/test-llm', async (_req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+// DRiX INVESTOR — profile a target investor, then position the solution to win
+// them. Reuses the SAME engine as the sales flow: ingestOne() → 9D atoms, and
+// callLLM(). The investor is ingested as role "customer" (the entity we analyze);
+// the solution is what the founder is raising for. Output: a fundraising
+// positioning brief built on an Investment Personality Profile (IPP).
+// ════════════════════════════════════════════════════════════════════════════
+const INVESTOR_POSITIONING_PROMPT = `You are DRiX Investor, the fundraising-positioning brain of the Targeted Decomposition Engine.
+
+INPUT: two sets of 9D-tagged atoms — "investor" (decomposed from a target investor's public footprint) and "solution" (decomposed from the company/product raising capital). Plus "investor_type" ("individual" or "company").
+
+TASK: produce a positioning brief for how the founder should pitch the solution to THIS investor. Ground every claim in the provided atoms. Never invent a thesis, a portfolio fact, or a capability the atoms do not support — a fabricated specific is worse than an honest gap.
+
+INVESTOR_TYPE GUIDANCE:
+- "individual" (angel / GP / operator-investor): weight personal conviction drivers, emotional drivers, motivation/value-add, and communication style. Angels decide on personal conviction and move fast.
+- "company" (fund / firm): weight thesis & mandate, stage/sector/check fit, decision process, and who the likely champion partner is.
+
+OUTPUT — valid JSON only, no markdown fences:
+{
+  "investor_name": "<from investor atoms>",
+  "investment_personality_profile": {
+    "thesis": "<what they back, one or two sentences>",
+    "conviction_drivers": ["<3-6 things that make THIS investor lean in: founder/team, market size, traction, IP/moat, timing, mission, etc.>"],
+    "deal_breakers": ["<2-5 things that make them hesitate or pass — their inertia / risk posture>"],
+    "evidence_preference": "<what proof moves them: hard metrics | narrative/vision | social proof | founder pedigree | live demo>",
+    "decision_style": "<fast/solo vs slow/committee; data-led vs founder-led; thesis-first vs opportunistic>",
+    "confidence": "high | medium | low"
+  },
+  "fit_score": <0-100 integer>,
+  "fit_rationale": "<one sentence>",
+  "lead_with": [
+    { "conviction_driver": "<their driver>", "solution_strength": "<the specific solution capability/atom that satisfies it>", "why": "<one sentence>" }
+  ],
+  "preempt": [
+    { "deal_breaker": "<their likely reason to pass>", "mitigation": "<how the solution neutralizes it, grounded in solution atoms>" }
+  ],
+  "opening_line": "<one sentence to open the conversation, tuned to this person>",
+  "gaps": ["<what the atoms could NOT tell you — be honest>"]
+}
+
+DISCIPLINE:
+- "lead_with": exactly 3 pairs, each a DIFFERENT conviction driver. This mirrors the (Persona x Pain) anchoring of the sales engine: here it is (Conviction Driver x Solution Strength).
+- "preempt": exactly 2 pairs — (Deal-Breaker x Mitigation). Use the solution's real strengths to defuse the investor's reasons to pass.
+- If investor atoms are thin, say so in "gaps" and lower "confidence". Do not pad with generic VC language.`;
+
+// SSE: ingest the investor + the solution, then stream a positioning brief.
+app.post('/api/investor-flow', async (req, res) => {
+  const {
+    investor_url,
+    investor_name,
+    investor_type,        // "individual" | "company"
+    solution_url,
+    refresh_investor,
+    refresh_solution,
+    docs_investor,
+    docs_solution,
+  } = req.body || {};
+
+  if (!investor_url) return res.status(400).json({ error: 'Require investor_url' });
+  if (!solution_url) return res.status(400).json({ error: 'Require solution_url' });
+  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none');
+  res.flushHeaders?.();
+  const keepAlive = setInterval(() => { try { res.write(':keepalive\n\n'); } catch {} }, 15000);
+  const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  const run_id = `inv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    const t0 = Date.now();
+    send('phase', { phase: 'fetch', message: 'Fetching investor + solution in parallel…' });
+
+    const investorPromise = ingestOne({ url: normUrl(investor_url), role: 'customer', hint_name: investor_name || null, skipCache: !!refresh_investor, supplementalDocs: docs_investor || null });
+    const solutionPromise = ingestOne({ url: normUrl(solution_url), role: 'solution', skipCache: !!refresh_solution, supplementalDocs: docs_solution || null });
+
+    const [investorRes, solutionRes] = await Promise.allSettled([investorPromise, solutionPromise]);
+    if (investorRes.status === 'rejected') throw new Error(`Investor: ${investorRes.reason.message}`);
+    if (solutionRes.status === 'rejected') throw new Error(`Solution: ${solutionRes.reason.message}`);
+    const investor = investorRes.value;
+    const solution = solutionRes.value;
+
+    const ingestMs = Date.now() - t0;
+    send('phase', { phase: 'ingest', message: `Investor + solution decomposed into 9D-tagged atoms (${Math.round(ingestMs/1000)}s).` });
+    send('atoms', {
+      investor: { target: investor.target, summary: investor.summary, atoms: investor.atoms, source: investor.source },
+      solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source },
+    });
+
+    send('phase', { phase: 'positioning', message: 'Building the Investment Personality Profile and positioning brief…' });
+    const userContent = JSON.stringify({
+      investor_type: (investor_type === 'company' ? 'company' : 'individual'),
+      investor: { name: investor.target?.name || investor_name || 'Investor', summary: investor.summary, atoms: investor.atoms },
+      solution: { name: solution.target?.name || 'Solution', summary: solution.summary, atoms: solution.atoms },
+    });
+    const brief = await callLLM(INVESTOR_POSITIONING_PROMPT, userContent, { maxTokens: 6000, temperature: 0.4 });
+
+    send('positioning', { run_id, brief });
+    send('done', { run_id, elapsed_ms: Date.now() - t0 });
+  } catch (err) {
+    console.error(`[investor-flow] ${err.message}`);
+    send('error', { error: err.message });
+  } finally {
+    clearInterval(keepAlive);
+    try { res.end(); } catch {}
+  }
+});
+
 // Main demo flow — streaming SSE
 // Phases: fetch (parallel) → ingest (parallel) → pain (immediate) → strategies (1 LLM call)
 app.post('/api/demo-flow', async (req, res) => {
