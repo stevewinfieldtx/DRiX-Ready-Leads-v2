@@ -4574,6 +4574,13 @@ app.post('/api/company-intel', async (req, res) => {
   }
 });
 
+// ─── STANDALONE PAGES ────────────────────────────────────────────────────────
+// Serve the standalone investor tool at /investor (extensionless). Must sit
+// before the SPA catch-all below, or the wildcard route claims it first.
+app.get('/investor', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'investor.html'));
+});
+
 // ─── SPA FALLBACK ────────────────────────────────────────────────────────────
 // For any non-API routes that don't match a static file, serve the React app
 const fs = require('fs');
