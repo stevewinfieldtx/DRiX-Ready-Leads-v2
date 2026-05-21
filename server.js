@@ -4575,11 +4575,18 @@ app.post('/api/company-intel', async (req, res) => {
 });
 
 // ─── STANDALONE PAGES ────────────────────────────────────────────────────────
-// Serve the standalone investor tool at /investor (extensionless). Must sit
-// before the SPA catch-all below, or the wildcard route claims it first.
-app.get('/investor', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'investor.html'));
-});
+// Serve the standalone HTML tools at extensionless paths. These must sit before
+// the SPA catch-all below, or the wildcard route claims them first.
+const STANDALONE_PAGES = {
+  '/investor': 'investor.html',
+  '/comparison': 'comparison.html',
+  '/atomize': 'atomize.html',
+};
+for (const [route, file] of Object.entries(STANDALONE_PAGES)) {
+  app.get(route, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', file));
+  });
+}
 
 // ─── SPA FALLBACK ────────────────────────────────────────────────────────────
 // For any non-API routes that don't match a static file, serve the React app

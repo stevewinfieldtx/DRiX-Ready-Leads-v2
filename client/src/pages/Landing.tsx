@@ -381,6 +381,12 @@ export default function Landing() {
               by WinTech Partners
             </div>
           </div>
+          {/* Standalone tools: plain anchors trigger a full page load to the server-rendered pages, not react-router routes */}
+          <div className="mt-8 pt-6 border-t border-drix-border/30 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <a href="/investor" className="text-xs text-drix-muted hover:text-drix-text tracking-wide uppercase transition-colors">Investor</a>
+            <a href="/comparison" className="text-xs text-drix-muted hover:text-drix-text tracking-wide uppercase transition-colors">Comparison</a>
+            <a href="/atomize" className="text-xs text-drix-muted hover:text-drix-text tracking-wide uppercase transition-colors">Atomize</a>
+          </div>
         </div>
       </footer>
     </div>
