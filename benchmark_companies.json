@@ -1,0 +1,17 @@
+{
+  "_notice": "Real target companies for the DRiX vs Standard-AI benchmark. The DRiX side LIVE-SCRAPES each company_url, so these MUST be real, reachable domains. Edit freely: add/remove companies, but keep them real. ~12 is a reasonable starting N; more companies = tighter confidence interval.",
+  "companies": [
+    { "company_name": "Notion",     "company_url": "https://www.notion.so" },
+    { "company_name": "HubSpot",    "company_url": "https://www.hubspot.com" },
+    { "company_name": "Datadog",    "company_url": "https://www.datadoghq.com" },
+    { "company_name": "Snowflake",  "company_url": "https://www.snowflake.com" },
+    { "company_name": "Gusto",      "company_url": "https://www.gusto.com" },
+    { "company_name": "Ramp",       "company_url": "https://ramp.com" },
+    { "company_name": "Asana",      "company_url": "https://asana.com" },
+    { "company_name": "Zendesk",    "company_url": "https://www.zendesk.com" },
+    { "company_name": "Twilio",     "company_url": "https://www.twilio.com" },
+    { "company_name": "Shopify",    "company_url": "https://www.shopify.com" },
+    { "company_name": "Okta",       "company_url": "https://www.okta.com" },
+    { "company_name": "Airtable",   "company_url": "https://www.airtable.com" }
+  ]
+}
