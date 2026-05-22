@@ -1154,6 +1154,14 @@ DUAL-ENTITY RULE (critical):
 - If mode is "individual", center personal conviction drivers, emotional drivers, communication style, and how this person decides (angels move on personal conviction, fast). Set firm-only fields to null where they don't apply.
 - If mode is "firm", center thesis & mandate, stage/sector/check fit, decision process, and who the likely champion partner is. Set individual-only fields to null where they don't apply.
 
+INVESTOR LENS (READ THROUGH THE DAY JOB — CRITICAL):
+A person's public footprint is mostly about their OPERATING role — their company, title, what they build or run. That is raw material, NOT the subject. You are profiling them AS A CAPITAL ALLOCATOR / DECISION-MAKER ON THIS RAISE, not writing their career bio. Relentlessly translate every operating signal into an INVESTING implication:
+- What does their domain/operating background make them uniquely able to JUDGE in a pitch — and uniquely SKEPTICAL of? (An operator who scaled X will probe your X claims hard and respect operational specifics over vision.)
+- What earns their respect and trust in the room given who they are, and what reads as naive or hand-wavy to someone with their experience?
+- How does their operating lens shape what they consider a real moat, real traction, or a real market — versus what they'll dismiss?
+- What is their likely motivation for investing at all (returns, strategic edge, staying close to a domain they love, status, helping operators like their younger self)?
+Do NOT restate their job description or list their accomplishments. If a section would read like a résumé, you've failed — convert it into "therefore, as an investor, they will…". Every field in investor_profile, meeting_psychology, and pitch_guidance must be expressed in terms of the investment decision and the fundraising conversation, not their employment.
+
 DISCIPLINE:
 - Ground EVERY claim in the provided atoms. Never invent a thesis, a portfolio fact, a quote, or a solution capability the atoms do not support — a fabricated specific is worse than an honest gap.
 - Infer patterns deeply; surface non-obvious dynamics. Distinguish stated thesis from actual behavior, and surface messaging from true motivation.
@@ -1165,7 +1173,7 @@ OUTPUT — valid JSON only, no markdown fences, this exact shape:
 {
   "subjects": { "individual_name": "<name or null>", "firm_name": "<name or null>", "solution_name": "<name>" },
   "executive_summary": {
-    "how_they_think": "<one paragraph: how this investor actually thinks>",
+    "how_they_think": "<one paragraph: how this investor actually thinks AS AN ALLOCATOR — their investing instincts and what drives a yes/no, not a recap of their job>",
     "does_it_fit": "<one paragraph: whether this company fits, honestly>",
     "highest_leverage_angle": "<one paragraph: the single highest-leverage positioning angle>"
   },
@@ -1174,7 +1182,7 @@ OUTPUT — valid JSON only, no markdown fences, this exact shape:
     "business_model": <1-10>, "long_term": <1-10>, "overall": <1-10>
   },
   "investor_profile": {
-    "investment_philosophy": "<paragraph: what they fundamentally believe, what excites them, repeated public patterns>",
+    "investment_philosophy": "<paragraph: what they fundamentally believe AS AN INVESTOR — what kind of bets excite them and why, inferred from their background and any public signal; not a description of their company or role>",
     "decision_making_style": ["<what they optimize for: narrative | founder quality | metrics | defensibility | growth | technical depth | timing | market structure | operational excellence | durability — 3-6 items>"],
     "personality_behavioral": ["<inferred traits: conversational style, ego sensitivity, patience, detail-vs-vision, skepticism, emotional drivers, prestige sensitivity, risk tolerance — 4-7 items>"],
     "red_flags": ["<things they dislike, common founder mistakes with them, weak angles, credibility-losing phrases, distrusted metrics — 3-6 items>"],
