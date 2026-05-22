@@ -22,11 +22,15 @@
   label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
   input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fbfcfe}
   input[type=text]:focus{outline:none;border-color:var(--navy2);background:#fff}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-  .seg button{border:0;background:#fff;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
-  .seg button.on{background:var(--navy);color:#fff}
   .row{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}
-  .run{margin-top:18px;background:var(--gold);color:#fff;border:0;border-radius:10px;padding:13px 26px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .subcard{border:1px solid var(--line);border-radius:11px;padding:16px;margin-bottom:14px;background:#fbfcfe}
+  .subcard.solution{border-left:4px solid var(--gold)}
+  .subcard.individual{border-left:4px solid var(--navy2)}
+  .subcard.firm{border-left:4px solid var(--good)}
+  .subcard h3{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);display:flex;align-items:center;gap:8px}
+  .subcard h3 .opt{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.3px;text-transform:none}
+  .subcard h3 .req{font-size:10px;font-weight:700;color:var(--gold);letter-spacing:.3px}
+  .run{margin-top:6px;background:var(--gold);color:#fff;border:0;border-radius:10px;padding:13px 26px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.2px}
   .run:hover{background:#a5780a}
   .run:disabled{opacity:.5;cursor:not-allowed}
   .hint{font-size:12px;color:var(--muted);margin-top:8px}
@@ -40,24 +44,45 @@
   .counts{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
   .chip{background:#eef2f9;border:1px solid var(--line);border-radius:20px;padding:6px 13px;font-size:13px;font-weight:600;color:var(--navy)}
   .chip b{color:var(--gold)}
-  .brief h2{font-size:15px;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--gold);padding-bottom:6px;margin:22px 0 12px}
-  .score{display:flex;align-items:center;gap:16px;margin-bottom:6px}
-  .score .num{font-size:46px;font-weight:800;color:var(--navy);line-height:1}
-  .score .of{font-size:16px;color:var(--muted);font-weight:600}
-  .ipp{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px}
-  .ipp .k{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-  .ipp .v{font-size:14px;margin:2px 0 10px}
-  ul.tags{list-style:none;padding:0;margin:2px 0 10px;display:flex;flex-wrap:wrap;gap:7px}
+  .brief h2{font-size:15px;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--gold);padding-bottom:6px;margin:26px 0 12px}
+  .brief h3.sub{font-size:12px;color:var(--navy2);text-transform:uppercase;letter-spacing:.4px;margin:14px 0 6px;font-weight:700}
+  .memo-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:8px}
+  .memo-head .who{font-size:20px;font-weight:800;color:var(--navy)}
+  .memo-head .who small{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:3px;text-transform:none;letter-spacing:0}
+  .para{font-size:14px;line-height:1.55;margin:6px 0 12px}
+  .k{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:8px}
+  .v{font-size:14px;margin:2px 0 10px;line-height:1.5}
+  ul.tags{list-style:none;padding:0;margin:4px 0 12px;display:flex;flex-wrap:wrap;gap:7px}
   ul.tags li{background:#eef2f9;border-radius:7px;padding:5px 10px;font-size:13px}
-  .pair{border:1px solid var(--line);border-left:5px solid var(--gold);border-radius:8px;padding:11px 14px;margin-bottom:9px;background:#fffdf7}
+  ul.bullets{margin:4px 0 12px;padding-left:20px}
+  ul.bullets li{font-size:14px;margin-bottom:5px;line-height:1.45}
+  ul.bullets.good li::marker{color:var(--good)}
+  ul.bullets.bad li::marker{color:var(--bad)}
+  .scoregrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:10px 0 4px}
+  .scorecell{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fbfcfe}
+  .scorecell .lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .scorecell .val{font-size:24px;font-weight:800;color:var(--navy);line-height:1.1}
+  .scorecell .val span{font-size:13px;color:var(--muted);font-weight:600}
+  .scorecell.overall{background:var(--navy);border-color:var(--navy)}
+  .scorecell.overall .lbl{color:#cdd8ee}
+  .scorecell.overall .val{color:#fff}
+  .scorecell.overall .val span{color:#aebbd6}
+  .bar{height:5px;border-radius:3px;background:#e3e7ee;margin-top:6px;overflow:hidden}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--navy2),var(--gold2))}
+  .pair{border:1px solid var(--line);border-left:5px solid var(--navy2);border-radius:8px;padding:11px 14px;margin-bottom:9px;background:#f6f9ff}
   .pair .a{font-weight:700;color:var(--navy);font-size:14px}
   .pair .b{font-size:14px;margin-top:3px}
   .pair .c{font-size:13px;color:var(--muted);margin-top:4px;font-style:italic}
-  .preempt .pair{border-left-color:var(--navy2);background:#f6f9ff}
-  .opening{background:var(--navy);color:#fff;border-radius:10px;padding:16px 18px;font-size:16px;line-height:1.5}
-  .gaps{font-size:13px;color:var(--warn)}
+  .opening{background:var(--navy);color:#fff;border-radius:10px;padding:16px 18px;font-size:15px;line-height:1.55}
+  .gaps{color:var(--warn)}
   .conf{font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px}
   .conf.high{background:#e4f4ea;color:var(--good)} .conf.medium{background:#fdf3df;color:var(--warn)} .conf.low{background:#fbe9e9;color:var(--bad)}
+  .verdict{display:inline-block;font-size:14px;font-weight:800;padding:8px 16px;border-radius:9px;text-transform:uppercase;letter-spacing:.5px}
+  .verdict.go{background:#e4f4ea;color:var(--good)}
+  .verdict.maybe{background:#fdf3df;color:var(--warn)}
+  .verdict.no{background:#fbe9e9;color:var(--bad)}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+  @media(max-width:760px){.twocol{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
   .err{background:#fbe9e9;border:1px solid #f0c4c4;color:var(--bad);padding:12px 14px;border-radius:9px;font-size:14px;margin-top:12px}
   .adv{margin-top:10px;font-size:12px;color:var(--muted)}
   details summary{cursor:pointer;color:var(--navy2);font-size:13px;font-weight:600}
@@ -66,36 +91,51 @@
 <body>
 <header>
   <h1>DRiX Investor</h1>
-  <div class="tag">Profile the investor. Position the raise. <b>The engine reads the room.</b></div>
+  <div class="tag">Profile the person <b>and</b> the firm. Position the raise. <b>The engine reads the room.</b></div>
 </header>
 
 <div class="wrap">
   <div class="panel">
-    <div class="grid">
-      <div>
-        <label>Investor — public page (bio, fund page, interview, talk)</label>
-        <input id="investor_url" type="text" placeholder="https://…  (LinkedIn won't scrape — use a content-rich page)" />
-      </div>
-      <div>
-        <label>Investor name (optional)</label>
-        <input id="investor_name" type="text" placeholder="Dr. Warren Linger" />
-      </div>
-    </div>
-    <div class="row">
-      <div>
-        <label>Investor type</label>
-        <div class="seg" id="seg">
-          <button data-v="individual" class="on">Individual / Angel</button>
-          <button data-v="company">Fund / Firm</button>
+    <!-- INDIVIDUAL -->
+    <div class="subcard individual">
+      <h3>Individual investor <span class="opt">— the partner / angel in the room (optional)</span></h3>
+      <div class="grid">
+        <div>
+          <label>Public page (bio, interview, talk, posts)</label>
+          <input id="individual_url" type="text" placeholder="https://…  (LinkedIn won't scrape — use a content-rich page)" />
+        </div>
+        <div>
+          <label>Name (optional)</label>
+          <input id="individual_name" type="text" placeholder="Dr. Warren Linger" />
         </div>
       </div>
-      <div style="flex:1;min-width:260px">
-        <label>Your solution — site or deck URL</label>
-        <input id="solution_url" type="text" placeholder="https://wintechpartners.com" />
+    </div>
+
+    <!-- FIRM -->
+    <div class="subcard firm">
+      <h3>Fund / Firm <span class="opt">— the fund's thesis &amp; mandate (optional)</span></h3>
+      <div class="grid">
+        <div>
+          <label>Firm page (thesis, portfolio, team)</label>
+          <input id="firm_url" type="text" placeholder="https://fund.com" />
+        </div>
+        <div>
+          <label>Firm name (optional)</label>
+          <input id="firm_name" type="text" placeholder="Linger Capital" />
+        </div>
       </div>
     </div>
+
+    <!-- SOLUTION -->
+    <div class="subcard solution">
+      <h3>Your solution <span class="req">— required</span></h3>
+      <label>Site or deck URL</label>
+      <input id="solution_url" type="text" placeholder="https://wintechpartners.com" />
+    </div>
+
     <button class="run" id="run">Run DRiX Investor →</button>
-    <div class="hint">Decomposes both into 9D-tagged atoms, builds an Investment Personality Profile, and positions your solution to win this investor.</div>
+    <div class="hint">Provide an individual, a firm, or both. The engine decomposes each into 9D-tagged atoms and builds a confidential briefing memo: investor psychology, fit scores, positioning, meeting tactics, and a final recommendation. When you provide both, it analyzes the person <b>and</b> the firm — and where they reinforce or conflict.</div>
+
     <details class="adv"><summary>Advanced</summary>
       <div class="row" style="margin-top:10px">
         <div style="flex:1;min-width:260px">
@@ -121,12 +161,6 @@
 
 <script>
 const $ = id => document.getElementById(id);
-let investorType = 'individual';
-$('seg').addEventListener('click', e => {
-  const b = e.target.closest('button'); if(!b) return;
-  investorType = b.dataset.v;
-  [...$('seg').children].forEach(x => x.classList.toggle('on', x===b));
-});
 
 function phaseEl(msg){
   const d = document.createElement('div'); d.className='phase';
@@ -134,13 +168,17 @@ function phaseEl(msg){
   $('phases').appendChild(d); return d;
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function safeJSON(s){ try{return JSON.parse(s);}catch(e){return {};} }
+const arr = x => Array.isArray(x) ? x : (x ? [x] : []);
 
 $('run').addEventListener('click', run);
 
 async function run(){
-  const investor_url = $('investor_url').value.trim();
+  const individual_url = $('individual_url').value.trim();
+  const firm_url = $('firm_url').value.trim();
   const solution_url = $('solution_url').value.trim();
-  if(!investor_url || !solution_url){ alert('Need an investor URL and a solution URL.'); return; }
+  if(!solution_url){ alert('Need your solution URL.'); return; }
+  if(!individual_url && !firm_url){ alert('Provide at least one investor URL — an individual, a firm, or both.'); return; }
   const apiBase = $('api_base').value.trim().replace(/\/+$/,'');
 
   $('run').disabled = true;
@@ -149,12 +187,15 @@ async function run(){
   $('phases').innerHTML=''; $('counts').innerHTML=''; $('errBox').innerHTML='';
   let cur = phaseEl('Starting…');
 
+  const refresh = $('refresh').checked || undefined;
   const body = {
-    investor_url, solution_url,
-    investor_name: $('investor_name').value.trim() || undefined,
-    investor_type: investorType,
-    refresh_investor: $('refresh').checked || undefined,
-    refresh_solution: $('refresh').checked || undefined,
+    solution_url,
+    individual_url: individual_url || undefined,
+    individual_name: $('individual_name').value.trim() || undefined,
+    firm_url: firm_url || undefined,
+    firm_name: $('firm_name').value.trim() || undefined,
+    refresh_investor: refresh,
+    refresh_solution: refresh,
   };
 
   try{
@@ -190,13 +231,17 @@ async function run(){
   function handle(ev, d, markDone){
     if(ev==='phase'){ markDone(); cur = phaseEl(d.message || d.phase); }
     else if(ev==='atoms'){
-      const inv = (d.investor && d.investor.atoms) ? d.investor.atoms.length : 0;
-      const sol = (d.solution && d.solution.atoms) ? d.solution.atoms.length : 0;
-      const iname = d.investor && d.investor.target && d.investor.target.name ? d.investor.target.name : 'Investor';
-      const sname = d.solution && d.solution.target && d.solution.target.name ? d.solution.target.name : 'Solution';
-      $('counts').innerHTML =
-        '<span class="chip">'+esc(iname)+': <b>'+inv+'</b> atoms</span>'+
-        '<span class="chip">'+esc(sname)+': <b>'+sol+'</b> atoms</span>';
+      const chips = [];
+      const mk = (obj, fallback) => {
+        if(!obj) return;
+        const n = obj.target && obj.target.name ? obj.target.name : fallback;
+        const c = obj.atoms ? obj.atoms.length : 0;
+        chips.push('<span class="chip">'+esc(n)+': <b>'+c+'</b> atoms</span>');
+      };
+      mk(d.individual, 'Individual');
+      mk(d.firm, 'Firm');
+      mk(d.solution, 'Solution');
+      $('counts').innerHTML = chips.join('');
     }
     else if(ev==='positioning'){ markDone(); renderBrief(d.brief); }
     else if(ev==='done'){ markDone(); const s=phaseEl('Done'+(d.elapsed_ms?(' — '+(d.elapsed_ms/1000).toFixed(1)+'s'):'')); s.classList.add('done'); }
@@ -204,42 +249,154 @@ async function run(){
   }
 }
 
-function safeJSON(s){ try{return JSON.parse(s);}catch(e){return {};} }
+// ── Renderers ──
+function pPara(label, text){ return text ? '<div class="k">'+esc(label)+'</div><div class="para">'+esc(text)+'</div>' : ''; }
+function pBullets(label, items, cls){
+  const a = arr(items); if(!a.length) return '';
+  return (label?'<h3 class="sub">'+esc(label)+'</h3>':'')+'<ul class="bullets'+(cls?' '+cls:'')+'">'+a.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+}
+function pTags(label, items){
+  const a = arr(items); if(!a.length) return '';
+  return '<div class="k">'+esc(label)+'</div><ul class="tags">'+a.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+}
+function scoreCell(lbl, v, overall){
+  if(v==null) return '';
+  const pct = Math.max(0,Math.min(100, (Number(v)||0)*10));
+  return '<div class="scorecell'+(overall?' overall':'')+'"><div class="lbl">'+esc(lbl)+'</div>'+
+         '<div class="val">'+esc(v)+'<span>/10</span></div>'+
+         '<div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+}
 
 function renderBrief(b){
-  if(!b){ return; }
-  const ipp = b.investment_personality_profile || {};
-  const conf = (ipp.confidence||'').toLowerCase();
-  const arr = x => Array.isArray(x)? x : (x? [x]: []);
+  if(!b){ $('briefStage').innerHTML = '<div class="err">No brief returned.</div>'; $('briefStage').classList.add('show'); return; }
+  const s = b.subjects || {};
+  const conf = (b.confidence||'').toLowerCase();
   let h = '';
-  h += '<div class="score"><div class="num">'+(b.fit_score!=null?b.fit_score:'—')+'</div><div class="of">/ 100 fit'+
-       (conf?'  &nbsp;<span class="conf '+esc(conf)+'">'+esc(ipp.confidence)+' confidence</span>':'')+'</div></div>';
-  if(b.fit_rationale) h += '<div class="v" style="margin-bottom:6px">'+esc(b.fit_rationale)+'</div>';
 
-  h += '<h2>Investment Personality Profile'+(b.investor_name?' — '+esc(b.investor_name):'')+'</h2>';
-  h += '<div class="ipp">';
-  if(ipp.thesis){ h+='<div style="grid-column:1/3"><div class="k">Thesis</div><div class="v">'+esc(ipp.thesis)+'</div></div>'; }
-  if(ipp.evidence_preference){ h+='<div><div class="k">Evidence they trust</div><div class="v">'+esc(ipp.evidence_preference)+'</div></div>'; }
-  if(ipp.decision_style){ h+='<div><div class="k">Decision style</div><div class="v">'+esc(ipp.decision_style)+'</div></div>'; }
-  h += '</div>';
-  if(arr(ipp.conviction_drivers).length){ h+='<div class="k">Conviction drivers</div><ul class="tags">'+arr(ipp.conviction_drivers).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'; }
-  if(arr(ipp.deal_breakers).length){ h+='<div class="k">Deal-breakers / risk posture</div><ul class="tags">'+arr(ipp.deal_breakers).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'; }
+  // Head
+  const whoBits = [];
+  if(s.individual_name) whoBits.push(esc(s.individual_name));
+  if(s.firm_name) whoBits.push(esc(s.firm_name));
+  const who = whoBits.length ? whoBits.join('  ·  ') : 'Investor';
+  h += '<div class="memo-head"><div class="who">'+who+
+       '<small>Confidential briefing memo · positioning '+esc(s.solution_name||'your solution')+'</small></div>'+
+       (conf?'<span class="conf '+esc(conf)+'">'+esc(b.confidence)+' confidence</span>':'')+'</div>';
 
-  if(arr(b.lead_with).length){
-    h += '<h2>Lead with</h2>';
-    arr(b.lead_with).forEach(p=>{
-      h += '<div class="pair"><div class="a">'+esc(p.conviction_driver||'')+'  →  '+esc(p.solution_strength||'')+'</div>'+
-           (p.why?'<div class="c">'+esc(p.why)+'</div>':'')+'</div>';
-    });
+  // 1. Executive summary
+  const ex = b.executive_summary || {};
+  if(ex.how_they_think || ex.does_it_fit || ex.highest_leverage_angle){
+    h += '<h2>1 · Executive Summary</h2>';
+    h += pPara('How they think', ex.how_they_think);
+    h += pPara('Does it fit', ex.does_it_fit);
+    h += pPara('Highest-leverage angle', ex.highest_leverage_angle);
   }
-  if(arr(b.preempt).length){
-    h += '<h2>Preempt</h2><div class="preempt">';
-    arr(b.preempt).forEach(p=>{
-      h += '<div class="pair"><div class="a">'+esc(p.deal_breaker||'')+'</div><div class="b">'+esc(p.mitigation||'')+'</div></div>';
-    });
+
+  // Fit scores
+  const fs = b.fit_scores || {};
+  if(Object.keys(fs).length){
+    h += '<h3 class="sub">Fit scores</h3><div class="scoregrid">';
+    h += scoreCell('Strategic', fs.strategic);
+    h += scoreCell('Stage', fs.stage);
+    h += scoreCell('Market', fs.market);
+    h += scoreCell('Founder', fs.founder);
+    h += scoreCell('Business model', fs.business_model);
+    h += scoreCell('Long-term', fs.long_term);
+    h += scoreCell('Overall', fs.overall, true);
     h += '</div>';
   }
-  if(b.opening_line){ h += '<h2>The opening line</h2><div class="opening">“'+esc(b.opening_line)+'”</div>'; }
+
+  // 2. Investor profile
+  const ip = b.investor_profile || {};
+  if(Object.keys(ip).length){
+    h += '<h2>2 · Investor Profile</h2>';
+    h += pPara('Investment philosophy', ip.investment_philosophy);
+    h += pBullets('Decision-making style', ip.decision_making_style);
+    h += pBullets('Personality &amp; behavioral style', ip.personality_behavioral);
+    h += pBullets('Likely red flags', ip.red_flags, 'bad');
+    h += pBullets('Hidden motivators', ip.hidden_motivators, 'good');
+    if(ip.individual_vs_firm) h += pPara('Individual vs. firm dynamic', ip.individual_vs_firm);
+  }
+
+  // 3. Company fit
+  const cf = b.company_fit || {};
+  if(Object.keys(cf).length){
+    h += '<h2>3 · Company Fit</h2>';
+    h += '<div class="twocol"><div>'+pBullets('Strong alignment', cf.strong_alignment, 'good')+'</div>'+
+         '<div>'+pBullets('Weak alignment', cf.weak_alignment, 'bad')+'</div></div>';
+    h += pBullets('What must be proven', cf.must_prove);
+    h += pPara('Strategic reframing', cf.strategic_reframing);
+  }
+
+  // 4. Positioning
+  const po = b.positioning || {};
+  if(Object.keys(po).length){
+    h += '<h2>4 · Positioning Strategy</h2>';
+    if(po.one_sentence) h += '<div class="opening">“'+esc(po.one_sentence)+'”</div>';
+    h += pPara('Strategic narrative', po.narrative);
+    h += '<div class="twocol"><div>'+pPara('Why now', po.why_now)+pPara('Defensibility', po.defensibility)+'</div>'+
+         '<div>'+pPara('Competitive framing', po.competitive_framing)+pPara('Growth narrative', po.growth)+'</div></div>';
+  }
+
+  // 5. Meeting psychology
+  const mp = b.meeting_psychology || {};
+  if(Object.keys(mp).length){
+    h += '<h2>5 · Meeting Psychology</h2>';
+    h += pPara('How to start', mp.how_to_start);
+    h += pTags('Keep returning to', mp.keep_returning_to);
+    h += '<div class="twocol"><div>'+pBullets('What makes them lean in', mp.make_them_lean_in, 'good')+'</div>'+
+         '<div>'+pBullets('What loses them', mp.what_loses_them, 'bad')+'</div></div>';
+    const pb = arr(mp.handling_pushback);
+    if(pb.length){
+      h += '<h3 class="sub">Handling pushback</h3>';
+      pb.forEach(p=>{
+        h += '<div class="pair"><div class="a">'+esc(p.objection||'')+'</div>'+
+             (p.really_testing?'<div class="c">Really testing: '+esc(p.really_testing)+'</div>':'')+
+             (p.response?'<div class="b">→ '+esc(p.response)+'</div>':'')+'</div>';
+      });
+    }
+    h += pTags('Optimal conversation style', mp.optimal_style);
+  }
+
+  // 6. Talking points
+  const tp = b.talking_points || {};
+  if(Object.keys(tp).length){
+    h += '<h2>6 · High-Impact Talking Points</h2>';
+    h += pBullets('Talking points', tp.talking_points);
+    h += pBullets('Questions to ask the investor', tp.questions_to_ask);
+    h += pBullets('Strategic insights likely to impress', tp.strategic_insights, 'good');
+    h += pTags('Phrases / concepts that resonate', tp.resonant_phrases);
+  }
+
+  // 7. Pitch guidance
+  const pg = b.pitch_guidance || {};
+  if(Object.keys(pg).length){
+    h += '<h2>7 · Investor-Specific Pitch Guidance</h2>';
+    h += '<div class="twocol"><div>'+pBullets('Emphasize', pg.emphasize, 'good')+'</div>'+
+         '<div>'+pBullets('De-emphasize', pg.de_emphasize)+'</div></div>';
+    h += pBullets('Avoid completely', pg.avoid, 'bad');
+    h += pPara('Slide that matters most', pg.most_important_slide);
+    h += pPara('Metric that matters most', pg.most_important_metric);
+    h += pPara('Ambition that resonates', pg.ambition_that_resonates);
+  }
+
+  // 8. Operating guide
+  const og = b.operating_guide || {};
+  if(Object.keys(og).length){
+    h += '<h2>8 · Meeting Operating Guide</h2>';
+    if(og.opening_script){ h += '<div class="k">Opening script</div><div class="opening">“'+esc(og.opening_script)+'”</div>'; }
+    h += pTags('Core conviction loop', og.core_conviction_loop);
+    h += pPara('Emotional goal', og.emotional_goal);
+    h += pPara('Most important insight', og.most_important_insight);
+    const fr = og.final_recommendation || {};
+    if(fr.verdict){
+      const v = fr.verdict.toLowerCase();
+      const cls = v.includes('aggressive')?'go' : (v.includes('avoid')||v.includes('deprioritize'))?'no' : 'maybe';
+      h += '<div class="k">Final recommendation</div><div style="margin:4px 0 10px"><span class="verdict '+cls+'">'+esc(fr.verdict)+'</span></div>';
+      if(fr.why) h += '<div class="para">'+esc(fr.why)+'</div>';
+    }
+  }
+
+  // Gaps
   if(arr(b.gaps).length){ h += '<h2>Honest gaps</h2><ul class="tags gaps">'+arr(b.gaps).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'; }
 
   $('briefStage').innerHTML = h;

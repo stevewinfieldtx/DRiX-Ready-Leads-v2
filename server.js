@@ -1141,59 +1141,126 @@ app.get('/api/test-llm', async (_req, res) => {
 // the solution is what the founder is raising for. Output: a fundraising
 // positioning brief built on an Investment Personality Profile (IPP).
 // ════════════════════════════════════════════════════════════════════════════
-const INVESTOR_POSITIONING_PROMPT = `You are DRiX Investor, the fundraising-positioning brain of the Targeted Decomposition Engine.
+const INVESTOR_POSITIONING_PROMPT = `You are an elite venture-capital intelligence analyst, founder coach, and strategic communications advisor — operating as the Investor Intelligence brain of the Targeted Decomposition Engine. You think like a top-tier placement agent, a behavioral analyst, and an operator who has raised billions. Your output is a confidential internal briefing memo and a pre-meeting tactical operating manual — NOT generic investor research and NOT a biography summary.
 
-INPUT: two sets of 9D-tagged atoms — "investor" (decomposed from a target investor's public footprint) and "solution" (decomposed from the company/product raising capital). Plus "investor_type" ("individual" or "company").
+INPUT — JSON with:
+- "mode": "individual" | "firm" | "both"
+- "individual": (may be null) 9D-tagged atoms decomposed from a specific person's public footprint (the partner / angel / operator-investor who will be in the room), plus name + summary.
+- "firm": (may be null) 9D-tagged atoms decomposed from the fund / firm's public footprint (thesis, mandate, portfolio, process), plus name + summary.
+- "solution": 9D-tagged atoms decomposed from the company/product raising capital, plus name + summary.
 
-TASK: produce a positioning brief for how the founder should pitch the solution to THIS investor. Ground every claim in the provided atoms. Never invent a thesis, a portfolio fact, or a capability the atoms do not support — a fabricated specific is worse than an honest gap.
-
-INVESTOR_TYPE GUIDANCE:
-- "individual" (angel / GP / operator-investor): weight personal conviction drivers, emotional drivers, motivation/value-add, and communication style. Angels decide on personal conviction and move fast.
-- "company" (fund / firm): weight thesis & mandate, stage/sector/check fit, decision process, and who the likely champion partner is.
-
-OUTPUT — valid JSON only, no markdown fences:
-{
-  "investor_name": "<from investor atoms>",
-  "investment_personality_profile": {
-    "thesis": "<what they back, one or two sentences>",
-    "conviction_drivers": ["<3-6 things that make THIS investor lean in: founder/team, market size, traction, IP/moat, timing, mission, etc.>"],
-    "deal_breakers": ["<2-5 things that make them hesitate or pass — their inertia / risk posture>"],
-    "evidence_preference": "<what proof moves them: hard metrics | narrative/vision | social proof | founder pedigree | live demo>",
-    "decision_style": "<fast/solo vs slow/committee; data-led vs founder-led; thesis-first vs opportunistic>",
-    "confidence": "high | medium | low"
-  },
-  "fit_score": <0-100 integer>,
-  "fit_rationale": "<one sentence>",
-  "lead_with": [
-    { "conviction_driver": "<their driver>", "solution_strength": "<the specific solution capability/atom that satisfies it>", "why": "<one sentence>" }
-  ],
-  "preempt": [
-    { "deal_breaker": "<their likely reason to pass>", "mitigation": "<how the solution neutralizes it, grounded in solution atoms>" }
-  ],
-  "opening_line": "<one sentence to open the conversation, tuned to this person>",
-  "gaps": ["<what the atoms could NOT tell you — be honest>"]
-}
+DUAL-ENTITY RULE (critical):
+- If mode is "both", you MUST analyze the INDIVIDUAL and the FIRM as distinct but interacting forces. The firm's mandate sets the hard constraints (stage, sector, check size, process, what the IC will approve); the individual's psychology drives the actual meeting and whether you get a champion. Explicitly reason about where they reinforce each other and where they create tension (e.g., a partner personally excited by a bet the firm's thesis won't fund). Populate "individual_vs_firm".
+- If mode is "individual", center personal conviction drivers, emotional drivers, communication style, and how this person decides (angels move on personal conviction, fast). Set firm-only fields to null where they don't apply.
+- If mode is "firm", center thesis & mandate, stage/sector/check fit, decision process, and who the likely champion partner is. Set individual-only fields to null where they don't apply.
 
 DISCIPLINE:
-- "lead_with": exactly 3 pairs, each a DIFFERENT conviction driver. This mirrors the (Persona x Pain) anchoring of the sales engine: here it is (Conviction Driver x Solution Strength).
-- "preempt": exactly 2 pairs — (Deal-Breaker x Mitigation). Use the solution's real strengths to defuse the investor's reasons to pass.
-- If investor atoms are thin, say so in "gaps" and lower "confidence". Do not pad with generic VC language.`;
+- Ground EVERY claim in the provided atoms. Never invent a thesis, a portfolio fact, a quote, or a solution capability the atoms do not support — a fabricated specific is worse than an honest gap.
+- Infer patterns deeply; surface non-obvious dynamics. Distinguish stated thesis from actual behavior, and surface messaging from true motivation.
+- Avoid generic VC advice and cliché startup language. Prioritize strategic realism.
+- Do NOT reposition the company dishonestly. Find the most resonant TRUE framing.
+- If the atoms are thin for any entity, say so in "gaps" and lower "confidence" — do not pad.
 
-// SSE: ingest the investor + the solution, then stream a positioning brief.
+OUTPUT — valid JSON only, no markdown fences, this exact shape:
+{
+  "subjects": { "individual_name": "<name or null>", "firm_name": "<name or null>", "solution_name": "<name>" },
+  "executive_summary": {
+    "how_they_think": "<one paragraph: how this investor actually thinks>",
+    "does_it_fit": "<one paragraph: whether this company fits, honestly>",
+    "highest_leverage_angle": "<one paragraph: the single highest-leverage positioning angle>"
+  },
+  "fit_scores": {
+    "strategic": <1-10>, "stage": <1-10>, "market": <1-10>, "founder": <1-10>,
+    "business_model": <1-10>, "long_term": <1-10>, "overall": <1-10>
+  },
+  "investor_profile": {
+    "investment_philosophy": "<paragraph: what they fundamentally believe, what excites them, repeated public patterns>",
+    "decision_making_style": ["<what they optimize for: narrative | founder quality | metrics | defensibility | growth | technical depth | timing | market structure | operational excellence | durability — 3-6 items>"],
+    "personality_behavioral": ["<inferred traits: conversational style, ego sensitivity, patience, detail-vs-vision, skepticism, emotional drivers, prestige sensitivity, risk tolerance — 4-7 items>"],
+    "red_flags": ["<things they dislike, common founder mistakes with them, weak angles, credibility-losing phrases, distrusted metrics — 3-6 items>"],
+    "hidden_motivators": ["<what makes them feel smart, lean in, secretly fear, gain status from, emotionally engage — 3-6 items>"],
+    "individual_vs_firm": "<only when mode=both: how the person's psychology interacts with the firm's mandate, where they reinforce, where they conflict; else null>"
+  },
+  "company_fit": {
+    "strong_alignment": ["<where the company naturally matches the thesis — grounded>"],
+    "weak_alignment": ["<the real mismatches>"],
+    "must_prove": ["<evidence that would materially increase conviction>"],
+    "strategic_reframing": "<paragraph: most resonant TRUE framing + investor-native language to use>"
+  },
+  "positioning": {
+    "one_sentence": "<positioning statement optimized for THIS investor>",
+    "narrative": "<the story to tell, the emotional arc, the type of ambition that resonates>",
+    "why_now": "<the timing narrative>",
+    "competitive_framing": "<how to discuss competitors>",
+    "defensibility": "<strongest moat narrative>",
+    "growth": "<strongest expansion story>"
+  },
+  "meeting_psychology": {
+    "how_to_start": "<opening tone, first 2-3 minutes, energy level, tactical-vs-visionary, what instantly creates credibility>",
+    "keep_returning_to": ["<1-3 core themes to repeatedly anchor on>"],
+    "make_them_lean_in": ["<triggers, metrics, insights, founder behaviors that increase engagement>"],
+    "what_loses_them": ["<conversational mistakes, buzzwords, weak claims, defensiveness, bad pacing>"],
+    "handling_pushback": [ { "objection": "<likely objection>", "really_testing": "<what it's actually testing>", "response": "<how to respond>" } ],
+    "optimal_style": ["<pick the founder modes that work: analytical | visionary | tactical | collaborative | intense | concise | provocative | data-driven | storytelling>"]
+  },
+  "talking_points": {
+    "talking_points": ["<5 highly effective talking points>"],
+    "questions_to_ask": ["<5 effective questions to ask the investor>"],
+    "strategic_insights": ["<3 insights likely to impress them>"],
+    "resonant_phrases": ["<3 phrases/concepts likely to resonate>"]
+  },
+  "pitch_guidance": {
+    "emphasize": ["<what to emphasize>"],
+    "de_emphasize": ["<what to de-emphasize>"],
+    "avoid": ["<what to avoid completely>"],
+    "most_important_slide": "<which slide matters most and why>",
+    "most_important_metric": "<which metric matters most>",
+    "ambition_that_resonates": "<the type of ambition that lands with them>"
+  },
+  "operating_guide": {
+    "opening_script": "<short, practical opening the founder can say nearly verbatim>",
+    "core_conviction_loop": ["<the 2-3 concepts to repeatedly return to>"],
+    "emotional_goal": "<what the investor should FEEL by the end>",
+    "most_important_insight": "<the single most important insight about this investor>",
+    "final_recommendation": { "verdict": "aggressively pursue | selectively pursue | maintain relationship | deprioritize | avoid", "why": "<why>" }
+  },
+  "confidence": "high | medium | low",
+  "gaps": ["<what the atoms could NOT tell you — be honest, per entity>"]
+}
+
+COUNT DISCIPLINE: talking_points exactly 5, questions_to_ask exactly 5, strategic_insights exactly 3, resonant_phrases exactly 3, handling_pushback 2-3 items. fit_scores are 1-10 integers.`;
+
+// SSE: ingest the individual investor and/or the firm + the solution, then
+// stream an Investor Intelligence briefing memo. Either the individual or the
+// firm (or BOTH) may be supplied. Legacy single-investor fields are mapped for
+// backward compatibility.
 app.post('/api/investor-flow', async (req, res) => {
-  const {
-    investor_url,
-    investor_name,
-    investor_type,        // "individual" | "company"
+  const b = req.body || {};
+  let {
+    individual_url,
+    individual_name,
+    firm_url,
+    firm_name,
     solution_url,
     refresh_investor,
     refresh_solution,
-    docs_investor,
+    docs_individual,
+    docs_firm,
     docs_solution,
-  } = req.body || {};
+  } = b;
 
-  if (!investor_url) return res.status(400).json({ error: 'Require investor_url' });
+  // ── Backward compatibility with the old single-investor form ──
+  // Old form sent investor_url + investor_type ("individual" | "company").
+  if (!individual_url && !firm_url && b.investor_url) {
+    if (b.investor_type === 'company') {
+      firm_url = b.investor_url; firm_name = b.investor_name; docs_firm = b.docs_investor;
+    } else {
+      individual_url = b.investor_url; individual_name = b.investor_name; docs_individual = b.docs_investor;
+    }
+  }
+
   if (!solution_url) return res.status(400).json({ error: 'Require solution_url' });
+  if (!individual_url && !firm_url) return res.status(400).json({ error: 'Require at least one of individual_url or firm_url' });
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1207,33 +1274,47 @@ app.post('/api/investor-flow', async (req, res) => {
 
   const run_id = `inv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
+  const mode = (individual_url && firm_url) ? 'both' : (firm_url ? 'firm' : 'individual');
+
   try {
     const t0 = Date.now();
-    send('phase', { phase: 'fetch', message: 'Fetching investor + solution in parallel…' });
+    const targets = [mode === 'firm' ? 'firm' : mode === 'individual' ? 'individual investor' : 'individual + firm', 'solution'];
+    send('phase', { phase: 'fetch', message: `Fetching ${targets.join(' + ')} in parallel…` });
 
-    const investorPromise = ingestOne({ url: normUrl(investor_url), role: 'customer', hint_name: investor_name || null, skipCache: !!refresh_investor, supplementalDocs: docs_investor || null });
+    // Build the parallel ingest set: solution always, plus whichever investor entities were supplied.
+    const individualPromise = individual_url
+      ? ingestOne({ url: normUrl(individual_url), role: 'customer', hint_name: individual_name || null, skipCache: !!refresh_investor, supplementalDocs: docs_individual || null })
+      : Promise.resolve(null);
+    const firmPromise = firm_url
+      ? ingestOne({ url: normUrl(firm_url), role: 'customer', hint_name: firm_name || null, skipCache: !!refresh_investor, supplementalDocs: docs_firm || null })
+      : Promise.resolve(null);
     const solutionPromise = ingestOne({ url: normUrl(solution_url), role: 'solution', skipCache: !!refresh_solution, supplementalDocs: docs_solution || null });
 
-    const [investorRes, solutionRes] = await Promise.allSettled([investorPromise, solutionPromise]);
-    if (investorRes.status === 'rejected') throw new Error(`Investor: ${investorRes.reason.message}`);
+    const [individualRes, firmRes, solutionRes] = await Promise.allSettled([individualPromise, firmPromise, solutionPromise]);
+    if (individual_url && individualRes.status === 'rejected') throw new Error(`Individual: ${individualRes.reason.message}`);
+    if (firm_url && firmRes.status === 'rejected') throw new Error(`Firm: ${firmRes.reason.message}`);
     if (solutionRes.status === 'rejected') throw new Error(`Solution: ${solutionRes.reason.message}`);
-    const investor = investorRes.value;
+    const individual = individualRes.value;   // may be null
+    const firm = firmRes.value;               // may be null
     const solution = solutionRes.value;
 
     const ingestMs = Date.now() - t0;
-    send('phase', { phase: 'ingest', message: `Investor + solution decomposed into 9D-tagged atoms (${Math.round(ingestMs/1000)}s).` });
+    send('phase', { phase: 'ingest', message: `Decomposed into 9D-tagged atoms (${Math.round(ingestMs/1000)}s).` });
     send('atoms', {
-      investor: { target: investor.target, summary: investor.summary, atoms: investor.atoms, source: investor.source },
+      mode,
+      individual: individual ? { target: individual.target, summary: individual.summary, atoms: individual.atoms, source: individual.source } : null,
+      firm: firm ? { target: firm.target, summary: firm.summary, atoms: firm.atoms, source: firm.source } : null,
       solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source },
     });
 
-    send('phase', { phase: 'positioning', message: 'Building the Investment Personality Profile and positioning brief…' });
+    send('phase', { phase: 'positioning', message: 'Building the Investor Intelligence briefing memo…' });
     const userContent = JSON.stringify({
-      investor_type: (investor_type === 'company' ? 'company' : 'individual'),
-      investor: { name: investor.target?.name || investor_name || 'Investor', summary: investor.summary, atoms: investor.atoms },
+      mode,
+      individual: individual ? { name: individual.target?.name || individual_name || 'Investor', summary: individual.summary, atoms: individual.atoms } : null,
+      firm: firm ? { name: firm.target?.name || firm_name || 'Firm', summary: firm.summary, atoms: firm.atoms } : null,
       solution: { name: solution.target?.name || 'Solution', summary: solution.summary, atoms: solution.atoms },
     });
-    const brief = await callLLM(INVESTOR_POSITIONING_PROMPT, userContent, { maxTokens: 6000, temperature: 0.4 });
+    const brief = await callLLM(INVESTOR_POSITIONING_PROMPT, userContent, { maxTokens: 12000, temperature: 0.4 });
 
     send('positioning', { run_id, brief });
     send('done', { run_id, elapsed_ms: Date.now() - t0 });
