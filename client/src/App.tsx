@@ -4,6 +4,7 @@ import Navbar from './components/Navbar'
 import Landing from './pages/Landing'
 import HowItWorks from './pages/HowItWorks'
 import DrixApp from './pages/DrixApp'
+import MentorMatch from './pages/MentorMatch'
 
 function PageWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/" element={<PageWrapper><Landing /></PageWrapper>} />
           <Route path="/how-it-works" element={<PageWrapper><HowItWorks /></PageWrapper>} />
           <Route path="/app" element={<PageWrapper><DrixApp /></PageWrapper>} />
+          <Route path="/mentor-match" element={<PageWrapper><MentorMatch /></PageWrapper>} />
         </Routes>
       </AnimatePresence>
     </div>
