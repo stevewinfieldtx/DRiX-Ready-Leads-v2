@@ -1,43 +1,34 @@
 #!/usr/bin/env node
 /* ============================================================================
- * benchmark_drix.js  —  Turnkey DRiX vs Standard-AI benchmark
+ * benchmark_drix.js  —  DRiX vs Standard-AI study harness (dual baseline)
  * ----------------------------------------------------------------------------
- * WHAT THIS MEASURES (read this before quoting any number):
- *   For each real company, this hits your POST /api/comparison endpoint to get
- *   two cold-outreach outputs:
- *       - "standard" : a frontier model (GPT-4o / Gemini / Claude) writing from
- *                      just the company name  -> the BASELINE
- *       - "drix"     : your atom-grounded TDE synthesis                -> DRiX
- *   A NEUTRAL third LLM (different from both generators) then acts as the target
- *   buyer and, BLIND to which is which and with A/B order counterbalanced, says
- *   which it would more likely respond to and scores each 1-10. We repeat J times
- *   per company and bootstrap a company-level DRiX win-rate + a likelihood-to-
- *   respond score lift.
+ * DESIGN (two layers; the paper keeps them separate):
+ *   LAYER 1 — measured in simulation:
+ *     For each real company we fetch DRiX's atom-grounded output from the live
+ *     /api/comparison endpoint (tde_done). We then generate TWO baseline emails
+ *     ourselves via OpenRouter, using the same cold-email prompt the app uses:
+ *        - "flashlite" : google/gemini-2.5-flash-lite   (budget baseline)
+ *        - "gpt4o"     : openai/gpt-4o                   (frontier baseline)
+ *     A NEUTRAL judge (claude-sonnet-4 — not either baseline, not the DRiX synth
+ *     model) then reads DRiX vs a baseline BLIND, A/B order counterbalanced, and
+ *     scores each 1-10 + picks a winner. J passes per company per baseline.
+ *     We bootstrap, per baseline: DRiX win-rate AND relative score lift (%).
  *
- *   This is an LLM-as-judge benchmark. It is an honest INTERNAL signal of whether
- *   DRiX's grounded output beats a strong vanilla baseline. It is NOT a real-world
- *   reply-rate or conversion forecast: the buyer is simulated. Lead with the
- *   50% / 25% haircut figures when communicating it, and say "blind LLM-judge
- *   win-rate", not "DRiX lifts replies by X%".
+ *   LAYER 2 (separate model, NOT in this script): the business-metric mapping
+ *     (response rate / win rate / sales-cycle) lives in the spreadsheet + paper,
+ *     driven by published benchmarks. This script only produces Layer-1 numbers.
  *
- * WHERE IT POINTS:
- *   By default it targets your live production app:
- *       https://readyleads.getthedrix.com   (your Railway deployment)
- *   Override anytime with  BENCH_BASE_URL=https://some-other-host
- *   No local server needed. (Note: .env's APP_URL is a localhost dev value, so
- *   it is intentionally NOT used as the default here.)
+ *   This is an LLM-as-judge simulation. The buyer is simulated. Numbers are
+ *   AI-inferred estimates, to be reported as such with sensitivity bands.
+ *
+ * TARGET: https://readyleads.getthedrix.com (override with BENCH_BASE_URL)
  *
  * USAGE:
- *   node benchmark_drix.js --self-test        # offline: validates math + parsing + CSV, no network/cost
- *   node benchmark_drix.js --dry-run          # checks config + that the app is reachable, prints plan, no cost
- *   node benchmark_drix.js                     # LIVE run (incurs API cost) against the production app
- *   node benchmark_drix.js --export-csv        # rebuild benchmark_results.csv from existing JSON, no cost
- *   node benchmark_drix.js --scenario pitch --baseline claude --rounds 4
- *
- * PREREQS for a live run:
- *   1) The app is reachable (it is — readyleads.getthedrix.com). To point elsewhere:
- *      BENCH_BASE_URL=https://your-host node benchmark_drix.js
- *   2) OPENROUTER_API_KEY available (used for the judge). Your .env already has it.
+ *   node benchmark_drix.js --self-test     # offline checks, no cost
+ *   node benchmark_drix.js --dry-run       # plan + reachability + cost, no cost
+ *   node benchmark_drix.js                  # LIVE run (API cost)
+ *   node benchmark_drix.js --export-csv     # rebuild CSV from saved JSON, no cost
+ *   node benchmark_drix.js --rounds 12 --scenario email
  * ========================================================================== */
 
 'use strict';
@@ -46,31 +37,55 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// ─── Config (CLI overrides below) ───────────────────────────────────────────
-const DEFAULT_APP_URL = 'https://readyleads.getthedrix.com'; // live production app (Railway)
+// ─── Config ───────────────────────────────────────────────────────────────────
+const DEFAULT_APP_URL = 'https://readyleads.getthedrix.com';
 const RAW_BASE   = process.env.BENCH_BASE_URL || DEFAULT_APP_URL;
-const BASE_URL   = RAW_BASE.replace(/\/+$/, ''); // strip trailing slash so URL joins are clean
-const JUDGE_MODEL= process.env.BENCH_JUDGE_MODEL || 'anthropic/claude-sonnet-4';
-// ^ Neutral judge: NOT gpt-4o (standard side) and NOT the TDE synth model
-//   (cerebras gpt-oss-120b / gemini-flash). Override via BENCH_JUDGE_MODEL.
+const BASE_URL   = RAW_BASE.replace(/\/+$/, '');
+const JUDGE_MODEL = process.env.BENCH_JUDGE_MODEL || 'anthropic/claude-sonnet-4'; // neutral
+const DRIX_FETCH_MODEL = 'gemini'; // endpoint 'standard' side we ignore; cheapest valid option
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const COMPANIES_FILE = path.join(__dirname, 'benchmark_companies.json');
 const RESULTS_FILE   = path.join(__dirname, 'benchmark_results.json');
 const RESULTS_CSV    = path.join(__dirname, 'benchmark_results.csv');
 
+// The two baselines DRiX is measured against (both generated by us, identically).
+const BASELINES = [
+  { key: 'flashlite', label: 'Gemini 2.5 Flash-Lite (budget)', model: 'google/gemini-2.5-flash-lite' },
+  { key: 'gpt4o',     label: 'GPT-4o (frontier)',              model: 'openai/gpt-4o' },
+];
+
 const DEFAULTS = {
-  scenario: 'email',     // email | pitch | partnership
-  baseline: 'chatgpt',   // chatgpt(gpt-4o) | gemini | claude  -> the model DRiX must beat
-  rounds: 3,             // J: judge passes per company (order counterbalanced)
+  scenario: 'email',          // email | pitch | partnership
+  rounds: 12,                 // judge passes per company per baseline (40 cos x 2 x 12 ≈ 960 evals)
   bootstrap: 10000,
   cpp: 'steve',
-  perCompanyTimeoutMs: 150000,
+  perCompanyTimeoutMs: 240000, // 4 min — raised to reduce SKIPs on slow scrapes
 };
 
 const SCORE_DIMS = ['relevance', 'specificity', 'credibility', 'likelihood_to_respond'];
 const PRIMARY_DIM = 'likelihood_to_respond';
 
-// ─── tiny arg parser ──────────────────────────────────────────────────────────
+// Cold-outreach prompts — mirror the app's COMPARISON_PROMPTS so the baseline is
+// generated the same way the product's "standard AI" side is generated.
+const PROMPTS = {
+  email: (c) => `You are a sales outreach specialist. Write a cold outreach email from Steve Winfield at WinTech Partners to ${c}.
+
+WinTech Partners offers DRiX (Data Reimagined Experience), an AI-powered intelligence platform including content decomposition (TDE), voice profiling (CPP), relationship intelligence (TrueGraph), cybersecurity (Chimera Secured), and lead enrichment (DRiX Ready Lead).
+
+Research ${c} and write a personalized, compelling outreach email that would get a response from a senior decision-maker. Include specific details about the target company and explain why WinTech's solutions are relevant to them.`,
+  pitch: (c) => `You are a B2B sales strategist. Create a sales pitch for WinTech Partners' DRiX platform targeting ${c}.
+
+WinTech Partners offers DRiX (Data Reimagined Experience) with: TDE (decomposition engine), CPP (voice profiling), TrueGraph (relationship intelligence), Chimera Secured (behavioral email security, $4/user/month), DRiX Ready Lead (batch lead enrichment), ClearSignals AI (sales coaching), DRiX Widgets (reseller mini-sites), and DRiX Agents (multichannel AI assistants).
+
+The pitch should include an opening hook, value proposition, differentiation, and call to action. Make it specific to ${c} and their industry.`,
+  partnership: (c) => `You are a business development analyst. Analyze the potential partnership between WinTech Partners and ${c}.
+
+WinTech Partners is an AI product company founded by Steve Winfield (25yr enterprise tech, ex-Microsoft, CISSP). Their DRiX platform includes TDE, CPP, TrueGraph, Chimera Secured, DRiX Ready Lead, ClearSignals AI, DRiX Widgets, and DRiX Agents.
+
+Provide: partnership model, synergies, specific value each side brings, risks, and recommended next steps. Be specific about how both companies' capabilities complement each other.`,
+};
+
+// ─── args ───────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
   const a = { ...DEFAULTS, mode: 'live' };
   for (let i = 2; i < argv.length; i++) {
@@ -79,7 +94,6 @@ function parseArgs(argv) {
     else if (t === '--dry-run') a.mode = 'dry-run';
     else if (t === '--export-csv') a.mode = 'export-csv';
     else if (t === '--scenario') a.scenario = argv[++i];
-    else if (t === '--baseline') a.baseline = argv[++i];
     else if (t === '--rounds') a.rounds = parseInt(argv[++i], 10);
     else if (t === '--bootstrap') a.bootstrap = parseInt(argv[++i], 10);
     else if (t === '--judge') a.judgeModel = argv[++i];
@@ -88,24 +102,21 @@ function parseArgs(argv) {
   return a;
 }
 
-// ─── stats helpers ────────────────────────────────────────────────────────────
+// ─── stats ───────────────────────────────────────────────────────────────────
 const mean = xs => xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN;
 
 function bootstrapCI(values, nResamples, ci, rng) {
-  // values: one number per company (e.g. that company's DRiX win fraction)
-  const n = values.length, means = [];
+  const n = values.length, ms = [];
+  if (!n) return [NaN, NaN];
   for (let r = 0; r < nResamples; r++) {
     let s = 0;
     for (let i = 0; i < n; i++) s += values[(rng() * n) | 0];
-    means.push(s / n);
+    ms.push(s / n);
   }
-  means.sort((x, y) => x - y);
-  const lo = means[Math.floor((1 - ci) / 2 * nResamples)];
-  const hi = means[Math.ceil((1 + ci) / 2 * nResamples) - 1];
-  return [lo, hi];
+  ms.sort((x, y) => x - y);
+  return [ms[Math.floor((1 - ci) / 2 * nResamples)], ms[Math.ceil((1 + ci) / 2 * nResamples) - 1]];
 }
 
-// Deterministic RNG so reruns of the analysis are reproducible (seeded)
 function mulberry32(seed) {
   return function () {
     seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
@@ -115,8 +126,17 @@ function mulberry32(seed) {
   };
 }
 
-// ─── SSE client for POST /api/comparison ───────────────────────────────────────
-async function runComparison({ company_url, company_name }, scenario, baseline, cpp, timeoutMs) {
+async function withRetry(fn, attempts, delayMs) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) { last = e; if (i < attempts - 1) await new Promise(r => setTimeout(r, delayMs)); }
+  }
+  throw last;
+}
+
+// ─── DRiX side from /api/comparison (we use only tde_done) ──────────────────────
+async function fetchDrix({ company_url, company_name }, scenario, cpp, timeoutMs) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const events = {};
@@ -124,20 +144,17 @@ async function runComparison({ company_url, company_name }, scenario, baseline, 
     const resp = await fetch(`${BASE_URL}/api/comparison`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
-      body: JSON.stringify({ company_url, company_name, scenario, model: baseline, cpp }),
+      body: JSON.stringify({ company_url, company_name, scenario, model: DRIX_FETCH_MODEL, cpp }),
       signal: ctrl.signal,
     });
-    if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      throw new Error(`HTTP ${resp.status}: ${body.slice(0, 200)}`);
-    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 160)}`);
     const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
+    const dec = new TextDecoder();
     let buf = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buf += decoder.decode(value, { stream: true });
+      buf += dec.decode(value, { stream: true });
       let idx;
       while ((idx = buf.indexOf('\n\n')) >= 0) {
         const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
@@ -145,25 +162,39 @@ async function runComparison({ company_url, company_name }, scenario, baseline, 
         for (const ln of chunk.split('\n')) {
           if (ln.startsWith('event:')) ev = ln.slice(6).trim();
           else if (ln.startsWith('data:')) data += ln.slice(5).trim();
-          // lines starting with ':' are keepalive comments — ignore
         }
         if (ev) { try { events[ev] = JSON.parse(data || '{}'); } catch { events[ev] = { _raw: data }; } }
       }
     }
-  } finally {
-    clearTimeout(timer);
-  }
-  const standard = events.standard_done?.text;
+  } finally { clearTimeout(timer); }
   const drix = events.tde_done?.text;
-  if (!standard) throw new Error('standard side missing: ' + (events.standard_error?.message || 'no standard_done'));
   if (!drix) throw new Error('DRiX side missing: ' + (events.tde_error?.message || 'no tde_done'));
-  return { standard, drix };
+  return drix;
 }
 
-// ─── Blind judge (neutral model via OpenRouter) ─────────────────────────────────
+// ─── Baseline generation via OpenRouter (same prompt the app uses) ──────────────
+async function generateBaseline(model, scenario, companyName) {
+  const prompt = PROMPTS[scenario](companyName);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'DRiX Benchmark Baseline' },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.7, max_tokens: 2000 }),
+      signal: ctrl.signal,
+    });
+    if (!resp.ok) throw new Error(`baseline HTTP ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 160)}`);
+    const data = await resp.json();
+    const text = data?.choices?.[0]?.message?.content || '';
+    if (!text) throw new Error('empty baseline response');
+    return text;
+  } finally { clearTimeout(timer); }
+}
+
+// ─── Blind judge ───────────────────────────────────────────────────────────────
 function buildJudgePrompt(scenario, companyName, textA, textB) {
-  const noun = scenario === 'partnership' ? 'partnership analysis'
-             : scenario === 'pitch' ? 'sales pitch' : 'cold outreach email';
+  const noun = scenario === 'partnership' ? 'partnership analysis' : scenario === 'pitch' ? 'sales pitch' : 'cold outreach email';
   return `You are a busy senior decision-maker at ${companyName}. Two different vendors sent you the ${noun} below (A and B). You do not know who wrote either one.
 
 Judge them ONLY on substance from your seat as the buyer:
@@ -172,7 +203,7 @@ Judge them ONLY on substance from your seat as the buyer:
 - credibility: would a sharp executive trust it, or does it feel like AI boilerplate
 - likelihood_to_respond: how likely you are to actually reply
 
-Ignore length, surface polish, and formatting. Do not favor whichever comes first. If they are close, still pick the one you would more likely respond to.
+Ignore length, surface polish, and formatting. Do not favor whichever comes first. If close, still pick the one you would more likely respond to.
 
 Return ONLY a JSON object, no markdown:
 {"winner":"A"|"B","A":{"relevance":1-10,"specificity":1-10,"credibility":1-10,"likelihood_to_respond":1-10},"B":{"relevance":1-10,"specificity":1-10,"credibility":1-10,"likelihood_to_respond":1-10},"reason":"one sentence"}
@@ -202,254 +233,189 @@ function parseJudgeJSON(raw) {
   return obj;
 }
 
-async function judgeOnce(scenario, companyName, drixText, stdText, drixIsA, judgeModel) {
-  const textA = drixIsA ? drixText : stdText;
-  const textB = drixIsA ? stdText : drixText;
-  const prompt = buildJudgePrompt(scenario, companyName, textA, textB);
+async function judgeOnce(scenario, companyName, drixText, baseText, drixIsA, judgeModel) {
+  const textA = drixIsA ? drixText : baseText;
+  const textB = drixIsA ? baseText : drixText;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 60000);
   try {
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'X-Title': 'DRiX Benchmark Judge',
-      },
-      body: JSON.stringify({
-        model: judgeModel,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 600,
-      }),
+      headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'DRiX Benchmark Judge' },
+      body: JSON.stringify({ model: judgeModel, messages: [{ role: 'user', content: buildJudgePrompt(scenario, companyName, textA, textB) }], temperature: 0.2, max_tokens: 600 }),
       signal: ctrl.signal,
     });
     if (!resp.ok) throw new Error(`judge HTTP ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 160)}`);
     const data = await resp.json();
-    const content = data?.choices?.[0]?.message?.content || '';
-    const parsed = parseJudgeJSON(content);
-    // Map A/B back to drix/standard
-    const drixSide = drixIsA ? 'A' : 'B';
-    const stdSide = drixIsA ? 'B' : 'A';
-    return {
-      drix_won: parsed.winner === drixSide,
-      drix_scores: parsed[drixSide],
-      std_scores: parsed[stdSide],
-      drix_is_A: drixIsA,
-      reason: parsed.reason || '',
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+    const parsed = parseJudgeJSON(data?.choices?.[0]?.message?.content || '');
+    const drixSide = drixIsA ? 'A' : 'B', baseSide = drixIsA ? 'B' : 'A';
+    return { drix_won: parsed.winner === drixSide, drix_scores: parsed[drixSide], base_scores: parsed[baseSide], drix_is_A: drixIsA, reason: parsed.reason || '' };
+  } finally { clearTimeout(timer); }
 }
 
-// ─── Aggregation + report ───────────────────────────────────────────────────────
-function summarize(companyResults, nBootstrap) {
-  const rng = mulberry32(12345);
-  const perCompanyWinFrac = [];     // company-level DRiX win fraction (over its judge passes)
-  const perCompanyScoreLift = [];   // company-level mean (drix - std) on PRIMARY_DIM
-  let decisionWins = 0, decisionTotal = 0;
-  const allDrixLR = [], allStdLR = [];
-
+// ─── Aggregation (per baseline) ─────────────────────────────────────────────────
+function summarizeBaseline(companyResults, key, nBootstrap) {
+  const winFrac = [], absLift = [], relLift = [];
+  let decWins = 0, decTotal = 0;
+  const allDrix = [], allBase = [];
   for (const c of companyResults) {
-    const dec = c.decisions;
-    if (!dec || !dec.length) continue;
+    const dec = c.baselines?.[key]?.decisions || [];
+    if (!dec.length) continue;
     const wins = dec.filter(d => d.drix_won).length;
-    perCompanyWinFrac.push(wins / dec.length);
-    const drixLR = dec.map(d => d.drix_scores[PRIMARY_DIM]);
-    const stdLR = dec.map(d => d.std_scores[PRIMARY_DIM]);
-    perCompanyScoreLift.push(mean(drixLR) - mean(stdLR));
-    allDrixLR.push(...drixLR); allStdLR.push(...stdLR);
-    decisionWins += wins; decisionTotal += dec.length;
+    winFrac.push(wins / dec.length);
+    const dM = mean(dec.map(d => d.drix_scores[PRIMARY_DIM]));
+    const bM = mean(dec.map(d => d.base_scores[PRIMARY_DIM]));
+    absLift.push(dM - bM);
+    if (bM > 0) relLift.push((dM - bM) / bM * 100);
+    allDrix.push(...dec.map(d => d.drix_scores[PRIMARY_DIM]));
+    allBase.push(...dec.map(d => d.base_scores[PRIMARY_DIM]));
+    decWins += wins; decTotal += dec.length;
   }
-
-  const winRate = mean(perCompanyWinFrac);
-  const [wLo, wHi] = bootstrapCI(perCompanyWinFrac, nBootstrap, 0.95, rng);
-  const scoreLift = mean(perCompanyScoreLift);
-  const [sLo, sHi] = bootstrapCI(perCompanyScoreLift, nBootstrap, 0.95, mulberry32(54321));
-
+  const winRate = mean(winFrac);
+  const drixM = mean(allDrix), baseM = mean(allBase);
+  const relLiftPooled = baseM > 0 ? (drixM - baseM) / baseM * 100 : NaN;
   return {
-    nCompanies: perCompanyWinFrac.length,
-    decisionWins, decisionTotal,
-    winRate, winRateCI: [wLo, wHi],
-    edge: winRate - 0.5,
-    scoreLift, scoreLiftCI: [sLo, sHi],
-    drixLRmean: mean(allDrixLR), stdLRmean: mean(allStdLR),
-    perCompanyWinFrac, perCompanyScoreLift,
+    key, nCompanies: winFrac.length, decWins, decTotal,
+    winRate, winRateCI: bootstrapCI(winFrac, nBootstrap, 0.95, mulberry32(111)),
+    absLift: mean(absLift), absLiftCI: bootstrapCI(absLift, nBootstrap, 0.95, mulberry32(222)),
+    relLiftPct: relLiftPooled, relLiftCI: bootstrapCI(relLift, nBootstrap, 0.95, mulberry32(333)),
+    drixLRmean: drixM, baseLRmean: baseM,
   };
 }
 
-function printReport(s, cfg) {
-  const pct = x => (x * 100).toFixed(1) + '%';
-  const f = (x, d = 2) => (x >= 0 ? '+' : '') + x.toFixed(d);
-  console.log('\n' + '='.repeat(72));
-  console.log('DRiX vs STANDARD-AI  —  BLIND LLM-JUDGE BENCHMARK');
-  console.log(`scenario=${cfg.scenario}  baseline=${cfg.baseline}  judge=${cfg.judgeModel || JUDGE_MODEL}  rounds/company=${cfg.rounds}`);
-  console.log('(Simulated buyer judging real product output — internal signal, NOT a reply-rate forecast)');
-  console.log('='.repeat(72));
-  console.log(`Companies scored:        ${s.nCompanies}`);
-  console.log(`Judge decisions:         ${s.decisionTotal}  (DRiX won ${s.decisionWins})`);
-  console.log('-'.repeat(72));
-  console.log(`DRiX WIN-RATE:           ${pct(s.winRate)}   95% CI [${pct(s.winRateCI[0])}, ${pct(s.winRateCI[1])}]`);
-  console.log(`  edge over 50/50:       ${f(s.edge * 100, 1)} pts`);
-  console.log(`Likelihood-to-respond:   DRiX ${s.drixLRmean.toFixed(2)} vs Standard ${s.stdLRmean.toFixed(2)}  (0-10 scale)`);
-  console.log(`  score lift:            ${f(s.scoreLift)}   95% CI [${f(s.scoreLiftCI[0])}, ${f(s.scoreLiftCI[1])}]`);
-  console.log('-'.repeat(72));
-  console.log('CONSERVATIVE HAIRCUTS (lead with these, not the raw figure):');
-  console.log(`  win-rate edge   100%: ${pct(0.5 + s.edge)}   50%: ${pct(0.5 + s.edge * 0.5)}   25%: ${pct(0.5 + s.edge * 0.25)}`);
-  console.log(`  score lift      100%: ${f(s.scoreLift)}    50%: ${f(s.scoreLift * 0.5)}    25%: ${f(s.scoreLift * 0.25)}`);
-  console.log('='.repeat(72));
-  console.log('REMINDER: "blind LLM-judge win-rate of DRiX vs ' + cfg.baseline + '", simulated buyer.');
-  console.log('Frame externally as a directional internal benchmark, with the haircuts.');
-  console.log('='.repeat(72));
-  console.log(`\n>>> Suggested cell C29 (DRiX win-rate):           ${pct(s.winRate)}`);
-  console.log(`>>> Alt cell C29 (likelihood-to-respond lift):    ${f(s.scoreLift)} of 10`);
+function pct(x) { return (x * 100).toFixed(1) + '%'; }
+function sgn(x, d = 2) { return (x >= 0 ? '+' : '') + x.toFixed(d); }
+
+function printReport(summaries, cfg) {
+  console.log('\n' + '='.repeat(74));
+  console.log('DRiX vs STANDARD-AI  —  BLIND LLM-JUDGE STUDY (simulated buyer)');
+  console.log(`scenario=${cfg.scenario}  judge=${cfg.judgeModel || JUDGE_MODEL}  rounds/company/baseline=${cfg.rounds}`);
+  console.log('='.repeat(74));
+  for (const b of BASELINES) {
+    const s = summaries[b.key];
+    if (!s || !s.nCompanies) { console.log(`\n[${b.label}] no data`); continue; }
+    console.log(`\nvs ${b.label}   (${b.model})`);
+    console.log(`  companies: ${s.nCompanies}   judge decisions: ${s.decTotal} (DRiX won ${s.decWins})`);
+    console.log(`  DRiX WIN-RATE:        ${pct(s.winRate)}   95% CI [${pct(s.winRateCI[0])}, ${pct(s.winRateCI[1])}]`);
+    console.log(`  RELATIVE SCORE LIFT:  ${sgn(s.relLiftPct, 1)}%  95% CI [${sgn(s.relLiftCI[0], 1)}%, ${sgn(s.relLiftCI[1], 1)}%]`);
+    console.log(`     (likelihood-to-respond: DRiX ${s.drixLRmean.toFixed(2)} vs ${b.key} ${s.baseLRmean.toFixed(2)} on 0-10)`);
+    console.log('     conservative haircuts on relative lift:  '
+      + `100%: ${sgn(s.relLiftPct, 1)}%   50%: ${sgn(s.relLiftPct * 0.5, 1)}%   25%: ${sgn(s.relLiftPct * 0.25, 1)}%`);
+  }
+  console.log('\n' + '-'.repeat(74));
+  console.log('These are AI-judge simulation estimates (simulated buyer), not measured replies.');
+  console.log('Feed the relative-lift figures into the business-metric model for response/win/cycle.');
+  console.log('='.repeat(74));
+  const head = summaries[BASELINES.find(b => b.key === 'gpt4o') ? 'gpt4o' : BASELINES[0].key];
+  if (head && head.nCompanies) {
+    console.log(`\n>>> Headline (vs GPT-4o) — DRiX win-rate: ${pct(head.winRate)} | relative lift: ${sgn(head.relLiftPct, 1)}%`);
+  }
 }
 
-// ─── CSV export (spreadsheet-friendly, one row per company + OVERALL) ────────────
-function csvEsc(v) {
-  const s = (v === null || v === undefined) ? '' : String(v);
-  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
+// ─── CSV ─────────────────────────────────────────────────────────────────────
+function csvEsc(v) { const s = (v == null) ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
 const num = (v, d = 4) => (typeof v === 'number' && isFinite(v)) ? +v.toFixed(d) : v;
 
-function buildCSV(companyResults, summary) {
-  const header = ['company_name', 'company_url', 'judge_passes', 'drix_wins', 'drix_win_rate'];
-  for (const d of SCORE_DIMS) { header.push('drix_' + d, 'std_' + d); }
-  header.push('likelihood_lift', 'win_rate_ci', 'lift_ci', 'error');
-
+function buildCSV(companyResults, summaries) {
+  const header = ['company_name', 'company_url', 'baseline', 'judge_passes', 'drix_wins', 'drix_win_rate',
+    'drix_likelihood', 'base_likelihood', 'rel_lift_pct', 'win_rate_ci', 'rel_lift_ci', 'error'];
   const rows = [header];
   for (const c of (companyResults || [])) {
-    const dec = c.decisions || [];
-    const wins = dec.filter(d => d.drix_won).length;
-    const row = [c.company_name, c.company_url, dec.length, wins, dec.length ? wins / dec.length : ''];
-    for (const d of SCORE_DIMS) {
-      row.push(dec.length ? mean(dec.map(x => x.drix_scores[d])) : '');
-      row.push(dec.length ? mean(dec.map(x => x.std_scores[d])) : '');
+    for (const b of BASELINES) {
+      const dec = c.baselines?.[b.key]?.decisions || [];
+      const wins = dec.filter(d => d.drix_won).length;
+      const dM = dec.length ? mean(dec.map(d => d.drix_scores[PRIMARY_DIM])) : '';
+      const bM = dec.length ? mean(dec.map(d => d.base_scores[PRIMARY_DIM])) : '';
+      const rel = (dec.length && bM > 0) ? (dM - bM) / bM * 100 : '';
+      rows.push([c.company_name, c.company_url, b.key, dec.length, wins,
+        dec.length ? wins / dec.length : '', dM, bM, rel, '', '', c.error || (c.baselines?.[b.key]?.error || '')]);
     }
-    const lift = dec.length ? (mean(dec.map(x => x.drix_scores[PRIMARY_DIM])) - mean(dec.map(x => x.std_scores[PRIMARY_DIM]))) : '';
-    row.push(lift, '', '', c.error || '');
-    rows.push(row);
   }
-
-  if (summary) {
-    const o = new Array(header.length).fill('');
-    o[0] = 'OVERALL';
-    o[2] = summary.decisionTotal;
-    o[3] = summary.decisionWins;
-    o[4] = summary.winRate;
-    const di = header.indexOf('drix_' + PRIMARY_DIM), si = header.indexOf('std_' + PRIMARY_DIM);
-    if (di >= 0) o[di] = summary.drixLRmean;
-    if (si >= 0) o[si] = summary.stdLRmean;
-    o[header.indexOf('likelihood_lift')] = summary.scoreLift;
-    if (summary.winRateCI) o[header.indexOf('win_rate_ci')] = `${num(summary.winRateCI[0])} to ${num(summary.winRateCI[1])}`;
-    if (summary.scoreLiftCI) o[header.indexOf('lift_ci')] = `${num(summary.scoreLiftCI[0])} to ${num(summary.scoreLiftCI[1])}`;
-    rows.push(o);
+  if (summaries) {
+    for (const b of BASELINES) {
+      const s = summaries[b.key]; if (!s) continue;
+      const o = new Array(header.length).fill('');
+      o[0] = 'OVERALL'; o[2] = b.key; o[3] = s.decTotal; o[4] = s.decWins; o[5] = s.winRate;
+      o[6] = s.drixLRmean; o[7] = s.baseLRmean; o[8] = s.relLiftPct;
+      o[9] = `${num(s.winRateCI[0])} to ${num(s.winRateCI[1])}`;
+      o[10] = `${num(s.relLiftCI[0])} to ${num(s.relLiftCI[1])}`;
+      rows.push(o);
+    }
   }
-
   return rows.map(r => r.map(v => csvEsc(num(v))).join(',')).join('\n') + '\n';
 }
+function writeCSV(companyResults, summaries, file) { fs.writeFileSync(file, buildCSV(companyResults, summaries)); }
 
-function writeCSV(companyResults, summary, file) {
-  fs.writeFileSync(file, buildCSV(companyResults, summary));
-}
-
-// ─── self-test (offline) ────────────────────────────────────────────────────────
+// ─── self-test ───────────────────────────────────────────────────────────────
 function selfTest() {
   console.log('SELF-TEST (offline, no network, no cost)\n');
   let ok = true;
-  // 1) judge JSON parsing, including code-fence + prose wrappers
   const samples = [
-    '{"winner":"A","A":{"relevance":8,"specificity":7,"credibility":8,"likelihood_to_respond":7},"B":{"relevance":5,"specificity":4,"credibility":5,"likelihood_to_respond":4},"reason":"A is specific"}',
-    '```json\n{"winner":"B","A":{"relevance":3,"specificity":3,"credibility":4,"likelihood_to_respond":3},"B":{"relevance":9,"specificity":8,"credibility":8,"likelihood_to_respond":9},"reason":"B grounded"}\n```',
-    'Sure! Here is my verdict: {"winner":"A","A":{"relevance":6,"specificity":6,"credibility":6,"likelihood_to_respond":6},"B":{"relevance":6,"specificity":5,"credibility":5,"likelihood_to_respond":5},"reason":"close"}',
+    '{"winner":"A","A":{"relevance":8,"specificity":7,"credibility":8,"likelihood_to_respond":7},"B":{"relevance":5,"specificity":4,"credibility":5,"likelihood_to_respond":4},"reason":"x"}',
+    '```json\n{"winner":"B","A":{"relevance":3,"specificity":3,"credibility":4,"likelihood_to_respond":3},"B":{"relevance":9,"specificity":8,"credibility":8,"likelihood_to_respond":9},"reason":"y"}\n```',
   ];
-  for (const raw of samples) {
-    try { const p = parseJudgeJSON(raw); console.log('  parse OK ->', p.winner); }
-    catch (e) { ok = false; console.log('  parse FAIL:', e.message); }
-  }
-  // 2) bad JSON should throw
-  try { parseJudgeJSON('no json here'); ok = false; console.log('  FAIL: bad input did not throw'); }
-  catch { console.log('  bad-input correctly rejected'); }
+  for (const raw of samples) { try { parseJudgeJSON(raw); console.log('  parse OK'); } catch (e) { ok = false; console.log('  parse FAIL', e.message); } }
+  try { parseJudgeJSON('nope'); ok = false; console.log('  FAIL: bad input not rejected'); } catch { console.log('  bad-input rejected'); }
 
-  // 3) bootstrap + summarize on synthetic decisions where DRiX clearly wins
+  // synthetic two-baseline data: DRiX beats flashlite hard, gpt4o modestly
   const rng = mulberry32(7);
   const companyResults = [];
-  for (let c = 0; c < 12; c++) {
-    const decisions = [];
-    for (let j = 0; j < 3; j++) {
-      const drixLR = 6 + rng() * 3, stdLR = 4 + rng() * 2;
-      decisions.push({
-        drix_won: drixLR > stdLR,
-        drix_scores: { relevance: 7, specificity: 7, credibility: 7, likelihood_to_respond: drixLR },
-        std_scores: { relevance: 5, specificity: 5, credibility: 5, likelihood_to_respond: stdLR },
-        drix_is_A: j % 2 === 0, reason: 'synthetic',
-      });
-    }
-    companyResults.push({ company_name: 'Test' + c, company_url: 'https://test' + c + '.com', decisions });
+  for (let c = 0; c < 30; c++) {
+    const mk = (dHi, bLo) => { const dec = []; for (let j = 0; j < 6; j++) { const dl = dHi + rng() * 1.5, bl = bLo + rng() * 1.5; dec.push({ drix_won: dl > bl, drix_scores: { relevance: 7, specificity: 7, credibility: 7, likelihood_to_respond: dl }, base_scores: { relevance: 5, specificity: 5, credibility: 5, likelihood_to_respond: bl }, drix_is_A: j % 2 === 0, reason: 's' }); } return dec; };
+    companyResults.push({ company_name: 'Co' + c, company_url: 'https://co' + c + '.com',
+      baselines: { flashlite: { text: 'b', decisions: mk(7.5, 3.5) }, gpt4o: { text: 'b', decisions: mk(7.0, 5.5) } } });
   }
-  const s = summarize(companyResults, 2000);
-  console.log(`\n  summarize -> winRate=${(s.winRate * 100).toFixed(1)}% CI[${(s.winRateCI[0] * 100).toFixed(1)},${(s.winRateCI[1] * 100).toFixed(1)}]  scoreLift=${s.scoreLift.toFixed(2)}`);
-  if (!(s.winRate > 0.5 && s.scoreLift > 0)) { ok = false; console.log('  FAIL: expected DRiX-favoring synthetic result'); }
-  if (!(s.winRateCI[0] <= s.winRate && s.winRate <= s.winRateCI[1])) { ok = false; console.log('  FAIL: CI does not bracket point estimate'); }
+  const summaries = {};
+  for (const b of BASELINES) summaries[b.key] = summarizeBaseline(companyResults, b.key, 2000);
+  const fl = summaries.flashlite, g4 = summaries.gpt4o;
+  console.log(`\n  flashlite winRate=${pct(fl.winRate)} relLift=${sgn(fl.relLiftPct,1)}%`);
+  console.log(`  gpt4o     winRate=${pct(g4.winRate)} relLift=${sgn(g4.relLiftPct,1)}%`);
+  if (!(fl.winRate >= g4.winRate)) { ok = false; console.log('  FAIL: expected flashlite gap >= gpt4o gap'); }
+  if (!(fl.relLiftPct > 0 && g4.relLiftPct > 0)) { ok = false; console.log('  FAIL: expected positive lift'); }
+  for (const s of [fl, g4]) if (!(s.winRateCI[0] <= s.winRate && s.winRate <= s.winRateCI[1])) { ok = false; console.log('  FAIL: CI bracket'); }
 
-  // 4) CSV builder: header + 12 company rows + OVERALL row, rectangular
-  const csv = buildCSV(companyResults, s);
+  const csv = buildCSV(companyResults, summaries);
   const lines = csv.trim().split('\n');
   const cols = lines[0].split(',').length;
-  const allSameWidth = lines.every(l => l.split(',').length === cols);
-  console.log(`  CSV -> ${lines.length} lines, ${cols} cols, OVERALL row present: ${/^OVERALL,/.test(lines[lines.length - 1])}`);
-  if (lines.length !== 1 + 12 + 1) { ok = false; console.log('  FAIL: expected header + 12 + OVERALL rows'); }
-  if (!allSameWidth) { ok = false; console.log('  FAIL: ragged CSV columns'); }
-  if (!/^OVERALL,/.test(lines[lines.length - 1])) { ok = false; console.log('  FAIL: missing OVERALL row'); }
-  try {
-    const tmp = path.join(os.tmpdir(), 'drix_selftest_' + Date.now() + '.csv');
-    writeCSV(companyResults, s, tmp);
-    const back = fs.readFileSync(tmp, 'utf8');
-    if (back.split('\n').filter(Boolean).length !== lines.length) { ok = false; console.log('  FAIL: written CSV line count mismatch'); }
-    fs.unlinkSync(tmp);
-    console.log('  CSV file write/read OK');
-  } catch (e) { ok = false; console.log('  CSV file write FAIL:', e.message); }
+  const rect = lines.every(l => l.split(',').length === cols);
+  const overall = lines.filter(l => l.startsWith('OVERALL,')).length;
+  console.log(`  CSV -> ${lines.length} lines, ${cols} cols, rectangular:${rect}, OVERALL rows:${overall}`);
+  if (!rect) { ok = false; console.log('  FAIL: ragged CSV'); }
+  if (lines.length !== 1 + 30 * 2 + 2) { ok = false; console.log('  FAIL: expected header + 60 + 2 OVERALL'); }
+  try { const tmp = path.join(os.tmpdir(), 'drix_st_' + Date.now() + '.csv'); writeCSV(companyResults, summaries, tmp); fs.unlinkSync(tmp); console.log('  CSV write/read OK'); }
+  catch (e) { ok = false; console.log('  CSV write FAIL', e.message); }
 
-  console.log('\n  default target BASE_URL =', BASE_URL);
-  if (!/^https:\/\//.test(BASE_URL)) { ok = false; console.log('  FAIL: default target is not https production URL'); }
-
-  printReport(s, { scenario: 'email', baseline: 'chatgpt', rounds: 3 });
+  console.log('\n  default target =', BASE_URL);
+  if (!/^https:\/\//.test(BASE_URL)) { ok = false; console.log('  FAIL: default not https'); }
+  printReport(summaries, { scenario: 'email', rounds: 6 });
   console.log('\nSELF-TEST ' + (ok ? 'PASSED' : 'FAILED'));
   process.exit(ok ? 0 : 1);
 }
 
-// ─── config / preflight ─────────────────────────────────────────────────────────
+// ─── preflight ─────────────────────────────────────────────────────────────────
 function loadCompanies() {
   if (!fs.existsSync(COMPANIES_FILE)) throw new Error('missing ' + COMPANIES_FILE);
   const data = JSON.parse(fs.readFileSync(COMPANIES_FILE, 'utf8'));
   const list = data.companies || data;
-  const bad = list.filter(c => !c.company_url || !c.company_name);
-  if (bad.length) throw new Error('every company needs company_name + company_url');
+  if (list.some(c => !c.company_url || !c.company_name)) throw new Error('every company needs company_name + company_url');
   return list;
 }
-
 async function serverReachable() {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
-    const r = await fetch(`${BASE_URL}/`, { signal: ctrl.signal });
-    clearTimeout(t);
-    return r.ok || r.status === 404; // any HTTP answer means it's up
-  } catch { return false; }
+  try { const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch(`${BASE_URL}/`, { signal: ctrl.signal }); clearTimeout(t); return r.ok || r.status === 404; }
+  catch { return false; }
 }
-
 function printPlan(companies, cfg) {
-  const judgeCalls = companies.length * cfg.rounds;
+  const evals = companies.length * cfg.rounds * BASELINES.length;
   console.log('PLAN');
   console.log(`  target app:      ${BASE_URL}`);
   console.log(`  scenario:        ${cfg.scenario}`);
-  console.log(`  baseline (beat): ${cfg.baseline}`);
+  console.log(`  baselines:       ${BASELINES.map(b => b.key).join(', ')}`);
   console.log(`  judge model:     ${cfg.judgeModel || JUDGE_MODEL}`);
   console.log(`  companies:       ${companies.length}`);
-  console.log(`  rounds/company:  ${cfg.rounds}`);
-  console.log(`  COST ~ ${companies.length} comparison calls (each = 1 scrape + 2 LLM gens)`);
-  console.log(`         + ${judgeCalls} judge LLM calls`);
+  console.log(`  rounds/co/base:  ${cfg.rounds}`);
+  console.log(`  TOTAL judge evaluations: ~${evals}`);
+  console.log(`  COST ~ ${companies.length} DRiX fetches (scrape+gen) + ${companies.length * BASELINES.length} baseline gens + ${evals} judge calls`);
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────
@@ -459,87 +425,69 @@ async function main() {
   if (cfg.mode === 'self-test') return selfTest();
 
   if (cfg.mode === 'export-csv') {
-    if (!fs.existsSync(RESULTS_FILE)) throw new Error('no benchmark_results.json yet — run a live benchmark first.');
+    if (!fs.existsSync(RESULTS_FILE)) throw new Error('no benchmark_results.json yet — run live first.');
     const data = JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8'));
-    writeCSV(data.companies || [], data.summary, RESULTS_CSV);
-    console.log('Wrote ' + RESULTS_CSV);
-    return;
+    writeCSV(data.companies || [], data.summaries, RESULTS_CSV);
+    console.log('Wrote ' + RESULTS_CSV); return;
   }
 
   if (!['email', 'pitch', 'partnership'].includes(cfg.scenario)) throw new Error('bad --scenario');
-  if (!['chatgpt', 'gemini', 'claude'].includes(cfg.baseline)) throw new Error('bad --baseline');
   const companies = loadCompanies();
-
-  // Avoid self-preference bias: judge must not be the same model as the baseline generator.
-  const BASELINE_MODEL_IDS = { chatgpt: 'openai/gpt-4o', gemini: 'google/gemini-2.5-flash', claude: 'anthropic/claude-sonnet-4' };
-  let judgeModel = cfg.judgeModel || JUDGE_MODEL;
-  if (judgeModel === BASELINE_MODEL_IDS[cfg.baseline]) {
-    const alt = cfg.baseline === 'claude' ? 'openai/gpt-4o' : 'anthropic/claude-sonnet-4';
-    console.log(`[note] judge (${judgeModel}) is the same model as the '${cfg.baseline}' baseline; switching judge to ${alt} to avoid self-preference bias.`);
-    judgeModel = alt;
-  }
-  cfg.judgeModel = judgeModel;
-
+  cfg.judgeModel = cfg.judgeModel || JUDGE_MODEL;
   printPlan(companies, cfg);
 
   if (cfg.mode === 'dry-run') {
-    if (!OPENROUTER_API_KEY) console.log('\n[dry-run] WARNING: OPENROUTER_API_KEY not set — judge would fail.');
+    if (!OPENROUTER_API_KEY) console.log('\n[dry-run] WARNING: OPENROUTER_API_KEY not set.');
     const up = await serverReachable();
-    console.log(`\n[dry-run] app reachable at ${BASE_URL}: ${up ? 'YES' : 'NO (check the URL / that the app is up)'}`);
-    console.log('[dry-run] no API calls made. Re-run without --dry-run to execute.');
-    return;
+    console.log(`\n[dry-run] app reachable at ${BASE_URL}: ${up ? 'YES' : 'NO'}`);
+    console.log('[dry-run] no API calls made.'); return;
   }
 
-  // LIVE
-  if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY missing — judge cannot run.');
-  if (!(await serverReachable())) throw new Error(`App not reachable at ${BASE_URL}. Set BENCH_BASE_URL if your URL differs.`);
+  if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY missing — judge/baselines cannot run.');
+  if (!(await serverReachable())) throw new Error(`App not reachable at ${BASE_URL}. Set BENCH_BASE_URL.`);
   console.log('\nLIVE RUN — this incurs API cost.\n');
 
   const companyResults = [];
   for (let ci = 0; ci < companies.length; ci++) {
     const co = companies[ci];
     process.stdout.write(`[${ci + 1}/${companies.length}] ${co.company_name} ... `);
-    let pair;
-    try {
-      pair = await runComparison(co, cfg.scenario, cfg.baseline, cfg.cpp, cfg.perCompanyTimeoutMs);
-    } catch (e) {
-      console.log('SKIP (comparison failed: ' + e.message + ')');
-      companyResults.push({ ...co, error: e.message, decisions: [] });
-      continue;
-    }
-    const decisions = [];
-    for (let j = 0; j < cfg.rounds; j++) {
-      const drixIsA = j % 2 === 0; // counterbalance position across passes
-      try {
-        decisions.push(await judgeOnce(cfg.scenario, co.company_name, pair.drix, pair.standard, drixIsA, cfg.judgeModel));
-      } catch (e) {
-        console.log(`(judge pass ${j + 1} failed: ${e.message}) `);
+    let drix;
+    try { drix = await withRetry(() => fetchDrix(co, cfg.scenario, cfg.cpp, cfg.perCompanyTimeoutMs), 2, 3000); }
+    catch (e) { console.log('SKIP DRiX (' + e.message + ')'); companyResults.push({ ...co, error: e.message, baselines: {} }); continue; }
+
+    const baselines = {};
+    const parts = [];
+    for (const b of BASELINES) {
+      let text;
+      try { text = await withRetry(() => generateBaseline(b.model, cfg.scenario, co.company_name), 2, 2000); }
+      catch (e) { baselines[b.key] = { error: e.message, decisions: [] }; parts.push(`${b.key} ERR`); continue; }
+      const decisions = [];
+      for (let j = 0; j < cfg.rounds; j++) {
+        try { decisions.push(await judgeOnce(cfg.scenario, co.company_name, drix, text, j % 2 === 0, cfg.judgeModel)); }
+        catch { /* skip this pass */ }
       }
+      baselines[b.key] = { text, decisions };
+      parts.push(`${b.key} ${decisions.filter(d => d.drix_won).length}/${decisions.length}`);
     }
-    const wins = decisions.filter(d => d.drix_won).length;
-    console.log(`DRiX ${wins}/${decisions.length}`);
-    companyResults.push({ ...co, standard: pair.standard, drix: pair.drix, decisions });
+    console.log(parts.join('  '));
+    companyResults.push({ ...co, drix, baselines });
   }
 
-  const s = summarize(companyResults, cfg.bootstrap);
-  printReport(s, cfg);
+  const summaries = {};
+  for (const b of BASELINES) summaries[b.key] = summarizeBaseline(companyResults, b.key, cfg.bootstrap);
+  printReport(summaries, cfg);
 
-  const payload = {
+  fs.writeFileSync(RESULTS_FILE, JSON.stringify({
     _meta: {
-      generated_at: new Date().toISOString(),
-      method: 'blind LLM-judge, position-counterbalanced; bootstrap over companies',
-      simulated_buyer: true,
-      base_url: BASE_URL, scenario: cfg.scenario, baseline: cfg.baseline,
-      judge_model: judgeModel, rounds_per_company: cfg.rounds, bootstrap: cfg.bootstrap,
-      note: 'Internal LLM-judge benchmark. Not a real-world reply-rate. Communicate with 50%/25% haircuts.',
-    },
-    summary: s,
-    companies: companyResults,
-  };
-  fs.writeFileSync(RESULTS_FILE, JSON.stringify(payload, null, 2));
-  writeCSV(companyResults, s, RESULTS_CSV);
-  console.log(`\nFull results (every email + every judge verdict): ${RESULTS_FILE}`);
-  console.log(`Spreadsheet-ready per-company CSV:                 ${RESULTS_CSV}`);
+      generated_at: new Date().toISOString(), simulated_buyer: true,
+      base_url: BASE_URL, scenario: cfg.scenario, judge_model: cfg.judgeModel,
+      baselines: BASELINES, rounds_per_company_per_baseline: cfg.rounds, bootstrap: cfg.bootstrap,
+      note: 'LLM-judge simulation. AI-inferred estimates, not measured replies. Report with sensitivity bands.',
+    }, summaries, companies: companyResults,
+  }, null, 2));
+  writeCSV(companyResults, summaries, RESULTS_CSV);
+  console.log(`\nFull results: ${RESULTS_FILE}`);
+  console.log(`CSV:          ${RESULTS_CSV}`);
 }
 
 main().catch(e => { console.error('\nERROR:', e.message); process.exit(1); });
