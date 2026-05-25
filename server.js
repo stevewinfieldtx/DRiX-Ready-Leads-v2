@@ -2227,6 +2227,42 @@ async function callClearSignals(threadText, mode, run) {
 // ── Mode 1 + 2: Coaching call (returns situation report + play-by-play in one shot)
 // Mode 1 "Situation Report": frontend renders only final block (forward-looking)
 // Mode 2 "Play-by-Play": frontend reveals per_email from the SAME response (no extra API call)
+// Run a slow producer while holding the HTTP connection open. If it hasn't
+// finished within 10s, we commit a 200 and emit periodic keepalive bytes so a
+// proxy/edge can't sever the long (30-90s) request before it completes. The
+// client reads the body with res.json(); JSON.parse ignores the leading
+// whitespace, so the existing client contract is unchanged (no dist rebuild).
+// Fast failures (<10s) still return a proper error status; only slow successes
+// switch to keepalive streaming.
+async function respondMaybeKeepAlive(res, label, producer) {
+  let headersSent = false;
+  let keepAlive = null;
+  const beginStreaming = () => {
+    if (headersSent) return;
+    headersSent = true;
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no' // tell any nginx/proxy layer not to buffer the keepalives
+    });
+    keepAlive = setInterval(() => { try { res.write(' '); } catch (_) {} }, 15000);
+  };
+  const timer = setTimeout(beginStreaming, 10000);
+  try {
+    const payload = await producer();
+    clearTimeout(timer);
+    if (keepAlive) clearInterval(keepAlive);
+    if (headersSent) res.end(JSON.stringify(payload));
+    else res.json(payload);
+  } catch (err) {
+    clearTimeout(timer);
+    if (keepAlive) clearInterval(keepAlive);
+    console.error(`[${label}]`, err.message);
+    if (headersSent) res.end(JSON.stringify({ error: `${label} failed: ${err.message}` }));
+    else res.status(502).json({ error: `${label} failed: ${err.message}` });
+  }
+}
+
 app.post('/api/clearsignals', async (req, res) => {
   const { run_id, thread_text } = req.body || {};
   if (!run_id)      return res.status(400).json({ error: 'Require run_id' });
@@ -2238,7 +2274,7 @@ app.post('/api/clearsignals', async (req, res) => {
   const run = runStore.get(run_id);
   if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
 
-  try {
+  return respondMaybeKeepAlive(res, 'ClearSignals', async () => {
     const data = await callClearSignals(thread_text, 'coaching', run);
     const analysis = data.result || data;
 
@@ -2250,11 +2286,8 @@ app.post('/api/clearsignals', async (req, res) => {
     db.saveCoaching(run_id, thread_text, analysis)
       .catch(err => console.error('[db] async saveCoaching:', err.message));
 
-    return res.json({ run_id, analysis, pipeline: data.pipeline || 'clearsignals' });
-  } catch (err) {
-    console.error('[clearsignals]', err.message);
-    return res.status(502).json({ error: `ClearSignals failed: ${err.message}` });
-  }
+    return { run_id, analysis, pipeline: data.pipeline || 'clearsignals' };
+  });
 });
 
 // ── Mode 3: "Look Back" — Opportunity summary (deal is done, holistic retrospective)
@@ -2279,18 +2312,13 @@ app.post('/api/clearsignals-lookback', async (req, res) => {
     });
   }
 
-  try {
-    console.log(`[clearsignals-lookback] Starting opportunity summary for run ${run_id}`);
+  console.log(`[clearsignals-lookback] Starting opportunity summary for run ${run_id}`);
+  return respondMaybeKeepAlive(res, 'Look Back', async () => {
     const data = await callClearSignals(threadText, 'postmortem', run);
     const analysis = data.result || data;
-
     run.clearsignals_lookback = analysis;
-
-    return res.json({ run_id, analysis, pipeline: data.pipeline || 'clearsignals-lookback' });
-  } catch (err) {
-    console.error('[clearsignals-lookback]', err.message);
-    return res.status(502).json({ error: `Look Back failed: ${err.message}` });
-  }
+    return { run_id, analysis, pipeline: data.pipeline || 'clearsignals-lookback' };
+  });
 });
 
 // ─── CLEARSIGNALS PDF EXPORT ─────────────────────────────────────────────────
