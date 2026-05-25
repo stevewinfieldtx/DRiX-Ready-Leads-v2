@@ -51,7 +51,7 @@ const APOLLO_API_KEY      = process.env.APOLLO_API_KEY || '';
 const BRAVE_API_KEY       = process.env.BRAVE_API_KEY || '';
 
 if (!OPENROUTER_API_KEY) console.warn('⚠️  OPENROUTER_API_KEY not set.');
-if (!LEADHYDRATION_URL)  console.warn('⚠️  LEADHYDRATION_URL not set — hydration step will fail loud.');
+if (!LEADHYDRATION_URL)  console.warn('ℹ️  LEADHYDRATION_URL not set — fine: hydration is now generated natively. Only used as a ClearSignals thread-analysis fallback.');
 if (!RESEND_API_KEY)     console.warn('⚠️  RESEND_API_KEY not set — email report step will fail loud.');
 if (!TDE_API_KEY)        console.warn('⚠️  TDE_API_KEY not set — TDE cache lookups will be skipped (fresh ingest every time).');
 if (!FIRECRAWL_API_KEY)  console.warn('⚠️  FIRECRAWL_API_KEY not set — fetches use basic HTTP (SPAs may return empty content).');
@@ -1810,24 +1810,105 @@ function synthesizeSolutionFromAtoms(solutionEntry, painGroups) {
   };
 }
 
+// ─── DRiX-NATIVE DISCOVERY INTEL ─────────────────────────────────────────────
+// Generates the discovery payload (fit narrative, pain chips, 3-stage question
+// playbook, 5-step email drip) DIRECTLY from the 9D atoms + pain groups +
+// chosen strategy DRiX already holds — via callLLM (robust parse + retry).
+// This fully replaces the old external LeadHydration /api/agent/company-pain
+// call: no network hop, no cold-start 502s, and it anchors on the chosen
+// persona×pain instead of flattening atoms into a generic solution object.
+// Output shape matches exactly what the client's renderHydration() consumes.
+const DISCOVERY_INTEL_PROMPT = `You are an elite B2B sales strategist and coach.
+Given a target company, the solution being sold, the pains already surfaced, and a CHOSEN sales angle (a specific persona × pain pair), generate highly specific, research-backed sales intelligence for a first meeting.
+
+ANCHOR EVERYTHING on the chosen angle: the questions, pain chips, and emails must all serve winning over the named persona on the named pain. Do not drift to other personas.
+
+CRITICAL QUALITY RULES FOR QUESTIONS:
+- Every question must be specific enough that the prospect thinks "this person researched my company."
+- Every response scenario must be a realistic QUOTE — how a real person in this role/industry would actually say it.
+- Every next_step and pivot must contain the ACTUAL WORDS the rep should say — not instructions like "redirect" or "probe deeper."
+- Purpose teaches strategy — the psychological or competitive reason behind the question, not the obvious.
+- tone_guidance coaches delivery — when to pause, when to empathize, when to challenge.
+- The 3 questions flow as one conversation: OPENING reveals the pain, DEEPENING quantifies it, ADVANCEMENT gets the prospect to envision the solution.
+- NEVER use generic business jargon. Write like a human talks.
+
+ANTI-FABRICATION: Only state specific facts about the company that appear in the provided atoms/evidence. If you lack a grounded fact, phrase it as a segment pattern ("companies like yours typically…") — never invent specific incidents, figures, dates, or systems.
+
+Return ONLY valid JSON (no markdown) in this exact shape:
+{
+  "score": <integer 1-100 fit score>,
+  "whoIsThis": "<2-3 sentence narrative: what they do, market position, why relevant>",
+  "primaryLead": { "title": "<the persona/role to target>", "topic": "<the core conversation topic>" },
+  "painIndicators": [ { "label": "<2-4 word pain chip>", "explanation": "<1-2 sentences: why it's their pain and how the solution addresses it>" } ],
+  "questions": [
+    {
+      "stage": "OPENING — Discovery",
+      "question": "<specific, provocative opener referencing their context>",
+      "purpose": "<2-3 sentences coaching the strategy behind it>",
+      "pain_it_targets": "<the real problem it surfaces, not a category>",
+      "tone_guidance": "<how to deliver it>",
+      "positive_responses": [ { "response": "<realistic prospect quote>", "next_step": "<exact words the rep says next>" }, { "response": "<2nd>", "next_step": "<2nd>" } ],
+      "neutral_negative_responses": [ { "response": "<realistic pushback quote>", "pivot": "<exact pivot words + why it works>" }, { "response": "<2nd>", "pivot": "<2nd>" } ]
+    },
+    { "stage": "DEEPENING — Pain Exploration", "question": "...", "purpose": "...", "pain_it_targets": "...", "tone_guidance": "...", "positive_responses": [ {"response":"...","next_step":"..."}, {"response":"...","next_step":"..."} ], "neutral_negative_responses": [ {"response":"...","pivot":"..."}, {"response":"...","pivot":"..."} ] },
+    { "stage": "ADVANCEMENT — Next Step", "question": "<vision question that gets them to sell themselves>", "purpose": "...", "pain_it_targets": "...", "tone_guidance": "...", "positive_responses": [ {"response":"...","next_step":"<the specific close: demo/pilot/follow-up with exact words>"}, {"response":"...","next_step":"..."} ], "neutral_negative_responses": [ {"response":"...","pivot":"<graceful door-open with specific words>"}, {"response":"...","pivot":"..."} ] }
+  ],
+  "emailCampaign": [
+    { "step": 1, "label": "Initial Outreach",      "sendDay": "Day 1",  "subject": "<subject>", "body": "<3-4 short paragraphs, references their specific pain, soft CTA>" },
+    { "step": 2, "label": "Value-Add Follow-Up",   "sendDay": "Day 4",  "subject": "<subject>", "body": "<shorter; shares a relevant insight/stat, no pressure>" },
+    { "step": 3, "label": "Pain-Point Trigger",    "sendDay": "Day 8",  "subject": "<subject>", "body": "<zeroes in on one specific pain indicator; personal and timely>" },
+    { "step": 4, "label": "Social Proof & Nudge",  "sendDay": "Day 14", "subject": "<subject>", "body": "<references peers who solved this; gentle nudge>" },
+    { "step": 5, "label": "Breakup",               "sendDay": "Day 21", "subject": "<subject>", "body": "<short, friendly breakup; leaves door open>" }
+  ]
+}
+
+DISCIPLINE: exactly 4 painIndicators, exactly 3 questions (the three stages above), exactly 5 emailCampaign steps. Each question needs 2 positive_responses and 2 neutral_negative_responses.`;
+
+async function generateDiscoveryIntel({ customer, solutionIntel, painGroups, chosenStrategy, customerName, customerWebsite, industryName }) {
+  const atoms = customer?.atoms || [];
+  // Bound the payload: prioritize the most decision-relevant atom types.
+  const keyTypes = ['weakness', 'mission_gap', 'buying_trigger', 'differentiator', 'icp', 'proof_point', 'product'];
+  const relevantAtoms = atoms
+    .filter(a => keyTypes.includes(a.type))
+    .slice(0, 60)
+    .map(a => ({ type: a.type, claim: a.claim, persona: a.d_persona, pressure: a.d_status_quo_pressure }));
+
+  const pg = painGroups || {};
+  const surfacedPains = [...(pg.company_pain || []), ...(pg.subindustry_pain || []), ...(pg.industry_pain || [])]
+    .map(p => ({ title: p.title, description: p.description, persona: p.persona_primary?.title }))
+    .slice(0, 12);
+
+  const userContent = JSON.stringify({
+    company: { name: customerName, website: customerWebsite || null, industry: industryName || null, summary: customer?.summary || '' },
+    chosen_angle: {
+      persona: chosenStrategy?.target_persona || 'General',
+      pain: chosenStrategy?.pain_anchor || '',
+      strategy_title: chosenStrategy?.title || '',
+      strategy_explanation: chosenStrategy?.explanation || '',
+      customer_pain: chosenStrategy?.customer_pain || ''
+    },
+    solution: solutionIntel,
+    surfaced_pains: surfacedPains,
+    customer_atoms: relevantAtoms
+  });
+
+  const parsed = await callLLM(DISCOVERY_INTEL_PROMPT, userContent, { maxTokens: 16000, temperature: 0.5, retries: 1 });
+  if (!parsed || !Array.isArray(parsed.questions) || !parsed.questions.length) {
+    throw new Error('Discovery intel generation returned no questions');
+  }
+  return parsed;
+}
+
 // Hydration endpoint — called AFTER user picks a strategy.
-// Reuses TDE's already-computed solution atoms and pain groups instead of
-// re-running LeadHydration's /api/agent/solution (expensive duplicate work).
-// We still call /api/agent/company-pain to generate the rich discovery intel
-// (questions, email campaign, strategic insight) that TDE doesn't produce
-// on its own — but with tier=2 (LLM-only) so it doesn't redo the deep scrape.
+// Generates the DRiX Ready Lead (discovery questions, pain chips, email drip)
+// NATIVELY from the atoms + pain groups + chosen strategy DRiX already holds.
+// No external service: solution profile comes from synthesizeSolutionFromAtoms,
+// discovery intel from generateDiscoveryIntel — both on DRiX's own robust LLM path.
 app.post('/api/hydrate', async (req, res) => {
   const { run_id, strategy_id, custom_strategy } = req.body || {};
   if (!run_id) return res.status(400).json({ error: 'Require run_id' });
   const run = runStore.get(run_id);
   if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
-
-  if (!LEADHYDRATION_URL) {
-    return res.status(503).json({
-      error: 'DRiX Ready Lead not connected',
-      detail: 'Set LEADHYDRATION_URL env var to enable this step. Demo cannot proceed without the real service.'
-    });
-  }
 
   // Resolve which strategy was selected
   let chosenStrategy = null;
@@ -1862,48 +1943,20 @@ app.post('/api/hydrate', async (req, res) => {
       }
     }
 
-    // Pass the strategy's persona × pain anchor as a hint so questions/emails
-    // align to the chosen angle, not some other persona/pain.
-    const strategyHint = chosenStrategy.target_persona && chosenStrategy.pain_anchor
-      ? `[Chosen angle — anchor on: persona "${chosenStrategy.target_persona}", pain "${chosenStrategy.pain_anchor}"]`
-      : '';
-    const enrichedIndustry = strategyHint
-      ? `${industryName} ${strategyHint}`
-      : industryName;
-
-    // Retry up to 2 times — LeadHydration's LLM can return null on cold starts.
-    let hydration;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const painRes = await fetch(`${LEADHYDRATION_URL}/api/agent/company-pain`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(LEADHYDRATION_API_KEY ? { 'Authorization': `Bearer ${LEADHYDRATION_API_KEY}` } : {})
-        },
-        body: JSON.stringify({
-          companyName: customerName,
-          ...(customerWebsite ? { website: customerWebsite } : {}),
-          ...(enrichedIndustry ? { industry: enrichedIndustry } : {}),
-          solution: solutionIntel,
-          tier: 2, // LLM-only — TDE already did the deep research; don't redo it
-          lang: 'en'
-        }),
-        signal: AbortSignal.timeout(120_000) // 2 min — cold path can be slow
-      });
-      if (painRes.ok) {
-        hydration = await painRes.json();
-        break;
-      }
-      const txt = await painRes.text();
-      console.error(`[hydrate] attempt ${attempt + 1}/3 — ${painRes.status}: ${txt.slice(0, 300)}`);
-      if (attempt < 2 && (painRes.status >= 500 || txt.includes('null response'))) {
-        console.log(`[hydrate] Retrying in ${3 + attempt * 3}s…`);
-        await new Promise(r => setTimeout(r, (3 + attempt * 3) * 1000));
-        continue;
-      }
-      throw new Error(`LeadHydration /company-pain failed (${painRes.status}): ${txt.slice(0, 300)}`);
-    }
-    if (!hydration) throw new Error('LeadHydration returned no data after 3 attempts');
+    // Generate the discovery intel NATIVELY from the atoms + pain groups +
+    // chosen strategy DRiX already holds. callLLM does fence-strip + JSON
+    // salvage + retry internally, so no external service and no 502 relay.
+    console.log(`[hydrate] Generating native discovery intel for ${customerName} (angle: ${chosenStrategy.target_persona || 'General'} × ${chosenStrategy.pain_anchor || '—'})`);
+    const hydration = await generateDiscoveryIntel({
+      customer: run.customer,
+      solutionIntel,
+      painGroups: run.pain_groups,
+      chosenStrategy,
+      customerName,
+      customerWebsite,
+      industryName
+    });
+    if (!hydration) throw new Error('Discovery intel generation returned no data');
 
     // ── Unify score: carry the strategy's confidence as the hydration fit score ──
     // The strategy confidence (0-100) is the user-facing "Fit Score" everywhere.
@@ -1932,7 +1985,9 @@ app.post('/api/hydrate', async (req, res) => {
     });
   } catch (err) {
     console.error('[hydrate]', err.message);
-    return res.status(502).json({ error: `Hydration failed: ${err.message}` });
+    // 500, not 502 — discovery intel is now generated in-process; there is no
+    // upstream gateway left to blame.
+    return res.status(500).json({ error: `Hydration failed: ${err.message}` });
   }
 });
 
@@ -4630,7 +4685,8 @@ app.get('*', (req, res) => {
 app.listen(PORT, async () => {
   console.log(`✅ DRiX Demo v3 listening on port ${PORT}`);
   console.log(`   model: ${OPENROUTER_MODEL_ID}`);
-  console.log(`   drix-ready-lead: ${LEADHYDRATION_URL || '(not configured)'}`);
+  console.log(`   drix-ready-lead: native (in-process discovery intel)`);
+  console.log(`   clearsignals-fallback url: ${LEADHYDRATION_URL || '(not configured)'}`);
   console.log(`   database: ${db.isConfigured() ? 'connected' : '(not configured — set DATABASE_URL)'}`);
   console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();
