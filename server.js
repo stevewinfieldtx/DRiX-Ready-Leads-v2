@@ -15,6 +15,7 @@ const { scanIndividual } = require('./individual-scan');
 const { analyzeSingle, analyzeGroup, analyzeReadyLeads } = require('./meeting-analysis');
 const { discoverCompetitors } = require('./competitive-intel');
 const { enrichCompany, extractDomain } = require('./company-intel');
+const registerMentorMatch = require('./mentor-match-routes');
 
 const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
@@ -26,8 +27,15 @@ app.use(express.static(path.join(__dirname, 'dist')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
+// Hard-fail if a required env var is missing — no silent fallbacks.
+function requireEnv(name) {
+  const val = process.env[name];
+  if (!val) throw new Error(`Missing required env var: ${name}`);
+  return val;
+}
+
 const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID || 'anthropic/claude-sonnet-4.5';
+const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID;
 const LEADHYDRATION_URL   = (process.env.LEADHYDRATION_URL || '').replace(/\/+$/, '');
 const LEADHYDRATION_API_KEY = process.env.LEADHYDRATION_API_KEY || '';
 const CLEARSIGNALS_URL    = (process.env.CLEARSIGNALS_URL || '').replace(/\/+$/, '');
@@ -3373,6 +3381,9 @@ app.get('/api/meta/naics', (_req, res) => res.json(NAICS_TAXONOMY));
 app.get('/api/meta/regions', (_req, res) => res.json(REGIONS));
 app.get('/api/meta/dimensions', (_req, res) => res.json(DIMENSIONS));
 
+// ─── Mentor Match (founder ↔ mentor/investor matching, briefs, archive) ───
+registerMentorMatch(app, { callLLM });
+
 // ─── NAICS TAXONOMY (subset — 2-digit sector → 3-digit subsectors) ───────────
 const NAICS_TAXONOMY = [
   { code: '11', name: 'Agriculture, Forestry, Fishing & Hunting', sub: [
@@ -3517,62 +3528,28 @@ async function fetchWithRetry(url, options, { label = 'fetch', retries = 2, back
   }
 }
 
-// Cerebras-first synthesis with OpenRouter fallback
+// Cerebras synthesis — fast primary (~2000 tok/s), no fallback.
+// Model controlled via CEREBRAS_MODEL_ID env var.
 async function synthesizeWithFallback(prompt, { label = 'Synth', temperature = 0.5, max_tokens = 2000 } = {}) {
-  // Primary: Cerebras
-  if (CEREBRAS_API_KEY) {
-    try {
-      const resp = await fetchWithRetry('https://api.cerebras.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'gpt-oss-120b',
-          messages: [{ role: 'user', content: prompt }],
-          temperature, max_tokens
-        }),
-        signal: AbortSignal.timeout(45000)
-      }, { label: `${label}/Cerebras`, retries: 2, backoffMs: 2000 });
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content;
-      if (text) {
-        console.log(`[${label}] Cerebras OK (${text.length} chars)`);
-        return text;
-      }
-    } catch (e) {
-      console.warn(`[${label}] Cerebras failed: ${e.message}, falling back to OpenRouter...`);
-    }
-  }
+  if (!CEREBRAS_API_KEY) throw new Error(`${label}: CEREBRAS_API_KEY not set`);
+  const model = requireEnv('CEREBRAS_MODEL_ID');
 
-  // Fallback: OpenRouter
-  if (OPENROUTER_API_KEY) {
-    try {
-      const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
-          'X-Title': `DRiX ${label}`
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [{ role: 'user', content: prompt }],
-          temperature, max_tokens
-        }),
-        signal: AbortSignal.timeout(45000)
-      }, { label: `${label}/OpenRouter`, retries: 2, backoffMs: 3000 });
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content;
-      if (text) {
-        console.log(`[${label}] OpenRouter fallback OK (${text.length} chars)`);
-        return text;
-      }
-    } catch (e) {
-      console.warn(`[${label}] OpenRouter fallback also failed: ${e.message}`);
-    }
-  }
+  const resp = await fetchWithRetry('https://api.cerebras.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature, max_tokens
+    }),
+    signal: AbortSignal.timeout(45000)
+  }, { label: `${label}/${model}`, retries: 2, backoffMs: 2000 });
 
-  throw new Error(`${label}: All providers failed (Cerebras + OpenRouter)`);
+  const data = await resp.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error(`${label}: empty response from ${model}`);
+  console.log(`[${label}] Cerebras OK via ${model} (${text.length} chars)`);
+  return text;
 }
 
 // Pre-loaded WinTech atoms from seed file — no scraping needed for sender
@@ -3593,52 +3570,12 @@ const WINTECH_SEED = (() => {
 })();
 console.log(`   WinTech seed: ${WINTECH_SEED.atoms.length} atoms loaded`);
 
-// ─── DEMO DOC SETS (multi-source atomize) ────────────────────────────────────
-// Each company has 4 URLs to ingest. Pre-warmed at boot for instant demo runs.
-const DEMO_DOCS = {
-  'AIAIVN': [
-    { url: 'https://www.aiaivn.com/', label: 'Homepage' },
-    { url: 'https://www.aiaivn.com/about-us', label: 'About Us' },
-    { url: 'https://www.aiaivn.com/our-services', label: 'Services' },
-    { url: 'https://www.aiaivn.com/about', label: 'About' }
-  ],
-  'Techcombank': [
-    { url: 'https://www.techcombank.com.vn/', label: 'Homepage' },
-    { url: 'https://www.techcombank.com.vn/personal-banking', label: 'Personal Banking' },
-    { url: 'https://www.techcombank.com.vn/investors', label: 'Investors' },
-    { url: 'https://www.techcombank.com.vn/about-us/press-media/news', label: 'News & Media' }
-  ],
-  'FPT Software': [
-    { url: 'https://www.fpt-software.com/', label: 'Homepage' },
-    { url: 'https://www.fpt-software.com/about-fpt-software/', label: 'About Us' },
-    { url: 'https://www.fpt-software.com/service/', label: 'Services' },
-    { url: 'https://www.fpt-software.com/newsroom/news/', label: 'News' }
-  ]
-};
 const DOC_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#06b6d4'];
 
 // TDE atom pipeline cache — atomize once, use forever. Key = company name.
 // Stores: { sources, atoms, bySource, crossRefs, synthesis, timestamp }
 const ATOM_CACHE = {};
 const ATOM_CACHE_VERSION = 3; // Bump to invalidate all caches (e.g. after prompt changes)
-
-async function prewarmDemoDocs() {
-  console.log('[PREWARM] Starting demo doc pre-warm...');
-  for (const [company, docs] of Object.entries(DEMO_DOCS)) {
-    for (const doc of docs) {
-      try {
-        const result = await ingestOne({ url: doc.url, role: 'customer', hint_name: company });
-        doc._cached = true;
-        doc._atomCount = result.atoms?.length || 0;
-        console.log(`[PREWARM] OK ${company} / ${doc.label}: ${doc._atomCount} atoms`);
-      } catch (e) {
-        doc._cached = false;
-        console.log(`[PREWARM] SKIP ${company} / ${doc.label}: ${e.message}`);
-      }
-    }
-  }
-  console.log('[PREWARM] Complete.');
-}
 
 // ─── CPP (Communication Personality Profiles) ──────────────────────────────
 // Each profile shapes HOW the TDE synthesis writes — same atoms, different voice.
@@ -4034,15 +3971,22 @@ Now, using that exact voice, complete the following task using ONLY the atoms pr
 // ─── ATOMIZE ENDPOINT (multi-doc Chunking vs DRiX decomposition) ─────────────
 
 app.post('/api/atomize', async (req, res) => {
-  const { company_name, fresh } = req.body || {};
+  const { company_name, urls, fresh } = req.body || {};
 
-  const docs = DEMO_DOCS[company_name];
-  if (!docs) {
-    return res.status(400).json({ error: `Unknown company: ${company_name}. Use: ${Object.keys(DEMO_DOCS).join(', ')}` });
+  if (!company_name) {
+    return res.status(400).json({ error: 'company_name required' });
+  }
+  if (!urls || !Array.isArray(urls) || urls.length === 0) {
+    return res.status(400).json({ error: 'urls array required (e.g. [{ url, label }])' });
   }
   if (!OPENROUTER_API_KEY) {
     return res.status(500).json({ error: 'Server not configured' });
   }
+
+  const docs = urls.map((u, i) => ({
+    url: u.url,
+    label: u.label || `Source ${i + 1}`
+  }));
 
   // SSE setup
   res.setHeader('Content-Type', 'text/event-stream');
@@ -4321,37 +4265,28 @@ If a sentence blends sources, attribute it to the PRIMARY source.`;
     });
 
     // ── CHUNK SIDE: OpenRouter only (slower "normal AI") — ALWAYS runs fresh ──
-    const CHUNK_MODELS = ['google/gemini-2.5-flash', 'anthropic/claude-sonnet-4', 'meta-llama/llama-4-maverick'];
-
     async function chunkSynthesize() {
-      for (const model of CHUNK_MODELS) {
-        try {
-          const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
-              'X-Title': 'DRiX Atomize - Chunk Side'
-            },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: 'user', content: chunkPrompt }],
-              temperature: 0.7, max_tokens: 2000
-            }),
-            signal: AbortSignal.timeout(50000)
-          }, { label: `ChunkSynth/${model}`, retries: 2, backoffMs: 3000 });
-          const data = await resp.json();
-          const text = data?.choices?.[0]?.message?.content;
-          if (text) {
-            console.log(`[ChunkSynth] OK via ${model} (${text.length} chars)`);
-            return text;
-          }
-        } catch (e) {
-          console.warn(`[ChunkSynth] ${model} failed: ${e.message}, trying next...`);
-        }
-      }
-      throw new Error('All chunk models failed');
+      const model = requireEnv('OPENROUTER_MODEL_ID');
+      const resp = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'https://tde-demo.up.railway.app',
+          'X-Title': 'DRiX Atomize - Chunk Side'
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: chunkPrompt }],
+          temperature: 0.7, max_tokens: 2000
+        }),
+        signal: AbortSignal.timeout(50000)
+      }, { label: `ChunkSynth/${model}`, retries: 2, backoffMs: 3000 });
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (!text) throw new Error(`ChunkSynth: empty response from ${model}`);
+      console.log(`[ChunkSynth] OK via ${model} (${text.length} chars)`);
+      return text;
     }
 
     // Run chunk synthesis (always fresh) + atom synthesis (only if not cached)
@@ -4699,6 +4634,4 @@ app.listen(PORT, async () => {
   console.log(`   database: ${db.isConfigured() ? 'connected' : '(not configured — set DATABASE_URL)'}`);
   console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();
-  // Pre-warm demo docs in background (non-blocking)
-  prewarmDemoDocs().catch(e => console.error('[PREWARM] error:', e.message));
 });
