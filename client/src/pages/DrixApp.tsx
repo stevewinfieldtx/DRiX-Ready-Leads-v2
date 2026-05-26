@@ -137,6 +137,17 @@ export default function DrixApp() {
   const [fIndividualEmail, setFIndividualEmail] = useState('')
   const [fSubindustry, setFSubindustry] = useState('')
 
+  // ─── SMB MODE STATE ───────────────────────────────────────────────────────
+  const [appMode, setAppMode] = useState<'enterprise' | 'smb'>('enterprise')
+  const [smbWizardStep, setSmbWizardStep] = useState(0)
+  const [smbRunning, setSmbRunning] = useState(false)
+  const [smbResult, setSmbResult] = useState<any>(null)
+  const [smbError, setSmbError] = useState('')
+  const [smbPhases, setSmbPhases] = useState<{ text: string; state: 'pending' | 'running' | 'done' }[]>([])
+  const [smbSelectedStrategy, setSmbSelectedStrategy] = useState<string>('s1')
+  const [smbExpandedEmail, setSmbExpandedEmail] = useState<number | null>(null)
+  const [smbCustomerMode, setSmbCustomerMode] = useState<'url' | 'industry'>('url')
+
   // (All inputs are now controlled — no refs needed)
 
   // ─── BOOT ───────────────────────────────────────────────────────────────
@@ -1183,6 +1194,184 @@ export default function DrixApp() {
   // Keep the ref pointing at the latest hydrate so window.onProceed never goes stale
   hydrateRef.current = hydrate
 
+  // ─── SMB FLOW ─────────────────────────────────────────────────────────────
+  const runSmbFlow = useCallback(async () => {
+    setSmbError('')
+    const email = fEmail.trim()
+    const reseller = fSender.trim()
+    const solution = fSolution.trim()
+    if (!email || !reseller || !solution) { setSmbError('Email, reseller URL, and solution URL are required.'); return }
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setSmbError('Email looks invalid.'); return }
+
+    const body: any = { email, reseller_url: reseller, solution_url: solution }
+    if (smbCustomerMode === 'url' && fCustomer.trim()) {
+      body.customer_url = fCustomer.trim()
+    } else if (smbCustomerMode === 'industry' && (selectedIndustry || fSubindustry)) {
+      if (selectedIndustry && appState.naics) {
+        const indName = appState.naics.find(s => s.code === selectedIndustry)?.name || selectedIndustry
+        body.industry = `${indName} (NAICS ${selectedIndustry})`
+        if (fSubindustry) {
+          const subName = appState.naics.find(s => s.code === selectedIndustry)?.sub.find(x => x.code === fSubindustry)?.name || fSubindustry
+          body.subindustry = `${subName} (NAICS ${fSubindustry})`
+        }
+      }
+    }
+
+    setSmbRunning(true)
+    setSmbResult(null)
+    setSmbSelectedStrategy('s1')
+    setSmbExpandedEmail(null)
+    setSmbPhases([
+      { text: 'Fetching sources…', state: 'running' },
+      { text: 'Generating SMB brief…', state: 'pending' },
+    ])
+
+    try {
+      const res = await fetch('/api/smb-flow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || `Request failed (${res.status})`) }
+      await readSSE(res, (event, data) => {
+        if (event === 'phase') {
+          setSmbPhases(prev => {
+            const next = [...prev]
+            if (data.phase === 'fetch' || data.phase === 'ingest') { next[0] = { text: data.message, state: 'running' } }
+            if (data.phase === 'analyzing') { next[0] = { ...next[0], state: 'done' }; next[1] = { text: data.message, state: 'running' } }
+            return next
+          })
+        }
+        if (event === 'smb_result') {
+          setSmbPhases(prev => prev.map(p => ({ ...p, state: 'done' as const })))
+          setSmbResult(data.result)
+        }
+        if (event === 'error') setSmbError(data.message)
+      })
+    } catch (e: any) {
+      setSmbError(e.message)
+    } finally {
+      setSmbRunning(false)
+    }
+  }, [fEmail, fSender, fSolution, fCustomer, smbCustomerMode, selectedIndustry, fSubindustry, appState.naics])
+
+  const renderSmbCard = (r: any) => {
+    if (!r) return null
+    const strat = (r.strategies || []).find((s: any) => s.id === smbSelectedStrategy) || r.strategies?.[0]
+    const pains = r.pains || []
+    const questions = r.questions || []
+    const emails = r.emails || []
+    const urgencyColor = (u: string) => u === 'high' ? 'var(--red)' : u === 'medium' ? 'var(--yellow)' : 'var(--green)'
+
+    return (
+      <div style={{ fontFamily: 'inherit' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>SMB Quick Brief</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{esc(r.customer_label || 'Target Customer')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{esc(r.solution_label)} · {esc(r.reseller_label)}</div>
+          </div>
+          <div style={{ background: 'rgba(90,212,255,0.1)', border: '1px solid rgba(90,212,255,0.3)', borderRadius: 10, padding: '8px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Pains Found</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--dx-accent)' }}>{pains.length}</div>
+          </div>
+        </div>
+
+        {/* Pains */}
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Pain Points</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20 }}>
+          {pains.map((p: any, i: number) => (
+            <div key={i} style={{ background: 'var(--surface-2)', border: '1px solid var(--dx-border)', borderLeft: `3px solid ${urgencyColor(p.urgency)}`, borderRadius: '0 8px 8px 0', padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{esc(p.title)}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 6 }}>{esc(p.description)}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{esc(p.persona)}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, color: urgencyColor(p.urgency), background: `${urgencyColor(p.urgency)}22`, padding: '2px 6px', borderRadius: 6 }}>{(p.urgency || '').toUpperCase()}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Strategy toggle */}
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Strategies</div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          {(r.strategies || []).map((s: any) => (
+            <button key={s.id} onClick={() => setSmbSelectedStrategy(s.id)}
+              style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: `1px solid ${smbSelectedStrategy === s.id ? 'var(--dx-accent)' : 'var(--dx-border)'}`, background: smbSelectedStrategy === s.id ? 'rgba(90,212,255,0.08)' : 'var(--surface-2)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: smbSelectedStrategy === s.id ? 'var(--dx-accent)' : 'var(--text-muted)', marginBottom: 4 }}>{s.id === r.top_strategy_id ? '★ Top Pick' : 'Alternative'}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{esc(s.title)}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.4 }}>{esc(s.angle)}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Active strategy detail */}
+        {strat && (
+          <div style={{ background: 'rgba(90,212,255,0.04)', border: '1px solid rgba(90,212,255,0.2)', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Target Persona</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--dx-accent)' }}>{esc(strat.persona)}</div>
+              </div>
+              <div style={{ flex: 2 }}>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Pain Focus</div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{esc(strat.pain_focus)}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Opening Move</div>
+            <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.6 }}>{esc(strat.opening_move)}</div>
+          </div>
+        )}
+
+        {/* Discovery Questions */}
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Discovery Questions</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+          {questions.map((q: any, i: number) => (
+            <div key={i} style={{ background: 'var(--surface-2)', border: '1px solid var(--dx-border)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--dx-accent)', marginBottom: 6 }}>{esc(q.stage)}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 8, lineHeight: 1.5 }}>"{esc(q.question)}"</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 8 }}>{esc(q.purpose)}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ background: 'rgba(61,220,132,0.06)', border: '1px solid rgba(61,220,132,0.2)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--green)', letterSpacing: '0.8px', marginBottom: 4 }}>✓ POSITIVE</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.4 }}>{esc(q.positive_response)}</div>
+                </div>
+                <div style={{ background: 'rgba(255,90,90,0.06)', border: '1px solid rgba(255,90,90,0.2)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--red)', letterSpacing: '0.8px', marginBottom: 4 }}>↩ OBJECTION</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.4 }}>{esc(q.objection_response)}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 3-Email Drip */}
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Email Sequence (3-step)</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {emails.map((em: any, i: number) => (
+            <div key={i} style={{ background: 'var(--surface-2)', border: '1px solid var(--dx-border)', borderLeft: '3px solid var(--dx-accent)', borderRadius: '0 8px 8px 0', overflow: 'hidden' }}>
+              <div onClick={() => setSmbExpandedEmail(smbExpandedEmail === i ? null : i)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--dx-accent)', background: 'rgba(90,212,255,0.12)', padding: '2px 8px', borderRadius: 6 }}>{esc(em.sendDay)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{esc(em.label)}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{esc(em.subject)}</span>
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{smbExpandedEmail === i ? '▲' : '▼'}</span>
+              </div>
+              {smbExpandedEmail === i && (
+                <div style={{ padding: '0 14px 12px', fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.7, borderTop: '1px solid var(--dx-border)', paddingTop: 10, whiteSpace: 'pre-wrap' }}>
+                  {esc(em.body)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const renderHydration = (data: any) => {
     const h = data.hydration || {}
     const chosen = data.chosen_strategy || {}
@@ -1835,31 +2024,210 @@ export default function DrixApp() {
           className="glass rounded-2xl p-6 sm:p-8 mb-8"
         >
           {/* Mode Switch */}
-          <div className="flex items-center gap-3 mb-6 p-3 bg-drix-surface2 rounded-xl border border-drix-border">
-            <span className={`text-[11px] font-extrabold tracking-widest uppercase ${mode === 'production' ? 'text-drix-green' : 'text-drix-muted'}`}>
-              PRODUCTION
-            </span>
-            <span className="text-[11px] font-extrabold tracking-widest uppercase text-drix-green">
-              PRODUCTION
-            </span>
-            <span className="text-[11px] text-drix-dim ml-2">
-              Full intelligence — 100-200 atoms per source
-            </span>
+          {/* Mode Toggle: Enterprise / SMB */}
+          <div className="flex items-center gap-2 mb-6 p-1.5 bg-drix-surface2 rounded-xl border border-drix-border">
+            <button
+              onClick={() => { setAppMode('enterprise'); setSmbResult(null); setSmbError('') }}
+              className={`flex-1 py-2.5 rounded-lg text-[11px] font-extrabold tracking-widest uppercase transition-all ${
+                appMode === 'enterprise'
+                  ? 'bg-gradient-to-r from-drix-accent/20 to-drix-purple/20 border border-drix-accent/40 text-drix-accent'
+                  : 'text-drix-muted hover:text-drix-text'
+              }`}
+            >
+              Enterprise
+            </button>
+            <button
+              onClick={() => { setAppMode('smb'); setSmbWizardStep(fEmail.trim() ? 1 : 0); setSmbError('') }}
+              className={`flex-1 py-2.5 rounded-lg text-[11px] font-extrabold tracking-widest uppercase transition-all ${
+                appMode === 'smb'
+                  ? 'bg-gradient-to-r from-drix-green/20 to-drix-accent/20 border border-drix-green/40 text-drix-green'
+                  : 'text-drix-muted hover:text-drix-text'
+              }`}
+            >
+              SMB Quick
+            </button>
           </div>
 
           {/* ─── WIZARD ─── */}
           <div className="relative overflow-hidden min-h-[280px]">
-            {/* Progress dots */}
-            <div className="flex items-center justify-center gap-2 mb-8">
-              {[0, 1, 2, 3, 4, 5].map((s) => (
-                <div
-                  key={s}
-                  className={`h-1.5 rounded-full transition-all duration-500 ${
+            {/* Progress dots — Enterprise */}
+            {appMode === 'enterprise' && (
+              <div className="flex items-center justify-center gap-2 mb-8">
+                {[0, 1, 2, 3, 4, 5].map((s) => (
+                  <div key={s} className={`h-1.5 rounded-full transition-all duration-500 ${
                     s < wizardStep ? 'w-6 bg-drix-accent' : s === wizardStep ? 'w-6 bg-drix-accent animate-pulse' : 'w-2 bg-drix-surface3'
-                  }`}
-                />
-              ))}
-            </div>
+                  }`} />
+                ))}
+              </div>
+            )}
+            {/* Progress dots — SMB */}
+            {appMode === 'smb' && (
+              <div className="flex items-center justify-center gap-2 mb-8">
+                {[0, 1, 2, 3].map((s) => (
+                  <div key={s} className={`h-1.5 rounded-full transition-all duration-500 ${
+                    s < smbWizardStep ? 'w-6 bg-drix-green' : s === smbWizardStep ? 'w-6 bg-drix-green animate-pulse' : 'w-2 bg-drix-surface3'
+                  }`} />
+                ))}
+              </div>
+            )}
+
+            {/* ─── SMB WIZARD ─── */}
+            {appMode === 'smb' && (
+              <>
+                {/* SMB Step 0: Email */}
+                {smbWizardStep === 0 && (
+                  <motion.div key="smb-step0" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-md mx-auto text-center">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-drix-green to-drix-accent mb-5 shadow-glow">
+                      <Zap size={24} className="text-drix-bg" />
+                    </div>
+                    <h3 className="text-xl font-black text-drix-text mb-2">SMB Quick Mode</h3>
+                    <p className="text-sm text-drix-dim mb-6">Fast brief for small opportunities. Under 25 seconds.</p>
+                    <input type="email" value={fEmail} onChange={(e) => setFEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && fEmail.trim()) setSmbWizardStep(1) }}
+                      placeholder="you@yourcompany.com" autoFocus
+                      className="w-full max-w-sm mx-auto bg-drix-surface2 border border-drix-border rounded-xl px-5 py-3.5 text-base text-drix-text outline-none focus:border-drix-green focus:shadow-glow transition-all h-[50px] text-center" />
+                    <div className="mt-6">
+                      <button onClick={() => fEmail.trim() && setSmbWizardStep(1)} disabled={!fEmail.trim()}
+                        className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
+                        Next →
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* SMB Step 1: Reseller + Solution */}
+                {smbWizardStep === 1 && (
+                  <motion.div key="smb-step1" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-lg mx-auto">
+                    <h3 className="text-base font-black text-drix-text mb-1 text-center">Who's selling what?</h3>
+                    <p className="text-xs text-drix-dim text-center mb-6">Your company and the solution you're pitching.</p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted block mb-1.5">Your Company URL</label>
+                        <input type="url" value={fSender} onChange={(e) => setFSender(e.target.value)}
+                          placeholder="yourcompany.com"
+                          className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted block mb-1.5">Solution URL</label>
+                        <input type="url" value={fSolution} onChange={(e) => setFSolution(e.target.value)}
+                          placeholder="solutionvendor.com"
+                          className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-8">
+                      <button onClick={() => setSmbWizardStep(0)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
+                      <button onClick={() => { if (fSender.trim() && fSolution.trim()) setSmbWizardStep(2) }}
+                        disabled={!fSender.trim() || !fSolution.trim()}
+                        className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
+                        Next →
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* SMB Step 2: Customer (URL or Sub-Industry) */}
+                {smbWizardStep === 2 && (
+                  <motion.div key="smb-step2" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-lg mx-auto">
+                    <h3 className="text-base font-black text-drix-text mb-1 text-center">Who's the target?</h3>
+                    <p className="text-xs text-drix-dim text-center mb-5">Give us their URL or pick a sub-industry archetype.</p>
+                    {/* Toggle */}
+                    <div className="flex items-center gap-2 mb-5 p-1 bg-drix-surface2 rounded-lg border border-drix-border">
+                      <button onClick={() => setSmbCustomerMode('url')}
+                        className={`flex-1 py-2 rounded-md text-[11px] font-extrabold tracking-widest uppercase transition-all ${
+                          smbCustomerMode === 'url' ? 'bg-drix-accent/20 border border-drix-accent/40 text-drix-accent' : 'text-drix-muted'
+                        }`}>
+                        Company URL
+                      </button>
+                      <button onClick={() => setSmbCustomerMode('industry')}
+                        className={`flex-1 py-2 rounded-md text-[11px] font-extrabold tracking-widest uppercase transition-all ${
+                          smbCustomerMode === 'industry' ? 'bg-drix-accent/20 border border-drix-accent/40 text-drix-accent' : 'text-drix-muted'
+                        }`}>
+                        Sub-Industry
+                      </button>
+                    </div>
+                    {smbCustomerMode === 'url' && (
+                      <input type="url" value={fCustomer} onChange={(e) => setFCustomer(e.target.value)}
+                        placeholder="targetcompany.com (optional)"
+                        className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
+                    )}
+                    {smbCustomerMode === 'industry' && (
+                      <div className="space-y-3">
+                        <select value={selectedIndustry} onChange={(e) => onIndustryChange(e.target.value)}
+                          className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all">
+                          <option value="">Select industry…</option>
+                          {(appState.naics || []).map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                        </select>
+                        {subindustryOptions.length > 0 && (
+                          <select value={fSubindustry} onChange={(e) => setFSubindustry(e.target.value)}
+                            className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all">
+                            <option value="">Select sub-industry…</option>
+                            {subindustryOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-8">
+                      <button onClick={() => setSmbWizardStep(1)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
+                      <button onClick={() => setSmbWizardStep(3)}
+                        className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5">
+                        Next →
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* SMB Step 3: Review + Submit */}
+                {smbWizardStep === 3 && (
+                  <motion.div key="smb-step3" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-lg mx-auto">
+                    <div className="text-center mb-5">
+                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-drix-green to-drix-accent mb-3 shadow-lg">
+                        <Zap size={20} className="text-drix-bg" />
+                      </div>
+                      <h3 className="text-base font-black text-drix-text mb-1">Ready — Quick Brief</h3>
+                      <p className="text-xs text-drix-dim">3 pains · 2 strategies · 2 questions · 3 emails</p>
+                    </div>
+                    <div className="space-y-2 bg-drix-surface rounded-xl p-4 border border-drix-border text-sm mb-6">
+                      <div className="flex justify-between"><span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Email</span><span className="text-drix-text font-medium truncate max-w-[200px]">{fEmail}</span></div>
+                      <div className="h-px bg-drix-border/50" />
+                      <div className="flex justify-between"><span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Reseller</span><span className="text-drix-text font-medium truncate max-w-[200px]">{fSender}</span></div>
+                      <div className="h-px bg-drix-border/50" />
+                      <div className="flex justify-between"><span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Solution</span><span className="text-drix-text font-medium truncate max-w-[200px]">{fSolution}</span></div>
+                      <div className="h-px bg-drix-border/50" />
+                      <div className="flex justify-between">
+                        <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Target</span>
+                        <span className="text-drix-accent font-medium truncate max-w-[200px]">
+                          {smbCustomerMode === 'url' ? (fCustomer || '(no URL — generic)') : (fSubindustry ? appState.naics?.find(s => s.code === selectedIndustry)?.sub.find(x => x.code === fSubindustry)?.name : appState.naics?.find(s => s.code === selectedIndustry)?.name || '(no industry)')}
+                        </span>
+                      </div>
+                    </div>
+                    {smbError && <div className="mb-4 bg-drix-red/10 border border-drix-red/30 text-[#ff9a9a] px-4 py-3 rounded-xl text-sm flex items-center gap-2"><AlertCircle size={16} />{smbError}</div>}
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setSmbWizardStep(2)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
+                      <button onClick={runSmbFlow} disabled={smbRunning}
+                        className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        {smbRunning && <span className="w-4 h-4 border-2 border-drix-bg/30 border-t-drix-bg rounded-full animate-spin" />}
+                        {smbRunning ? 'Building Brief…' : 'Build Quick Brief →'}
+                      </button>
+                    </div>
+                    {/* SMB phases */}
+                    {smbPhases.length > 0 && (
+                      <div className="mt-4 space-y-1.5">
+                        {smbPhases.map((p, i) => (
+                          <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg border transition-all ${
+                            p.state === 'running' ? 'border-drix-green/50 bg-drix-green/5' : p.state === 'done' ? 'border-drix-border/50 opacity-60' : 'border-drix-border/30'
+                          }`}>
+                            <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
+                              p.state === 'running' ? 'bg-drix-green text-white animate-pulse' : p.state === 'done' ? 'bg-drix-green text-white' : 'bg-drix-surface3 text-drix-muted'
+                            }`}>{p.state === 'done' ? '✓' : i + 1}</div>
+                            <span className={`text-xs ${ p.state === 'running' ? 'text-drix-text' : p.state === 'done' ? 'text-drix-dim line-through' : 'text-drix-muted' }`}>{p.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </>
+            )}
 
             {/* Step 0: Email */}
             {wizardStep === 0 && (
@@ -2439,6 +2807,13 @@ export default function DrixApp() {
             </div>
           )}
         </motion.div>
+
+        {/* ─── SMB RESULT PANEL ─── */}
+        {appMode === 'smb' && smbResult && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-6 sm:p-8 mb-6">
+            {renderSmbCard(smbResult)}
+          </motion.div>
+        )}
 
         {/* ─── RESULT PANELS ─── */}
         {/* Atoms */}
