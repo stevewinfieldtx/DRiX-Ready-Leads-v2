@@ -4719,3 +4719,4 @@ app.listen(PORT, async () => {
   console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();
 });
+
