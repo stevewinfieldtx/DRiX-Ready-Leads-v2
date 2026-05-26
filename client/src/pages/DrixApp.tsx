@@ -1198,23 +1198,16 @@ export default function DrixApp() {
   const runSmbFlow = useCallback(async () => {
     setSmbError('')
     const email = fEmail.trim()
-    const reseller = fSender.trim()
     const solution = fSolution.trim()
-    if (!email || !reseller || !solution) { setSmbError('Email, reseller URL, and solution URL are required.'); return }
+    if (!email || !solution) { setSmbError('Email and solution URL are required.'); return }
     if (!/^\S+@\S+\.\S+$/.test(email)) { setSmbError('Email looks invalid.'); return }
 
-    const body: any = { email, reseller_url: reseller, solution_url: solution }
+    const body: any = { email, solution_url: solution }
     if (smbCustomerMode === 'url' && fCustomer.trim()) {
       body.customer_url = fCustomer.trim()
-    } else if (smbCustomerMode === 'industry' && (selectedIndustry || fSubindustry)) {
-      if (selectedIndustry && appState.naics) {
-        const indName = appState.naics.find(s => s.code === selectedIndustry)?.name || selectedIndustry
-        body.industry = `${indName} (NAICS ${selectedIndustry})`
-        if (fSubindustry) {
-          const subName = appState.naics.find(s => s.code === selectedIndustry)?.sub.find(x => x.code === fSubindustry)?.name || fSubindustry
-          body.subindustry = `${subName} (NAICS ${fSubindustry})`
-        }
-      }
+    } else if (smbCustomerMode === 'industry' && selectedIndustry && appState.naics) {
+      const indName = appState.naics.find(s => s.code === selectedIndustry)?.name || selectedIndustry
+      body.industry = `${indName} (NAICS ${selectedIndustry})`
     }
 
     setSmbRunning(true)
@@ -1253,7 +1246,7 @@ export default function DrixApp() {
     } finally {
       setSmbRunning(false)
     }
-  }, [fEmail, fSender, fSolution, fCustomer, smbCustomerMode, selectedIndustry, fSubindustry, appState.naics])
+  }, [fEmail, fSolution, fCustomer, smbCustomerMode, selectedIndustry, appState.naics])
 
   const renderSmbCard = (r: any) => {
     if (!r) return null
@@ -1270,7 +1263,7 @@ export default function DrixApp() {
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>SMB Quick Brief</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{esc(r.customer_label || 'Target Customer')}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{esc(r.solution_label)} · {esc(r.reseller_label)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{esc(r.solution_label)}</div>
           </div>
           <div style={{ background: 'rgba(90,212,255,0.1)', border: '1px solid rgba(90,212,255,0.3)', borderRadius: 10, padding: '8px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Pains Found</div>
@@ -2095,29 +2088,24 @@ export default function DrixApp() {
                   </motion.div>
                 )}
 
-                {/* SMB Step 1: Reseller + Solution */}
+                {/* SMB Step 1: Solution */}
                 {smbWizardStep === 1 && (
                   <motion.div key="smb-step1" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-lg mx-auto">
-                    <h3 className="text-base font-black text-drix-text mb-1 text-center">Who's selling what?</h3>
-                    <p className="text-xs text-drix-dim text-center mb-6">Your company and the solution you're pitching.</p>
+                    <h3 className="text-base font-black text-drix-text mb-1 text-center">What are you selling?</h3>
+                    <p className="text-xs text-drix-dim text-center mb-6">The URL of the solution you're pitching.</p>
                     <div className="space-y-4">
-                      <div>
-                        <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted block mb-1.5">Your Company URL</label>
-                        <input type="url" value={fSender} onChange={(e) => setFSender(e.target.value)}
-                          placeholder="yourcompany.com"
-                          className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
-                      </div>
                       <div>
                         <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted block mb-1.5">Solution URL</label>
                         <input type="url" value={fSolution} onChange={(e) => setFSolution(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && fSolution.trim()) setSmbWizardStep(2) }}
                           placeholder="solutionvendor.com"
                           className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-8">
                       <button onClick={() => setSmbWizardStep(0)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
-                      <button onClick={() => { if (fSender.trim() && fSolution.trim()) setSmbWizardStep(2) }}
-                        disabled={!fSender.trim() || !fSolution.trim()}
+                      <button onClick={() => { if (fSolution.trim()) setSmbWizardStep(2) }}
+                        disabled={!fSolution.trim()}
                         className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
                         Next →
                       </button>
@@ -2125,11 +2113,11 @@ export default function DrixApp() {
                   </motion.div>
                 )}
 
-                {/* SMB Step 2: Customer (URL or Sub-Industry) */}
+                {/* SMB Step 2: Customer (URL or Industry) */}
                 {smbWizardStep === 2 && (
                   <motion.div key="smb-step2" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-lg mx-auto">
                     <h3 className="text-base font-black text-drix-text mb-1 text-center">Who's the target?</h3>
-                    <p className="text-xs text-drix-dim text-center mb-5">Give us their URL or pick a sub-industry archetype.</p>
+                    <p className="text-xs text-drix-dim text-center mb-5">Give us their URL or pick an industry.</p>
                     {/* Toggle */}
                     <div className="flex items-center gap-2 mb-5 p-1 bg-drix-surface2 rounded-lg border border-drix-border">
                       <button onClick={() => setSmbCustomerMode('url')}
@@ -2142,7 +2130,7 @@ export default function DrixApp() {
                         className={`flex-1 py-2 rounded-md text-[11px] font-extrabold tracking-widest uppercase transition-all ${
                           smbCustomerMode === 'industry' ? 'bg-drix-accent/20 border border-drix-accent/40 text-drix-accent' : 'text-drix-muted'
                         }`}>
-                        Sub-Industry
+                        Industry
                       </button>
                     </div>
                     {smbCustomerMode === 'url' && (
@@ -2151,20 +2139,11 @@ export default function DrixApp() {
                         className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
                     )}
                     {smbCustomerMode === 'industry' && (
-                      <div className="space-y-3">
-                        <select value={selectedIndustry} onChange={(e) => onIndustryChange(e.target.value)}
-                          className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all">
-                          <option value="">Select industry…</option>
-                          {(appState.naics || []).map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                        </select>
-                        {subindustryOptions.length > 0 && (
-                          <select value={fSubindustry} onChange={(e) => setFSubindustry(e.target.value)}
-                            className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all">
-                            <option value="">Select sub-industry…</option>
-                            {subindustryOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                          </select>
-                        )}
-                      </div>
+                      <select value={selectedIndustry} onChange={(e) => onIndustryChange(e.target.value)}
+                        className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all">
+                        <option value="">Select industry…</option>
+                        {(appState.naics || []).map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                      </select>
                     )}
                     <div className="flex items-center justify-between mt-8">
                       <button onClick={() => setSmbWizardStep(1)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
@@ -2189,14 +2168,12 @@ export default function DrixApp() {
                     <div className="space-y-2 bg-drix-surface rounded-xl p-4 border border-drix-border text-sm mb-6">
                       <div className="flex justify-between"><span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Email</span><span className="text-drix-text font-medium truncate max-w-[200px]">{fEmail}</span></div>
                       <div className="h-px bg-drix-border/50" />
-                      <div className="flex justify-between"><span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Reseller</span><span className="text-drix-text font-medium truncate max-w-[200px]">{fSender}</span></div>
-                      <div className="h-px bg-drix-border/50" />
                       <div className="flex justify-between"><span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Solution</span><span className="text-drix-text font-medium truncate max-w-[200px]">{fSolution}</span></div>
                       <div className="h-px bg-drix-border/50" />
                       <div className="flex justify-between">
                         <span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Target</span>
                         <span className="text-drix-accent font-medium truncate max-w-[200px]">
-                          {smbCustomerMode === 'url' ? (fCustomer || '(no URL — generic)') : (fSubindustry ? appState.naics?.find(s => s.code === selectedIndustry)?.sub.find(x => x.code === fSubindustry)?.name : appState.naics?.find(s => s.code === selectedIndustry)?.name || '(no industry)')}
+                          {smbCustomerMode === 'url' ? (fCustomer || '(no URL — generic)') : (appState.naics?.find(s => s.code === selectedIndustry)?.name || '(no industry)')}
                         </span>
                       </div>
                     </div>
