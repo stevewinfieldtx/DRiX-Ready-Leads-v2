@@ -2263,6 +2263,197 @@ async function respondMaybeKeepAlive(res, label, producer) {
   }
 }
 
+
+// ─── SMB QUICK MODE ──────────────────────────────────────────────────────────
+// Lightweight single-LLM-call flow for small/mid business opportunities.
+// Skips: competitive intel, company intel enrichment, individual OSINT, Apollo.
+// Input: reseller URL + solution URL + (customer URL OR subindustry) + email.
+// Output: 3 pains, 2 strategies, 2 discovery questions, 3-email drip.
+// Target: under 25 seconds even on cold cache.
+
+const SMB_PROMPT = `You are an elite B2B sales strategist. Given a reseller, a solution they sell, and a target customer (or customer archetype), produce a complete small-deal sales brief in one pass.
+
+RULES:
+- Be specific. Every pain, question, and email must feel researched — not generic.
+- Anchor everything on the top strategy's persona × pain pair.
+- Anti-fabrication: only cite facts from provided atoms. For archetypes, use segment-typical patterns phrased as "companies like yours typically…"
+- Questions must be realistic — written as a human talks, not corporate jargon.
+- Emails: no "I hope this finds you well." No bullet walls. Flowing prose. Specific subject lines.
+
+Return ONLY valid JSON (no markdown):
+{
+  "customer_label": "<company name or archetype label>",
+  "solution_label": "<solution name>",
+  "reseller_label": "<reseller name>",
+  "pains": [
+    {
+      "id": "<kebab-id>",
+      "title": "<3-6 word label>",
+      "description": "<1 sentence>",
+      "persona": "<role that owns this pain>",
+      "urgency": "high|medium|low"
+    }
+  ],
+  "strategies": [
+    {
+      "id": "s1",
+      "title": "<strategy name>",
+      "angle": "<1 sentence — the core bet>",
+      "persona": "<target role>",
+      "pain_focus": "<which pain this targets>",
+      "opening_move": "<2-3 sentences — exactly what to say/do first>"
+    },
+    {
+      "id": "s2",
+      "title": "<strategy name>",
+      "angle": "<1 sentence>",
+      "persona": "<target role>",
+      "pain_focus": "<which pain>",
+      "opening_move": "<2-3 sentences>"
+    }
+  ],
+  "top_strategy_id": "s1",
+  "questions": [
+    {
+      "stage": "OPENING — Discovery",
+      "question": "<specific opener referencing their context>",
+      "purpose": "<2 sentences: why this question works>",
+      "positive_response": "<realistic prospect quote + what rep says next>",
+      "objection_response": "<realistic pushback + exact pivot words>"
+    },
+    {
+      "stage": "ADVANCEMENT — Next Step",
+      "question": "<vision question that gets them to sell themselves>",
+      "purpose": "<2 sentences>",
+      "positive_response": "<quote + specific close: demo/pilot with exact words>",
+      "objection_response": "<graceful door-open with specific words>"
+    }
+  ],
+  "emails": [
+    { "step": 1, "label": "Initial Outreach",    "sendDay": "Day 1",  "subject": "<subject>", "body": "<3 short paragraphs, references their specific pain, soft CTA>" },
+    { "step": 2, "label": "Value-Add Follow-Up", "sendDay": "Day 5",  "subject": "<subject>", "body": "<shorter; shares a relevant insight, no pressure>" },
+    { "step": 3, "label": "Breakup",             "sendDay": "Day 12", "subject": "<subject>", "body": "<short friendly breakup; leaves door open>" }
+  ]
+}
+
+DISCIPLINE: exactly 3 pains, exactly 2 strategies, exactly 2 questions, exactly 3 emails.`;
+
+app.post('/api/smb-flow', async (req, res) => {
+  const {
+    email,
+    reseller_url,
+    solution_url,
+    customer_url,
+    industry,
+    subindustry,
+    region
+  } = req.body || {};
+
+  if (!email)          return res.status(400).json({ error: 'Require email' });
+  if (!reseller_url)   return res.status(400).json({ error: 'Require reseller_url' });
+  if (!solution_url)   return res.status(400).json({ error: 'Require solution_url' });
+  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none');
+  res.flushHeaders?.();
+  const keepAlive = setInterval(() => { try { res.write(':keepalive\n\n'); } catch {} }, 15000);
+  const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  const run_id = `smb_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    // ── PHASE 1: Ingest reseller + solution in parallel, customer separately ──
+    send('phase', { phase: 'fetch', message: 'Fetching reseller and solution…' });
+
+    const resellerPromise = ingestOne({ url: normUrl(reseller_url), role: 'sender' });
+    const solutionPromise = ingestOne({ url: normUrl(solution_url), role: 'solution' });
+
+    // Customer: URL → single-page ingest, subindustry → archetype, neither → minimal
+    const customerPromise = customer_url
+      ? ingestOne({ url: normUrl(customer_url), role: 'customer' })
+      : (industry || subindustry)
+        ? synthesizeCustomerArchetype({ industry, subindustry, region })
+        : Promise.resolve({
+            target: { name: 'Small Business Customer', url: null, role: 'customer', is_archetype: true },
+            summary: 'No customer URL or industry supplied.',
+            atoms: [],
+            source: 'no_target',
+            ingested_at: new Date().toISOString()
+          });
+
+    const [resellerRes, solutionRes, customerRes] = await Promise.allSettled([
+      resellerPromise, solutionPromise, customerPromise
+    ]);
+
+    if (resellerRes.status === 'rejected') throw new Error(`Reseller: ${resellerRes.reason.message}`);
+    if (solutionRes.status === 'rejected') throw new Error(`Solution: ${solutionRes.reason.message}`);
+    if (customerRes.status === 'rejected') throw new Error(`Customer: ${customerRes.reason.message}`);
+
+    const reseller = resellerRes.value;
+    const solution = solutionRes.value;
+    const customer = customerRes.value;
+
+    const allCached = [reseller, solution, customer].every(e => ['local_cache', 'db_cache'].includes(e.source));
+    send('phase', { phase: 'ingest', message: allCached ? 'All from cache — no LLM ingest calls.' : 'Sources decomposed into atoms.' });
+    send('atoms', {
+      sender:   { target: reseller.target, summary: reseller.summary, atoms: reseller.atoms, source: reseller.source },
+      solution: { target: solution.target, summary: solution.summary, atoms: solution.atoms, source: solution.source },
+      customer: { target: customer.target, summary: customer.summary, atoms: customer.atoms, source: customer.source }
+    });
+
+    // ── PHASE 2: Single combined LLM call — pains + strategies + questions + emails ──
+    send('phase', { phase: 'analyzing', message: 'Generating SMB sales brief…' });
+
+    const smbInput = JSON.stringify({
+      reseller:  { name: reseller.target?.name,  summary: reseller.summary,  atoms: reseller.atoms.slice(0, 30) },
+      solution:  { name: solution.target?.name,  summary: solution.summary,  atoms: solution.atoms.slice(0, 40) },
+      customer:  { name: customer.target?.name,  summary: customer.summary,  atoms: customer.atoms.slice(0, 30), is_archetype: !!customer.target?.is_archetype },
+      subindustry: subindustry || null,
+      industry:    industry    || null
+    });
+
+    const result = await callLLM(SMB_PROMPT, smbInput, { maxTokens: 4000, retries: 1 });
+
+    if (!result?.pains || !result?.strategies || !result?.emails) {
+      throw new Error('SMB analysis returned incomplete data — missing pains, strategies, or emails.');
+    }
+
+    // Persist run for potential downstream use (PDF export, etc.)
+    runStore.set(run_id, {
+      email, reseller, solution, customer,
+      smb_result: result,
+      industry, subindustry, region,
+      mode: 'smb',
+      created_at: new Date().toISOString()
+    });
+
+    send('smb_result', { run_id, result });
+    send('done', { run_id });
+    clearInterval(keepAlive);
+    res.end();
+
+    // Fire-and-forget DB save
+    db.saveRun(run_id, {
+      email, sender_company_url: reseller_url, solution_url, customer_url,
+      industry, subindustry, region
+    }, {
+      sender: reseller, solution, customer,
+      smb_result: result
+    }).catch(err => console.error('[smb-flow] async saveRun:', err.message));
+
+  } catch (err) {
+    console.error('[smb-flow]', err.message);
+    send('error', { message: err.message });
+    clearInterval(keepAlive);
+    res.end();
+  }
+});
+
+
 app.post('/api/clearsignals', async (req, res) => {
   const { run_id, thread_text } = req.body || {};
   if (!run_id)      return res.status(400).json({ error: 'Require run_id' });
@@ -4719,4 +4910,3 @@ app.listen(PORT, async () => {
   console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();
 });
-
