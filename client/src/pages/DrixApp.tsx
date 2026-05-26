@@ -215,13 +215,20 @@ export default function DrixApp() {
   const [docsSolution, setDocsSolution] = useState<{ filename: string; text: string; size: number }[]>([])
   const [docsCustomer, setDocsCustomer] = useState<{ filename: string; text: string; size: number }[]>([])
   const [docsIndividual, setDocsIndividual] = useState<{ filename: string; text: string; size: number }[]>([])
+  const [docsSmb, setDocsSmb] = useState<{ filename: string; text: string; size: number }[]>([])
   const [uploadingFor, setUploadingFor] = useState<string | null>(null) // which entity is currently uploading
 
-  const handleFileUpload = async (files: FileList | null, entity: 'sender' | 'solution' | 'customer' | 'individual') => {
+  const handleFileUpload = async (files: FileList | null, entity: 'sender' | 'solution' | 'customer' | 'individual' | 'smb') => {
     if (!files || files.length === 0) return
-    const setDocs = { sender: setDocsSender, solution: setDocsSolution, customer: setDocsCustomer, individual: setDocsIndividual }[entity]
+    const setDocs = { sender: setDocsSender, solution: setDocsSolution, customer: setDocsCustomer, individual: setDocsIndividual, smb: setDocsSmb }[entity]
+    let incoming = Array.from(files)
+    if (entity === 'smb') {
+      const remaining = Math.max(0, 4 - docsSmb.length)
+      if (remaining === 0) { alert('You can upload up to 4 files.'); return }
+      if (incoming.length > remaining) { alert(`Only ${remaining} more file${remaining > 1 ? 's' : ''} allowed (max 4).`); incoming = incoming.slice(0, remaining) }
+    }
     setUploadingFor(entity)
-    for (const file of Array.from(files)) {
+    for (const file of incoming) {
       try {
         const formData = new FormData()
         formData.append('file', file)
@@ -240,8 +247,8 @@ export default function DrixApp() {
     setUploadingFor(null)
   }
 
-  const removeDoc = (entity: 'sender' | 'solution' | 'customer' | 'individual', index: number) => {
-    const setDocs = { sender: setDocsSender, solution: setDocsSolution, customer: setDocsCustomer, individual: setDocsIndividual }[entity]
+  const removeDoc = (entity: 'sender' | 'solution' | 'customer' | 'individual' | 'smb', index: number) => {
+    const setDocs = { sender: setDocsSender, solution: setDocsSolution, customer: setDocsCustomer, individual: setDocsIndividual, smb: setDocsSmb }[entity]
     setDocs(prev => prev.filter((_, i) => i !== index))
   }
 
@@ -1202,12 +1209,18 @@ export default function DrixApp() {
     if (!email || !solution) { setSmbError('Email and solution URL are required.'); return }
     if (!/^\S+@\S+\.\S+$/.test(email)) { setSmbError('Email looks invalid.'); return }
 
+    const hasTarget = (smbCustomerMode === 'url' && fCustomer.trim()) || (smbCustomerMode === 'industry' && selectedIndustry)
+    if (!hasTarget) { setSmbError('Add the customer URL or pick an industry.'); return }
+
     const body: any = { email, solution_url: solution }
     if (smbCustomerMode === 'url' && fCustomer.trim()) {
       body.customer_url = fCustomer.trim()
     } else if (smbCustomerMode === 'industry' && selectedIndustry && appState.naics) {
       const indName = appState.naics.find(s => s.code === selectedIndustry)?.name || selectedIndustry
       body.industry = `${indName} (NAICS ${selectedIndustry})`
+    }
+    if (docsSmb.length > 0) {
+      body.docs = docsSmb.map(d => ({ filename: d.filename, text: d.text }))
     }
 
     setSmbRunning(true)
@@ -1246,7 +1259,7 @@ export default function DrixApp() {
     } finally {
       setSmbRunning(false)
     }
-  }, [fEmail, fSolution, fCustomer, smbCustomerMode, selectedIndustry, appState.naics])
+  }, [fEmail, fSolution, fCustomer, smbCustomerMode, selectedIndustry, docsSmb, appState.naics])
 
   const renderSmbCard = (r: any) => {
     if (!r) return null
@@ -2101,6 +2114,26 @@ export default function DrixApp() {
                           placeholder="solutionvendor.com"
                           className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
                       </div>
+                      {/* ── Single document upload (max 4) ── */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted flex items-center gap-1">
+                          <FileText size={10} /> Supporting docs <span className="text-drix-dim font-normal">(optional · up to 4)</span>
+                        </label>
+                        {docsSmb.length < 4 && (
+                          <label className="flex items-center justify-center gap-2 cursor-pointer bg-drix-surface2 border border-dashed border-drix-border rounded-xl px-4 py-2.5 text-xs text-drix-dim hover:border-drix-green hover:text-drix-text transition-all">
+                            <Upload size={14} /> {uploadingFor === 'smb' ? 'Uploading…' : 'Drop PDF, DOCX, PPTX, or TXT'}
+                            <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.txt" multiple
+                              onChange={(e) => handleFileUpload(e.target.files, 'smb')} />
+                          </label>
+                        )}
+                        <p className="text-[10px] text-drix-dim">Max 4 files. Larger files will slow down the brief.</p>
+                        {docsSmb.map((doc, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs bg-drix-surface rounded-lg px-3 py-1.5 border border-drix-border/50">
+                            <span className="text-drix-text truncate">{doc.filename}</span>
+                            <button onClick={() => removeDoc('smb', i)} className="text-drix-dim hover:text-drix-red ml-2"><Trash2 size={12} /></button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between mt-8">
                       <button onClick={() => setSmbWizardStep(0)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
@@ -2117,7 +2150,7 @@ export default function DrixApp() {
                 {smbWizardStep === 2 && (
                   <motion.div key="smb-step2" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-lg mx-auto">
                     <h3 className="text-base font-black text-drix-text mb-1 text-center">Who's the target?</h3>
-                    <p className="text-xs text-drix-dim text-center mb-5">Give us their URL or pick an industry.</p>
+                    <p className="text-xs text-drix-dim text-center mb-5">Their company URL or an industry — one is required.</p>
                     {/* Toggle */}
                     <div className="flex items-center gap-2 mb-5 p-1 bg-drix-surface2 rounded-lg border border-drix-border">
                       <button onClick={() => setSmbCustomerMode('url')}
@@ -2135,7 +2168,7 @@ export default function DrixApp() {
                     </div>
                     {smbCustomerMode === 'url' && (
                       <input type="url" value={fCustomer} onChange={(e) => setFCustomer(e.target.value)}
-                        placeholder="targetcompany.com (optional)"
+                        placeholder="targetcompany.com"
                         className="w-full bg-drix-surface2 border border-drix-border rounded-xl px-4 py-3 text-sm text-drix-text outline-none focus:border-drix-green transition-all" />
                     )}
                     {smbCustomerMode === 'industry' && (
@@ -2147,8 +2180,9 @@ export default function DrixApp() {
                     )}
                     <div className="flex items-center justify-between mt-8">
                       <button onClick={() => setSmbWizardStep(1)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
-                      <button onClick={() => setSmbWizardStep(3)}
-                        className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5">
+                      <button onClick={() => { if ((smbCustomerMode === 'url' && fCustomer.trim()) || (smbCustomerMode === 'industry' && selectedIndustry)) setSmbWizardStep(3) }}
+                        disabled={!((smbCustomerMode === 'url' && fCustomer.trim()) || (smbCustomerMode === 'industry' && selectedIndustry))}
+                        className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
                         Next →
                       </button>
                     </div>
@@ -2176,6 +2210,12 @@ export default function DrixApp() {
                           {smbCustomerMode === 'url' ? (fCustomer || '(no URL — generic)') : (appState.naics?.find(s => s.code === selectedIndustry)?.name || '(no industry)')}
                         </span>
                       </div>
+                      {docsSmb.length > 0 && (
+                        <>
+                          <div className="h-px bg-drix-border/50" />
+                          <div className="flex justify-between"><span className="text-drix-muted text-xs uppercase tracking-wider font-semibold">Docs</span><span className="text-drix-green font-medium">{docsSmb.length} file{docsSmb.length > 1 ? 's' : ''}</span></div>
+                        </>
+                      )}
                     </div>
                     {smbError && <div className="mb-4 bg-drix-red/10 border border-drix-red/30 text-[#ff9a9a] px-4 py-3 rounded-xl text-sm flex items-center gap-2"><AlertCircle size={16} />{smbError}</div>}
                     <div className="flex items-center justify-between">
@@ -2207,7 +2247,7 @@ export default function DrixApp() {
             )}
 
             {/* Step 0: Email */}
-            {wizardStep === 0 && (
+            {appMode === 'enterprise' && wizardStep === 0 && (
               <motion.div
                 key="step0"
                 initial={{ opacity: 0, y: 40 }}
@@ -2243,7 +2283,7 @@ export default function DrixApp() {
             )}
 
             {/* Step 1: Reseller + Solution (required) */}
-            {wizardStep === 1 && (
+            {appMode === 'enterprise' && wizardStep === 1 && (
               <motion.div
                 key="step1"
                 initial={{ opacity: 0, y: 40 }}
@@ -2350,7 +2390,7 @@ export default function DrixApp() {
             )}
 
             {/* Step 2: Industry + Subindustry */}
-            {wizardStep === 2 && (
+            {appMode === 'enterprise' && wizardStep === 2 && (
               <motion.div
                 key="step2"
                 initial={{ opacity: 0, y: 40 }}
@@ -2432,7 +2472,7 @@ export default function DrixApp() {
             )}
 
             {/* Step 3: Title + Company URL */}
-            {wizardStep === 3 && (
+            {appMode === 'enterprise' && wizardStep === 3 && (
               <motion.div
                 key="step3"
                 initial={{ opacity: 0, y: 40 }}
@@ -2516,7 +2556,7 @@ export default function DrixApp() {
             )}
 
             {/* Step 4: Individual LinkedIn + Email */}
-            {wizardStep === 4 && (
+            {appMode === 'enterprise' && wizardStep === 4 && (
               <motion.div
                 key="step4"
                 initial={{ opacity: 0, y: 40 }}
@@ -2600,7 +2640,7 @@ export default function DrixApp() {
             )}
 
             {/* Step 5: Review & Submit */}
-            {wizardStep === 5 && (
+            {appMode === 'enterprise' && wizardStep === 5 && (
               <motion.div
                 key="step5"
                 initial={{ opacity: 0, y: 40 }}
@@ -2721,6 +2761,7 @@ export default function DrixApp() {
           </div>
 
           {/* Depth Indicator */}
+          {appMode === 'enterprise' && (
           <div className="flex items-center gap-2 flex-wrap p-3 bg-drix-surface2 rounded-lg border border-drix-border text-[10px] mt-6">
             <span className="font-extrabold text-drix-muted tracking-widest uppercase mr-1">Depth:</span>
             {(['reseller', 'solution', 'industry', 'title', 'company', 'individual'] as const).map((varName, i) => (
@@ -2738,6 +2779,7 @@ export default function DrixApp() {
               </span>
             ))}
           </div>
+          )}
 
           {/* Error */}
           {error && (

@@ -2277,6 +2277,7 @@ RULES:
 - Be specific. Every pain, question, and email must feel researched — not generic.
 - Anchor everything on the top strategy's persona × pain pair.
 - Anti-fabrication: only cite facts from provided atoms. For archetypes, use segment-typical patterns phrased as "companies like yours typically…"
+- If "documents" are provided, treat them as authoritative deal context supplied by the seller and weave their specifics into pains, strategies, and emails.
 - Questions must be realistic — written as a human talks, not corporate jargon.
 - Emails: no "I hope this finds you well." No bullet walls. Flowing prose. Specific subject lines.
 
@@ -2343,11 +2344,13 @@ app.post('/api/smb-flow', async (req, res) => {
     solution_url,
     customer_url,
     industry,
-    region
+    region,
+    docs
   } = req.body || {};
 
   if (!email)          return res.status(400).json({ error: 'Require email' });
   if (!solution_url)   return res.status(400).json({ error: 'Require solution_url' });
+  if (!customer_url && !industry) return res.status(400).json({ error: 'Require customer_url or industry' });
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'Server not configured — missing OPENROUTER_API_KEY' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -2403,7 +2406,10 @@ app.post('/api/smb-flow', async (req, res) => {
     const smbInput = JSON.stringify({
       solution:  { name: solution.target?.name,  summary: solution.summary,  atoms: solution.atoms.slice(0, 40) },
       customer:  { name: customer.target?.name,  summary: customer.summary,  atoms: customer.atoms.slice(0, 30), is_archetype: !!customer.target?.is_archetype },
-      industry:    industry    || null
+      industry:    industry    || null,
+      documents: Array.isArray(docs)
+        ? docs.slice(0, 4).map(d => ({ filename: d.filename, text: (d.text || '').slice(0, 4000) }))
+        : []
     });
 
     const result = await callLLM(SMB_PROMPT, smbInput, { maxTokens: 4000, retries: 1 });
