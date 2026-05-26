@@ -1481,21 +1481,6 @@ export default function DrixApp() {
       }).join('')
     }
 
-    // ── Pattern Flags ──
-    if (patternFlags.length) {
-      html += `<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin:16px 0 8px;">Historical Pattern Matching</div>`
-      html += patternFlags.map((f: any) => {
-        const isPos = f.type === 'positive'
-        return `
-        <div style="background:${isPos ? 'rgba(76,175,80,0.1)' : 'rgba(239,83,80,0.1)'};border:1px solid var(--dx-border);border-left:3px solid ${isPos ? 'var(--green)' : 'var(--red)'};border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="background:${isPos ? 'var(--green)' : 'var(--red)'};color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">${isPos ? '✓' : '!'}</span>
-            <span style="font-weight:600;font-size:12px;color:var(--text);">📊 ${esc(f.flag || '')}</span>
-          </div>
-          ${f.detail ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-left:26px;">${esc(f.detail)}</div>` : ''}
-        </div>`
-      }).join('')
-    }
 
     setCsOutput(html)
     setPlayByPlayOutput('') // reset previous modes
@@ -2684,25 +2669,6 @@ export default function DrixApp() {
               {csOutput && (
                 <>
                   <div className="mt-4" dangerouslySetInnerHTML={{ __html: csOutput }} />
-                  {/* Upsell: Full ClearSignals AI offering */}
-                  <div className="mt-4 pt-4 border-t border-drix-border">
-                    <div style={{ background: 'linear-gradient(135deg, rgba(90,169,255,0.06), rgba(168,85,247,0.06))', border: '1px solid var(--dx-border)', borderRadius: '10px', padding: '14px 16px' }}>
-                      <div className="text-[10px] font-extrabold tracking-widest uppercase text-drix-dim mb-2">Want deeper analysis?</div>
-                      <div className="flex gap-3 mb-2">
-                        <div className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-drix-surface2 border border-drix-border text-drix-dim flex items-center justify-center gap-2 opacity-50">
-                          <MessageSquare size={14} />
-                          Play-by-Play
-                        </div>
-                        <div className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-drix-surface2 border border-drix-border text-drix-dim flex items-center justify-center gap-2 opacity-50">
-                          <Zap size={14} />
-                          Look Back
-                        </div>
-                      </div>
-                      <div className="text-[11px] text-drix-dim leading-relaxed">
-                        <strong>Play-by-Play</strong> (email-by-email coaching), <strong>Look Back</strong> (holistic retrospective), <strong>Review Board</strong>, <strong>Response Engine</strong>, and more are available as part of the full <span className="text-drix-accent font-bold">ClearSignals AI</span> offering.
-                      </div>
-                    </div>
-                  </div>
                   {/* ── PDF Export panel ── */}
                   <div className="mt-5 pt-4 border-t border-drix-border">
                     <div className="flex items-center justify-between">
