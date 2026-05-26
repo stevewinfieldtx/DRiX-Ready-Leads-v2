@@ -147,8 +147,17 @@ export default function DrixApp() {
   const [smbSelectedStrategy, setSmbSelectedStrategy] = useState<string>('s1')
   const [smbExpandedEmail, setSmbExpandedEmail] = useState<number | null>(null)
   const [smbCustomerMode, setSmbCustomerMode] = useState<'url' | 'industry'>('url')
+  const smbEmailRef = useRef<HTMLInputElement>(null)
 
-  // (All inputs are now controlled — no refs needed)
+  // Reads the live email value (state OR DOM, to survive browser autofill that
+  // doesn't fire React onChange), syncs it into state, and returns it.
+  const resolveSmbEmail = () => {
+    const v = (fEmail || smbEmailRef.current?.value || '').trim()
+    if (v && v !== fEmail) setFEmail(v)
+    return v
+  }
+
+  // (Other inputs are controlled — no refs needed)
 
   // ─── BOOT ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2088,15 +2097,16 @@ export default function DrixApp() {
                     </div>
                     <h3 className="text-xl font-black text-drix-text mb-2">SMB Quick Mode</h3>
                     <p className="text-sm text-drix-dim mb-6">Fast brief for small opportunities. Under 25 seconds.</p>
-                    <input type="email" value={fEmail} onChange={(e) => setFEmail(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && fEmail.trim()) setSmbWizardStep(1) }}
+                    <input type="email" ref={smbEmailRef} value={fEmail} onChange={(e) => setFEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && resolveSmbEmail()) setSmbWizardStep(1) }}
                       placeholder="you@yourcompany.com" autoFocus
                       className="w-full max-w-sm mx-auto bg-drix-surface2 border border-drix-border rounded-xl px-5 py-3.5 text-base text-drix-text outline-none focus:border-drix-green focus:shadow-glow transition-all h-[50px] text-center" />
                     <div className="mt-6">
-                      <button onClick={() => fEmail.trim() && setSmbWizardStep(1)} disabled={!fEmail.trim()}
-                        className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
+                      <button onClick={() => { if (resolveSmbEmail()) { setSmbError(''); setSmbWizardStep(1) } else { setSmbError('Enter your email to continue.') } }}
+                        className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5">
                         Next →
                       </button>
+                      {smbError && smbWizardStep === 0 && <p className="text-xs text-drix-red mt-3 font-medium">{smbError}</p>}
                     </div>
                   </motion.div>
                 )}
