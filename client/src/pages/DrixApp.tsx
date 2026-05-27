@@ -2092,7 +2092,7 @@ export default function DrixApp() {
                 {/* SMB Step 0: Email */}
                 {smbWizardStep === 0 && (
                   <motion.div key="smb-step0" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-md mx-auto text-center">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-drix-green to-drix-accent mb-5 shadow-glow">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl dx-icon-green mb-5 shadow-glow">
                       <Zap size={24} className="text-drix-bg" />
                     </div>
                     <h3 className="text-xl font-black text-drix-text mb-2">SMB Quick Mode</h3>
@@ -2103,7 +2103,7 @@ export default function DrixApp() {
                       className="w-full max-w-sm mx-auto bg-drix-surface2 border border-drix-border rounded-xl px-5 py-3.5 text-base text-drix-text outline-none focus:border-drix-green focus:shadow-glow transition-all h-[50px] text-center" />
                     <div className="mt-6">
                       <button onClick={() => { if (resolveSmbEmail()) { setSmbError(''); setSmbWizardStep(1) } else { setSmbError('Enter your email to continue.') } }}
-                        className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5">
+                        className="px-8 py-3.5 rounded-xl text-sm font-bold dx-btn-green hover:shadow-glow-lg transition-all hover:-translate-y-0.5">
                         Next →
                       </button>
                       {smbError && smbWizardStep === 0 && <p className="text-xs text-drix-red mt-3 font-medium">{smbError}</p>}
@@ -2149,7 +2149,7 @@ export default function DrixApp() {
                       <button onClick={() => setSmbWizardStep(0)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
                       <button onClick={() => { if (fSolution.trim()) setSmbWizardStep(2) }}
                         disabled={!fSolution.trim()}
-                        className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
+                        className="px-8 py-3 rounded-xl text-sm font-bold dx-btn-green hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
                         Next →
                       </button>
                     </div>
@@ -2192,7 +2192,7 @@ export default function DrixApp() {
                       <button onClick={() => setSmbWizardStep(1)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
                       <button onClick={() => { if ((smbCustomerMode === 'url' && fCustomer.trim()) || (smbCustomerMode === 'industry' && selectedIndustry)) setSmbWizardStep(3) }}
                         disabled={!((smbCustomerMode === 'url' && fCustomer.trim()) || (smbCustomerMode === 'industry' && selectedIndustry))}
-                        className="px-8 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
+                        className="px-8 py-3 rounded-xl text-sm font-bold dx-btn-green hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
                         Next →
                       </button>
                     </div>
@@ -2203,7 +2203,7 @@ export default function DrixApp() {
                 {smbWizardStep === 3 && (
                   <motion.div key="smb-step3" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25,0.1,0.25,1] }} className="max-w-lg mx-auto">
                     <div className="text-center mb-5">
-                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-drix-green to-drix-accent mb-3 shadow-lg">
+                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl dx-icon-green mb-3 shadow-lg">
                         <Zap size={20} className="text-drix-bg" />
                       </div>
                       <h3 className="text-base font-black text-drix-text mb-1">Ready — Quick Brief</h3>
@@ -2231,7 +2231,7 @@ export default function DrixApp() {
                     <div className="flex items-center justify-between">
                       <button onClick={() => setSmbWizardStep(2)} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text hover:border-drix-accent/50 transition-all">← Back</button>
                       <button onClick={runSmbFlow} disabled={smbRunning}
-                        className="px-8 py-3.5 rounded-xl text-sm font-bold bg-gradient-to-r from-drix-green to-drix-accent text-drix-bg hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        className="px-8 py-3.5 rounded-xl text-sm font-bold dx-btn-green hover:shadow-glow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                         {smbRunning && <span className="w-4 h-4 border-2 border-drix-bg/30 border-t-drix-bg rounded-full animate-spin" />}
                         {smbRunning ? 'Building Brief…' : 'Build Quick Brief →'}
                       </button>
@@ -2303,7 +2303,7 @@ export default function DrixApp() {
                 className="max-w-lg mx-auto"
               >
                 <div className="text-center mb-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-drix-green to-drix-accent mb-4 shadow-lg">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl dx-icon-green mb-4 shadow-lg">
                     <span className="text-drix-bg font-black text-lg">1</span>
                   </div>
                   <h3 className="text-lg font-black text-drix-text mb-1">Who are you and what do you sell?</h3>

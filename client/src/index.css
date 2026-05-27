@@ -172,6 +172,11 @@
   color: #0a0e13 !important;
 }
 
+/* Decorative icon badge — green→blue (Tailwind gradient utilities don't render here) */
+.dx-icon-green {
+  background: linear-gradient(to bottom right, #3ddc84, #5aa9ff) !important;
+}
+
 .dx-btn-cyan {
   background: linear-gradient(to right, #5ad4ff, #5aa9ff) !important;
   color: #0a0e13 !important;
