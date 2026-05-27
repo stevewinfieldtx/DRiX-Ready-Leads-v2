@@ -172,9 +172,24 @@
   color: #0a0e13 !important;
 }
 
-/* Decorative icon badge — green→blue (Tailwind gradient utilities don't render here) */
+/* Decorative icon badges — Tailwind gradient utilities don't render here */
 .dx-icon-green {
   background: linear-gradient(to bottom right, #3ddc84, #5aa9ff) !important;
+}
+.dx-icon-primary {
+  background: linear-gradient(to bottom right, #5aa9ff, #b583ff) !important;
+}
+.dx-icon-cyan {
+  background: linear-gradient(to bottom right, #5ad4ff, #5aa9ff) !important;
+}
+.dx-icon-purple-pink {
+  background: linear-gradient(to bottom right, #b583ff, #ff67c3) !important;
+}
+.dx-icon-orange {
+  background: linear-gradient(to bottom right, #ff9d5a, #ffc757) !important;
+}
+.dx-icon-green-cyan {
+  background: linear-gradient(to bottom right, #3ddc84, #5ad4ff) !important;
 }
 
 .dx-btn-cyan {

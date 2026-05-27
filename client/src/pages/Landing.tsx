@@ -51,19 +51,19 @@ export default function Landing() {
       icon: <Layers className="w-6 h-6" />,
       title: 'Gather Everything',
       desc: 'We take what you know about your prospect, plus what you don\'t. Every page, post, signal, and pattern.',
-      color: 'from-drix-cyan to-drix-accent',
+      color: 'dx-icon-cyan',
     },
     {
       icon: <Brain className="w-6 h-6" />,
       title: 'Break It Down',
       desc: 'We decompose it all into intelligence atoms — the smallest meaningful bits of insight about your buyer.',
-      color: 'from-drix-accent to-drix-purple',
+      color: 'dx-icon-primary',
     },
     {
       icon: <Target className="w-6 h-6" />,
       title: 'Rebuild to Close',
       desc: 'Then we reconstruct those atoms into exactly what you need: the right message, for the right person, at the right time.',
-      color: 'from-drix-purple to-drix-pink',
+      color: 'dx-icon-purple-pink',
     },
   ]
 
@@ -242,7 +242,7 @@ export default function Landing() {
             {steps.map((step, i) => (
               <FadeInSection key={i} delay={i * 0.15}>
                 <div className="group relative glass rounded-2xl p-8 hover:border-drix-accent/30 transition-all duration-500 hover:-translate-y-1">
-                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${step.color} mb-6 shadow-lg`}>
+                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${step.color} mb-6 shadow-lg`}>
                     <span className="text-drix-bg">{step.icon}</span>
                   </div>
                   <div className="text-xs font-bold text-drix-muted uppercase tracking-widest mb-3">

@@ -136,7 +136,7 @@ export default function HowItWorks() {
                     onClick={() => setView('comparison')}
                     className="group w-full glass rounded-2xl p-8 text-left border border-drix-border hover:border-drix-accent/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-glow"
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-drix-accent to-drix-purple flex items-center justify-center mb-6 shadow-lg group-hover:shadow-glow transition-shadow">
+                    <div className="w-14 h-14 rounded-2xl dx-icon-primary flex items-center justify-center mb-6 shadow-lg group-hover:shadow-glow transition-shadow">
                       <BarChart3 size={28} className="text-drix-bg" />
                     </div>
                     <h3 className="text-xl font-black text-drix-text mb-2">DRiX vs Normal AI</h3>
@@ -155,7 +155,7 @@ export default function HowItWorks() {
                     onClick={() => setView('atoms')}
                     className="group w-full glass rounded-2xl p-8 text-left border border-drix-border hover:border-drix-green/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_40px_rgba(61,220,132,0.15)]"
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-drix-green to-drix-cyan flex items-center justify-center mb-6 shadow-lg group-hover:shadow-[0_0_20px_rgba(61,220,132,0.3)] transition-shadow">
+                    <div className="w-14 h-14 rounded-2xl dx-icon-green-cyan flex items-center justify-center mb-6 shadow-lg group-hover:shadow-[0_0_20px_rgba(61,220,132,0.3)] transition-shadow">
                       <Layers size={28} className="text-drix-bg" />
                     </div>
                     <h3 className="text-xl font-black text-drix-text mb-2">Understanding Atomization</h3>
@@ -351,7 +351,7 @@ export default function HowItWorks() {
                 <div className="grid sm:grid-cols-3 gap-6">
                   {/* Step 1: Ingest */}
                   <div className="glass rounded-2xl p-6 border border-drix-border text-center">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-drix-cyan to-drix-accent flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <div className="w-12 h-12 rounded-xl dx-icon-cyan flex items-center justify-center mx-auto mb-4 shadow-lg">
                       <RefreshCw size={20} className="text-drix-bg" />
                     </div>
                     <div className="text-[10px] font-black tracking-[2px] uppercase text-drix-muted mb-2">Step 1</div>
@@ -368,7 +368,7 @@ export default function HowItWorks() {
                   </div>
                   {/* Step 2: Decompose */}
                   <div className="glass rounded-2xl p-6 border border-drix-border text-center">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-drix-accent to-drix-purple flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <div className="w-12 h-12 rounded-xl dx-icon-primary flex items-center justify-center mx-auto mb-4 shadow-lg">
                       <Layers size={20} className="text-drix-bg" />
                     </div>
                     <div className="text-[10px] font-black tracking-[2px] uppercase text-drix-muted mb-2">Step 2</div>
@@ -385,7 +385,7 @@ export default function HowItWorks() {
                   </div>
                   {/* Step 3: Rebuild */}
                   <div className="glass rounded-2xl p-6 border border-drix-border text-center">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-drix-green to-drix-cyan flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <div className="w-12 h-12 rounded-xl dx-icon-green-cyan flex items-center justify-center mx-auto mb-4 shadow-lg">
                       <Zap size={20} className="text-drix-bg" />
                     </div>
                     <div className="text-[10px] font-black tracking-[2px] uppercase text-drix-muted mb-2">Step 3</div>

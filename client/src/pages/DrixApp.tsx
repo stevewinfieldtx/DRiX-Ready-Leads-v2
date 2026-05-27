@@ -2266,7 +2266,7 @@ export default function DrixApp() {
                 transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
                 className="max-w-md mx-auto text-center"
               >
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-drix-accent to-drix-purple mb-5 shadow-glow">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl dx-icon-primary mb-5 shadow-glow">
                   <Zap size={24} className="text-drix-bg" />
                 </div>
                 <h3 className="text-xl font-black text-drix-text mb-2">Let's get started</h3>
@@ -2410,7 +2410,7 @@ export default function DrixApp() {
                 className="max-w-lg mx-auto"
               >
                 <div className="text-center mb-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-drix-cyan to-drix-accent mb-4 shadow-lg">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl dx-icon-cyan mb-4 shadow-lg">
                     <span className="text-drix-bg font-black text-lg">2</span>
                   </div>
                   <h3 className="text-lg font-black text-drix-text mb-1">What industry are they in?</h3>
@@ -2492,7 +2492,7 @@ export default function DrixApp() {
                 className="max-w-lg mx-auto"
               >
                 <div className="text-center mb-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-drix-purple to-drix-pink mb-4 shadow-lg">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl dx-icon-purple-pink mb-4 shadow-lg">
                     <span className="text-drix-bg font-black text-lg">3</span>
                   </div>
                   <h3 className="text-lg font-black text-drix-text mb-1">Who are you selling to?</h3>
@@ -2576,7 +2576,7 @@ export default function DrixApp() {
                 className="max-w-lg mx-auto"
               >
                 <div className="text-center mb-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-drix-orange to-drix-yellow mb-4 shadow-lg">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl dx-icon-orange mb-4 shadow-lg">
                     <span className="text-drix-bg font-black text-lg">4</span>
                   </div>
                   <h3 className="text-lg font-black text-drix-text mb-1">Know the person?</h3>
@@ -2660,7 +2660,7 @@ export default function DrixApp() {
                 className="max-w-lg mx-auto"
               >
                 <div className="text-center mb-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-drix-accent to-drix-purple mb-4 shadow-lg animate-pulse-glow">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl dx-icon-primary mb-4 shadow-lg animate-pulse-glow">
                     <Zap size={20} className="text-drix-bg" />
                   </div>
                   <h3 className="text-lg font-black text-drix-text mb-1">Ready to build</h3>
