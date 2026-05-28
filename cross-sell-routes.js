@@ -69,7 +69,7 @@ module.exports = function registerCrossSell(app, deps = {}) {
     }
   }
 
-  // ─── POST /api/cross-sell/prepare ──────────────────────────────────────────
+  // ─── POST /api/xs-prepare  (and legacy alias /api/cross-sell/prepare) ──────
   // Takes the partner's 4 inputs (+ email + optional fields), pre-fetches the
   // installed solution and the secondary cross-sell URLs, and returns the
   // exact payload the client can post to /api/demo-flow.
@@ -77,7 +77,14 @@ module.exports = function registerCrossSell(app, deps = {}) {
   // We do NOT proxy /api/demo-flow ourselves — that would require duplicating
   // the SSE streaming logic. Letting the client POST to /api/demo-flow
   // directly keeps the regular process the single source of truth.
-  app.post('/api/cross-sell/prepare', async (req, res) => {
+  //
+  // NOTE on the URL choice: the original path was /api/cross-sell/prepare,
+  // but some ad-blocking / tracking-protection filter lists match URLs
+  // containing "cross-sell" (treated as a marketing/conversion term) and
+  // block the request before it ever hits the network — which surfaces as an
+  // instant "Failed to fetch" in the browser. /api/xs-prepare avoids the
+  // pattern entirely. The old path is preserved below as a back-compat alias.
+  const prepareHandler = async (req, res) => {
     try {
       const {
         email,
@@ -172,7 +179,9 @@ module.exports = function registerCrossSell(app, deps = {}) {
       console.error('[cross-sell/prepare] failed:', err);
       return res.status(500).json({ error: err.message || 'cross-sell prepare failed' });
     }
-  });
+  };
+  app.post('/api/xs-prepare', prepareHandler);
+  app.post('/api/cross-sell/prepare', prepareHandler);  // legacy alias
 
-  console.log('[cross-sell] add-on routes registered: GET /cross-sell, POST /api/cross-sell/prepare');
+  console.log('[cross-sell] add-on routes registered: GET /cross-sell, POST /api/xs-prepare (+ legacy /api/cross-sell/prepare)');
 };

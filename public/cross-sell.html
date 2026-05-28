@@ -59,13 +59,62 @@
   .ok{background:#e4f4ea;border:1px solid #b8dcc4;color:var(--good);padding:12px 14px;border-radius:9px;font-size:14px;margin-top:12px}
   .meta{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
   .meta b{color:var(--navy)}
-  .strat-card{border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:9px;padding:14px 16px;margin-top:10px;background:#fff}
+  .strat-card{border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:9px;padding:14px 16px 14px 46px;margin-top:10px;background:#fff;cursor:pointer;position:relative;transition:border-color .18s,background .18s,transform .18s}
+  .strat-card:hover{border-color:var(--navy2);background:#fbfcfe}
+  .strat-card .strat-check{position:absolute;top:14px;left:14px;width:20px;height:20px;border:2px solid var(--line);border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:0;font-weight:900;color:#fff;transition:.18s}
+  .strat-card.selected{border-color:var(--good);background:linear-gradient(135deg,#fff 0%,#f6fbf8 100%);border-left-color:var(--good)}
+  .strat-card.selected .strat-check{border-color:var(--good);background:var(--good);font-size:13px}
+  .strat-card.selected .strat-check::after{content:"✓"}
   .strat-card h4{margin:0 0 6px;font-size:15px;color:var(--navy)}
   .strat-card .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .strat-card .tags span{background:#eef2f9;border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700;color:var(--navy);letter-spacing:.3px}
   .strat-card p{margin:6px 0;font-size:13px;line-height:1.5}
   .strat-card .first{background:#f6f9ff;border-radius:7px;padding:8px 10px;margin-top:8px;font-size:13px}
   .strat-card .conf{float:right;font-size:11px;font-weight:700;color:var(--muted)}
+
+  .strat-actions{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .strat-actions .sa-info{font-size:13px;color:var(--muted)}
+  .strat-actions .sa-info b{color:var(--navy)}
+  .btn-next{background:var(--good);color:#fff;border:0;border-radius:10px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .btn-next:hover{background:#176239}
+  .btn-next:disabled{opacity:.45;cursor:not-allowed;background:var(--muted)}
+
+  /* Hydration */
+  .hyd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+  .hyd-who{font-size:14px;color:var(--ink);line-height:1.5;flex:1;min-width:280px}
+  .hyd-score{border:2px solid var(--good);border-radius:10px;padding:10px 14px;text-align:center;color:var(--good);min-width:100px}
+  .hyd-score-num{font-size:26px;font-weight:800;line-height:1}
+  .hyd-score-label{font-size:9px;font-weight:700;letter-spacing:.6px;margin-top:2px}
+  .hyd-section-title{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);font-weight:700;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--gold)}
+  .hyd-pain{background:#fbe9e9;border:1px solid #f0c4c4;border-radius:8px;padding:10px 12px;margin-bottom:8px}
+  .hyd-pain-label{font-weight:700;color:var(--bad);font-size:13px;margin-bottom:4px}
+  .hyd-pain-expl{font-size:13px;color:var(--ink);line-height:1.5}
+  .hyd-q{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:#fbfcfe}
+  .hyd-q-stage{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gold);margin-bottom:4px}
+  .hyd-q-text{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:8px;line-height:1.4}
+  .hyd-q-block{margin-top:8px}
+  .hyd-q-block-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .hyd-q-block-val{font-size:13px;line-height:1.5;color:var(--ink);margin-top:2px}
+  .hyd-q-tone{margin-top:8px;font-size:12px;color:var(--muted);font-style:italic;border-left:3px solid var(--gold);padding-left:8px}
+  .hyd-responses{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  @media(max-width:680px){.hyd-responses{grid-template-columns:1fr}}
+  .hyd-response{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.5}
+  .hyd-response.positive{border-left:3px solid var(--good);background:#f4fbf7}
+  .hyd-response.negative{border-left:3px solid var(--bad);background:#fdf7f7}
+  .hyd-response-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:4px}
+  .hyd-response-quote{font-style:italic;color:var(--ink);margin-bottom:4px}
+  .hyd-response-next{font-size:12px}
+  .hyd-email{border:1px solid var(--line);border-left:4px solid var(--navy2);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#fbfcfe}
+  .hyd-email-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px}
+  .hyd-email-step{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);background:#eef2f9;padding:3px 9px;border-radius:12px}
+  .hyd-email-day{font-size:11px;color:var(--muted);font-weight:600}
+  .hyd-email-subject{font-size:13px;margin-bottom:6px}
+  .hyd-email-body{font-size:13px;color:var(--ink);line-height:1.55}
+  .hyd-report{margin-top:22px;padding:14px 16px;border-radius:10px;background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .hyd-report-text{font-size:13px;line-height:1.4;flex:1;min-width:200px}
+  .hyd-report-text b{display:block;font-size:15px;margin-bottom:3px}
+  .hyd-report-btn{background:var(--gold);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none}
+  .hyd-report-btn:hover{background:#a5780a}
   @media(max-width:760px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -165,6 +214,16 @@
   <div class="panel stage" id="resultStage">
     <h3 style="margin:0 0 12px;font-size:14px;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Cross-sell strategies</h3>
     <div id="strategies"></div>
+    <div class="strat-actions" id="strat_actions" style="display:none">
+      <div class="sa-info" id="strat_action_info">Click a strategy to select it.</div>
+      <button class="btn-next" id="btn_next" disabled>Next — generate questions →</button>
+    </div>
+  </div>
+
+  <!-- HYDRATION (questions + email drip + report) -->
+  <div class="panel stage" id="hydrationStage">
+    <h3 style="margin:0 0 12px;font-size:14px;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Lead hydration <span id="hyd_strategy_title" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)"></span></h3>
+    <div id="hydration"></div>
   </div>
 
 </div>
@@ -173,6 +232,14 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeJSON = s => { try { return JSON.parse(s); } catch { return {}; } };
+
+// ─── Run state ─────────────────────────────────────────────────────────────
+const runState = {
+  runId: null,
+  strategies: null,
+  selectedId: null,
+  topPickId: null
+};
 
 // ─── NAICS dropdown loader (mirrors public/index.html) ────────────────────
 const state = { naics: null };
@@ -274,7 +341,7 @@ async function runCrossSell() {
   if (!candidates.length) return showError('Add at least one cross-sell candidate URL.');
   if (!customer_url)      return showError('Add the customer URL.');
 
-  // Reset UI
+  // Reset UI + run state
   $('run').disabled = true;
   $('run').textContent = 'Preparing…';
   $('errBox').innerHTML = '';
@@ -282,16 +349,25 @@ async function runCrossSell() {
   $('phases').innerHTML = '';
   $('counts').innerHTML = '';
   $('strategies').innerHTML = '';
+  $('hydration').innerHTML = '';
+  $('hyd_strategy_title').textContent = '';
+  $('strat_actions').style.display = 'none';
+  $('btn_next').disabled = true;
   $('liveStage').classList.remove('show');
   $('resultStage').classList.remove('show');
+  $('hydrationStage').classList.remove('show');
   $('phase_summary').textContent = '';
+  runState.runId = null;
+  runState.strategies = null;
+  runState.selectedId = null;
+  runState.topPickId = null;
 
   let cur = null;
 
   // ── STEP 1: prepare ── pre-fetch installed + extra cross-sell URLs ──
   let prepared, meta;
   try {
-    const prepRes = await fetch('/api/cross-sell/prepare', {
+    const prepRes = await fetch('/api/xs-prepare', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -395,12 +471,16 @@ async function runCrossSell() {
       s.classList.add('done');
     } else if (ev === 'strategies') {
       markDone();
+      if (d && d.run_id) runState.runId = d.run_id;
+      runState.strategies = d;
+      runState.topPickId = d.top_pick_id || d.result?.top_pick_id || null;
       renderStrategies(d);
     } else if (ev === 'done') {
       markDone();
-      const s = phaseEl('Done' + (d.elapsed_ms ? (' — ' + (d.elapsed_ms / 1000).toFixed(1) + 's') : ''));
+      if (d && d.run_id) runState.runId = d.run_id;
+      const s = phaseEl('Strategies ready — pick one to generate discovery questions' + (d.elapsed_ms ? (' (' + (d.elapsed_ms / 1000).toFixed(1) + 's)') : ''));
       s.classList.add('done');
-      $('phase_summary').innerHTML = '<b style="color:var(--good)">Complete.</b> Check your email for the full report.';
+      $('phase_summary').innerHTML = '<b style="color:var(--good)">Strategies ready.</b> Select one below and click Next.';
     } else if (ev === 'error') {
       showError(d.error || 'Unknown error from regular process');
     }
@@ -419,7 +499,9 @@ async function runCrossSell() {
     const top = payload.top_pick_id || payload.result?.top_pick_id;
     const html = strats.map(s => {
       const isTop = s.id && s.id === top;
-      return '<div class="strat-card"' + (isTop ? ' style="border-left-color:var(--good);background:#f6fbf8"' : '') + '>' +
+      const id = s.id || ('s' + Math.random().toString(36).slice(2, 8));
+      return '<div class="strat-card" data-id="' + esc(id) + '" onclick="selectStrategy(\'' + esc(id) + '\')">' +
+        '<div class="strat-check"></div>' +
         (s.confidence != null ? '<span class="conf">conf ' + esc(s.confidence) + '</span>' : '') +
         '<h4>' + (isTop ? '★ ' : '') + esc(s.title || 'Strategy') + '</h4>' +
         '<div class="tags">' +
@@ -434,7 +516,155 @@ async function runCrossSell() {
       '</div>';
     }).join('');
     $('strategies').innerHTML = html;
+    $('strat_actions').style.display = 'flex';
+    $('strat_action_info').innerHTML = 'Click a strategy to select it.';
+    $('btn_next').disabled = true;
   }
+}
+
+// ─── Strategy selection (single-select) ────────────────────────────────────
+window.selectStrategy = function(id) {
+  runState.selectedId = id;
+  document.querySelectorAll('.strat-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.id === id);
+  });
+  const strat = (runState.strategies?.strategies || []).find(s => s.id === id);
+  $('strat_action_info').innerHTML = strat
+    ? 'Selected: <b>' + esc(strat.title || id) + '</b> — click Next to generate discovery questions.'
+    : 'Selected: <b>' + esc(id) + '</b>';
+  $('btn_next').disabled = !runState.runId;
+  if (!runState.runId) {
+    $('strat_action_info').innerHTML += ' <span style="color:var(--bad)">(waiting for run_id — try again in a moment)</span>';
+  }
+};
+
+// ─── Next button → call /api/hydrate and render the questions phase ────────
+$('btn_next').addEventListener('click', async () => {
+  if (!runState.runId)     return alert('No run_id captured yet — wait a moment for the run to finish, then try again.');
+  if (!runState.selectedId) return alert('Pick a strategy first.');
+
+  const btn = $('btn_next');
+  const origLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generating questions…';
+
+  $('hydrationStage').classList.add('show');
+  $('hydration').innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;padding:14px;color:var(--muted);font-size:13px">' +
+      '<span style="display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--navy2);border-radius:50%;animation:spin 1s linear infinite"></span>' +
+      'Hydrating the lead — researching solution, mapping pain, generating discovery questions and email drip…' +
+    '</div>' +
+    '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+  $('hydrationStage').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    const res = await fetch('/api/hydrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: runState.runId, strategy_id: runState.selectedId })
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.detail || errJson.error || ('Hydration failed (HTTP ' + res.status + ')'));
+    }
+    const data = await res.json();
+    renderHydration(data);
+  } catch (err) {
+    $('hydration').innerHTML = '<div class="err">' + esc(err.message || 'Hydration failed.') + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  }
+});
+
+// ─── Render the hydration response (pain + questions + email drip + report) ─
+function renderHydration(data) {
+  const h = data?.hydration || {};
+  const chosen = data?.chosen_strategy || {};
+  const score = parseInt(h.score) || 0;
+  const scoreColor = score >= 80 ? 'var(--good)' : score >= 60 ? '#1f7a4d' : score >= 40 ? 'var(--warn)' : 'var(--muted)';
+
+  $('hyd_strategy_title').textContent = chosen.title ? '— ' + chosen.title : '';
+
+  const painsHtml = (h.painIndicators || []).map(p =>
+    '<div class="hyd-pain">' +
+      '<div class="hyd-pain-label">' + esc(p.label || '') + '</div>' +
+      '<div class="hyd-pain-expl">' + esc(p.explanation || '') + '</div>' +
+    '</div>'
+  ).join('');
+
+  const questionsHtml = (h.questions || []).map(q => {
+    const positives = (q.positive_responses || []).map(r =>
+      '<div class="hyd-response positive">' +
+        '<div class="hyd-response-label">If they say (positive)</div>' +
+        '<div class="hyd-response-quote">"' + esc(r.response || '') + '"</div>' +
+        '<div class="hyd-response-next"><b>Next:</b> ' + esc(r.next_step || '') + '</div>' +
+      '</div>'
+    ).join('');
+    const negatives = (q.neutral_negative_responses || q.negative_responses || []).map(r =>
+      '<div class="hyd-response negative">' +
+        '<div class="hyd-response-label">If they say (pivot to recover)</div>' +
+        '<div class="hyd-response-quote">"' + esc(r.response || '') + '"</div>' +
+        '<div class="hyd-response-next"><b>Pivot:</b> ' + esc(r.pivot || r.next_step || '') + '</div>' +
+      '</div>'
+    ).join('');
+    const ur = q.unexpected_response;
+    const unexpected = (ur && ur.response)
+      ? '<div class="hyd-response negative" style="border-left-color:var(--warn);background:#fdf8eb">' +
+          '<div class="hyd-response-label" style="color:var(--warn)">If they say something unexpected</div>' +
+          '<div class="hyd-response-quote">"' + esc(ur.response) + '"</div>' +
+          '<div class="hyd-response-next"><b>Pivot:</b> ' + esc(ur.pivot || '') + '</div>' +
+        '</div>'
+      : '';
+    return '<div class="hyd-q">' +
+      '<div class="hyd-q-stage">' + esc(q.stage || 'Question') + '</div>' +
+      '<div class="hyd-q-text">' + esc(q.question || '') + '</div>' +
+      (q.purpose ? '<div class="hyd-q-block"><div class="hyd-q-block-label">Purpose — why ask this</div><div class="hyd-q-block-val">' + esc(q.purpose) + '</div></div>' : '') +
+      (q.pain_it_targets ? '<div class="hyd-q-block"><div class="hyd-q-block-label">Pain it targets</div><div class="hyd-q-block-val">' + esc(q.pain_it_targets) + '</div></div>' : '') +
+      (q.tone_guidance ? '<div class="hyd-q-tone">' + esc(q.tone_guidance) + '</div>' : '') +
+      '<div class="hyd-responses">' +
+        '<div>' + positives + '</div>' +
+        '<div>' + negatives + unexpected + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  const emails = h.emailCampaign || h.emailSequence || [];
+  const emailsHtml = emails.map((em, i) =>
+    '<div class="hyd-email">' +
+      '<div class="hyd-email-head">' +
+        '<span class="hyd-email-step">' + esc(em.label || ('Email ' + (em.step || (i + 1)))) + '</span>' +
+        (em.sendDay ? '<span class="hyd-email-day">' + esc(em.sendDay) + '</span>' : '') +
+      '</div>' +
+      '<div class="hyd-email-subject"><b>Subject:</b> ' + esc(em.subject || em.subject_line || '') + '</div>' +
+      '<div class="hyd-email-body">' + esc(em.body || em.content || '').replace(/\n/g, '<br>') + '</div>' +
+    '</div>'
+  ).join('');
+
+  const reportBlock = runState.runId
+    ? '<div class="hyd-report">' +
+        '<div class="hyd-report-text"><b>Full DRiX Ready Lead report</b>Download the complete Word document — atoms, pain map, strategy, questions, drip campaign.</div>' +
+        '<a class="hyd-report-btn" href="/api/report/' + encodeURIComponent(runState.runId) + '/doc" download>Download .docx</a>' +
+      '</div>'
+    : '';
+
+  $('hydration').innerHTML =
+    '<div class="hyd-head">' +
+      '<div class="hyd-who">' + esc(h.whoIsThis || 'Lead hydrated for ' + (chosen.title || 'selected strategy') + '.') + '</div>' +
+      (score
+        ? '<div class="hyd-score" style="border-color:' + scoreColor + ';color:' + scoreColor + '"><div class="hyd-score-num">' + score + '</div><div class="hyd-score-label">FIT SCORE</div></div>'
+        : '') +
+    '</div>' +
+    (h.primaryLead
+      ? '<div class="hyd-q-block" style="background:#eef2f9;padding:10px 12px;border-radius:8px;margin-bottom:8px">' +
+          '<div class="hyd-q-block-label">Primary lead — who to target</div>' +
+          '<div class="hyd-q-block-val"><b>' + esc(h.primaryLead.title || '') + '</b>' + (h.primaryLead.topic ? ' · ' + esc(h.primaryLead.topic) : '') + '</div>' +
+        '</div>'
+      : '') +
+    (painsHtml     ? '<div class="hyd-section-title">Pain indicators</div>' + painsHtml : '') +
+    (questionsHtml ? '<div class="hyd-section-title">Discovery questions</div>' + questionsHtml : '') +
+    (emailsHtml    ? '<div class="hyd-section-title">Email drip campaign (' + emails.length + '-step sequence)</div>' + emailsHtml : '') +
+    reportBlock;
 }
 
 function showError(msg) {
