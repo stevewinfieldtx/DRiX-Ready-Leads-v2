@@ -3654,6 +3654,11 @@ app.get('/api/meta/dimensions', (_req, res) => res.json(DIMENSIONS));
 // ─── Mentor Match (founder ↔ mentor/investor matching, briefs, archive) ───
 registerMentorMatch(app, { callLLM });
 
+// ─── Cross-Sell add-on (partner intake → forwards to /api/demo-flow) ──────
+// Strictly additive. New routes only: GET /cross-sell, POST /api/cross-sell/prepare.
+// No existing functionality is modified. See cross-sell-routes.js for details.
+require('./cross-sell-routes')(app, { fetchAndStrip });
+
 // ─── NAICS TAXONOMY (subset — 2-digit sector → 3-digit subsectors) ───────────
 const NAICS_TAXONOMY = [
   { code: '11', name: 'Agriculture, Forestry, Fishing & Hunting', sub: [
