@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your account — DRiX Ready Leads</title>
+<style>
+  :root { --card:#fff; --ink:#0f172a; --muted:#64748b; --accent:#2563eb; --line:#e2e8f0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif; background:linear-gradient(160deg,#0f172a,#1e293b); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { background:var(--card); width:100%; max-width:460px; border-radius:16px; padding:32px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  h1 { font-size:20px; margin:0 0 4px; color:var(--ink); }
+  .who { font-size:13px; color:var(--muted); margin:0 0 20px; }
+  .runs { display:flex; align-items:baseline; gap:8px; background:#f8fafc; border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:22px; }
+  .runs .n { font-size:34px; font-weight:800; color:var(--accent); }
+  .runs .l { font-size:14px; color:var(--muted); }
+  label { display:block; font-size:13px; font-weight:600; color:var(--ink); margin:0 0 6px; }
+  input { width:100%; padding:13px 14px; font-size:16px; border:1px solid var(--line); border-radius:10px; outline:none; }
+  input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+  button { width:100%; margin-top:12px; padding:13px; font-size:16px; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:10px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  .buy { background:#0f172a; }
+  .ghost { background:none; color:var(--muted); font-weight:500; }
+  .msg { margin-top:14px; font-size:14px; padding:10px 12px; border-radius:8px; display:none; }
+  .msg.err { display:block; background:#fef2f2; color:#b91c1c; }
+  .msg.ok  { display:block; background:#ecfdf5; color:#047857; }
+  hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+  .sub { font-size:13px; color:var(--muted); margin:0 0 10px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Your runs</h1>
+    <p class="who" id="who">—</p>
+
+    <div class="runs"><span class="n" id="remaining">–</span><span class="l">runs remaining</span></div>
+
+    <label for="code">Have a code or license key?</label>
+    <p class="sub">Enter your promo code or the license key from your purchase.</p>
+    <input id="code" placeholder="paste code or key" autocomplete="off" />
+    <button id="redeemBtn">Redeem</button>
+
+    <div id="buyWrap" style="display:none">
+      <hr />
+      <p class="sub">Need more runs? <strong id="packLabel">10 runs for $10</strong>. <span id="buySub"></span></p>
+      <button class="buy" id="buyBtn">Buy more runs</button>
+    </div>
+
+    <div id="adminWrap" style="display:none">
+      <hr />
+      <p class="sub"><strong>Admin · generate codes</strong></p>
+      <div style="display:flex;gap:8px">
+        <input id="genCount" type="number" min="1" max="500" value="10" style="flex:1" />
+        <button id="genBtn" style="margin-top:0;width:auto;padding:13px 18px">Generate</button>
+      </div>
+      <p class="sub" id="adminStat" style="margin-top:8px"></p>
+      <textarea id="genOut" readonly style="display:none;width:100%;height:140px;margin-top:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;border:1px solid var(--line);border-radius:10px;padding:10px"></textarea>
+    </div>
+
+    <div class="msg" id="msg"></div>
+    <hr />
+    <button class="ghost" id="appBtn">← Back to the app</button>
+    <button class="ghost" id="outBtn">Sign out</button>
+  </div>
+
+<script>
+  var msg = document.getElementById('msg');
+  function show(t,x){ msg.className='msg '+t; msg.textContent=x; }
+  function clr(){ msg.className='msg'; msg.textContent=''; }
+
+  async function refresh(){
+    try {
+      var r = await fetch('/api/auth/me');
+      if (r.status === 401) { window.location.href='/account'; return; }
+      var d = await r.json();
+      document.getElementById('who').textContent = 'Signed in as ' + d.email;
+      document.getElementById('remaining').textContent = d.remaining;
+      var buyBtn = document.getElementById('buyBtn');
+      if (d.paypal_enabled) {
+        // Fully automated: create a PayPal order tied to this account, then redirect.
+        document.getElementById('buyWrap').style.display='block';
+        document.getElementById('packLabel').textContent = (d.runs_per_purchase||10) + ' runs for $10';
+        document.getElementById('buySub').textContent = 'Runs are added to your account automatically when payment completes.';
+        buyBtn.onclick = async function(){
+          buyBtn.disabled = true; buyBtn.textContent = 'Opening PayPal…';
+          try {
+            var r = await fetch('/api/auth/checkout-paypal', {method:'POST'});
+            var pd = await r.json();
+            if (r.ok && pd.url) { window.location.href = pd.url; return; }
+            show('err', pd.error || 'Could not start checkout.');
+          } catch(e){ show('err','Network error. Try again.'); }
+          buyBtn.disabled = false; buyBtn.textContent = 'Buy more runs';
+        };
+      } else if (d.buy_url) {
+        document.getElementById('buyWrap').style.display='block';
+        document.getElementById('packLabel').textContent = (d.runs_per_purchase||10) + ' runs for $10';
+        document.getElementById('buySub').textContent = 'After paying, paste your code in the box above.';
+        buyBtn.onclick = function(){ window.open(d.buy_url, '_blank'); };
+      }
+      if (d.is_admin) {
+        document.getElementById('adminWrap').style.display='block';
+        loadAdminStat();
+      }
+    } catch(e){}
+  }
+
+  async function loadAdminStat(){
+    try {
+      var r = await fetch('/api/admin/codes-summary'); var s = await r.json();
+      if (r.ok) document.getElementById('adminStat').textContent = s.total + ' codes minted · ' + s.redeemed + ' redeemed · ' + (s.total - s.redeemed) + ' available';
+    } catch(e){}
+  }
+
+  document.addEventListener('click', async function(e){
+    if (e.target && e.target.id === 'genBtn') {
+      var btn = e.target; var count = document.getElementById('genCount').value || 10;
+      btn.disabled = true; btn.textContent='…';
+      try {
+        var r = await fetch('/api/admin/generate-codes', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({count:Number(count)})});
+        var d = await r.json();
+        if (!r.ok) { show('err', d.error || 'Could not generate.'); }
+        else {
+          var out = document.getElementById('genOut');
+          out.style.display='block'; out.value = d.codes.join('\n');
+          show('ok', 'Generated ' + d.count + ' codes (' + d.runs_each + ' runs each). Copy them below.');
+          loadAdminStat();
+        }
+      } catch(err){ show('err','Network error.'); }
+      btn.disabled = false; btn.textContent='Generate';
+    }
+  });
+
+  document.getElementById('redeemBtn').addEventListener('click', async function(){
+    clr();
+    var btn = this; var code = document.getElementById('code').value.trim();
+    if (!code) { show('err','Enter a code.'); return; }
+    btn.disabled = true; btn.textContent='Redeeming…';
+    try {
+      var r = await fetch('/api/auth/redeem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+      var d = await r.json();
+      if (!r.ok) { show('err', d.error || 'Could not redeem.'); }
+      else { show('ok', '+' + d.granted + ' runs added.'); document.getElementById('code').value=''; refresh(); }
+    } catch(e){ show('err','Network error. Try again.'); }
+    btn.disabled = false; btn.textContent='Redeem';
+  });
+
+  document.getElementById('appBtn').addEventListener('click', function(){ window.location.href='/'; });
+  document.getElementById('outBtn').addEventListener('click', async function(){
+    await fetch('/api/auth/logout',{method:'POST'}); window.location.href='/account';
+  });
+
+  // Returning from PayPal
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('paid') === '1') show('ok', 'Payment complete — your runs have been added.');
+  else if (params.get('error') === 'payment') show('err', 'Payment did not complete. You were not charged. Try again.');
+  else if (params.get('canceled') === '1') show('err', 'Checkout canceled.');
+
+  refresh();
+</script>
+</body>
+</html>

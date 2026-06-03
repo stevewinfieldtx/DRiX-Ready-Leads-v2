@@ -35,6 +35,31 @@ const APP_URL          = (process.env.APP_URL || '').replace(/\/+$/, '');
 const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
+// ── License-key payments (Gumroad / Lemon Squeezy) — NO WEBHOOK ──────────────
+// Buyer purchases on Gumroad/LS → receives a license key → pastes it in the app's
+// redeem box → server verifies the key with one API call and grants 10 runs.
+// Each key is one-time across all users (enforced in app_redemptions).
+const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || '';
+const LS_PRODUCT_ID      = process.env.LEMONSQUEEZY_PRODUCT_ID || ''; // optional product lock
+const BUY_URL            = process.env.BUY_URL || '';                 // your Gumroad/LS product page
+const LICENSE_PROVIDER   = (process.env.LICENSE_PROVIDER
+  || (GUMROAD_PRODUCT_ID ? 'gumroad' : (process.env.LEMONSQUEEZY ? 'lemonsqueezy' : ''))).toLowerCase();
+
+// ── Prepaid codes (processor-proof: PayPal/Venmo/etc. just collect money) ────
+// Admin mints one-time "10-run" codes and hands them to buyers after payment.
+// ADMIN_EMAIL can always sign in (bypasses the business-email rule) and gets the
+// "generate codes" power. ADMIN_TOKEN is an optional no-login backup for the API.
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+
+// ── PayPal (fully automated: create order → buyer pays → return → auto-credit) ─
+// No webhook: we capture on return and read the buyer's email from the order's
+// custom_id, so the right account is credited even if the session is lost.
+const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
+const PAYPAL_SECRET    = process.env.PAYPAL_SECRET || '';
+const PAYPAL_ENV       = (process.env.PAYPAL_ENV || 'live').toLowerCase();
+const PAYPAL_BASE      = PAYPAL_ENV === 'sandbox' ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
+
 // Free / consumer email providers are NOT business emails — block them.
 const FREE_EMAIL_DOMAINS = new Set([
   'gmail.com','googlemail.com','yahoo.com','ymail.com','rocketmail.com','hotmail.com',
@@ -86,6 +111,22 @@ async function initSchema() {
         amount_cents INTEGER,
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      -- Globally one-time redemption of purchased license keys.
+      CREATE TABLE IF NOT EXISTS app_redemptions (
+        code        TEXT PRIMARY KEY,
+        email       TEXT,
+        runs        INTEGER,
+        source      TEXT,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      -- Prepaid one-time codes minted by the admin and sold via PayPal/etc.
+      CREATE TABLE IF NOT EXISTS app_codes (
+        code         TEXT PRIMARY KEY,
+        runs         INTEGER NOT NULL DEFAULT 10,
+        redeemed_by  TEXT,
+        redeemed_at  TIMESTAMPTZ,
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     console.log('[auth] Schema ready (app_users, app_payments)');
   } catch (e) { console.error('[auth] initSchema failed:', e.message); }
@@ -136,10 +177,9 @@ async function grantRuns(email, n) {
   await p.query(`UPDATE app_users SET runs_granted = runs_granted + $2 WHERE email = $1`, [email, n]);
 }
 
-// Redeem a code once per user. Returns { ok, error?, granted? }.
-async function redeemCode(email, codeRaw) {
-  const code = String(codeRaw || '').trim().toLowerCase();
-  if (code !== DISCOUNT_CODE) return { ok: false, error: 'Invalid code.' };
+// Redeem the free promo code (per-user, one-time).
+async function redeemFreeCode(email) {
+  const code = DISCOUNT_CODE;
   const p = pool();
   if (!p) {
     const u = memUsers.get(email) || { runs_used: 0, runs_granted: 0, redeemed: new Set() };
@@ -147,7 +187,6 @@ async function redeemCode(email, codeRaw) {
     u.redeemed.add(code); u.runs_granted += DISCOUNT_RUNS; memUsers.set(email, u);
     return { ok: true, granted: DISCOUNT_RUNS };
   }
-  // Atomic: only add if not already redeemed.
   const r = await p.query(
     `UPDATE app_users
        SET runs_granted = runs_granted + $2,
@@ -158,6 +197,127 @@ async function redeemCode(email, codeRaw) {
   );
   if (!r.rows.length) return { ok: false, error: 'You have already redeemed this code.' };
   return { ok: true, granted: DISCOUNT_RUNS };
+}
+
+// Claim a purchased license key globally (one redemption per key, across all users).
+const memGlobalCodes = new Map(); // code -> email
+async function claimGlobalCode(code, email, runs, source) {
+  const p = pool();
+  if (!p) { if (memGlobalCodes.has(code)) return false; memGlobalCodes.set(code, email); return true; }
+  const r = await p.query(
+    `INSERT INTO app_redemptions (code, email, runs, source) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (code) DO NOTHING RETURNING code`,
+    [code, email, runs, source || LICENSE_PROVIDER]
+  );
+  return r.rows.length > 0;
+}
+
+function licenseConfigured() {
+  return LICENSE_PROVIDER === 'gumroad' ? !!GUMROAD_PRODUCT_ID : LICENSE_PROVIDER === 'lemonsqueezy';
+}
+
+// ── Prepaid codes ────────────────────────────────────────────────────────────
+const memCodes = new Map(); // code -> { runs, redeemedBy }
+function isAdmin(email) { return !!ADMIN_EMAIL && email === ADMIN_EMAIL; }
+
+// Human-friendly, unambiguous code: DRIX-XXXX-XXXX (no 0/O/1/I).
+function makeCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const seg = () => Array.from({ length: 4 }, () => A[crypto.randomInt(0, A.length)]).join('');
+  return `DRIX-${seg()}-${seg()}`;
+}
+
+async function generateCodes(count, runs) {
+  const n = Math.max(1, Math.min(500, parseInt(count, 10) || 1));
+  const r = Math.max(1, parseInt(runs, 10) || RUNS_PER_PURCHASE);
+  const codes = [];
+  while (codes.length < n) { const c = makeCode(); if (!codes.includes(c)) codes.push(c); }
+  const p = pool();
+  if (!p) { for (const c of codes) memCodes.set(c, { runs: r, redeemedBy: null }); return codes; }
+  for (const c of codes) {
+    await p.query(`INSERT INTO app_codes (code, runs) VALUES ($1,$2) ON CONFLICT (code) DO NOTHING`, [c, r]);
+  }
+  return codes;
+}
+
+// Claim a prepaid code (one-time). Returns runs granted, or null if invalid/used.
+async function claimPrepaidCode(code, email) {
+  const c = String(code || '').trim().toUpperCase();
+  const p = pool();
+  if (!p) {
+    const rec = memCodes.get(c);
+    if (!rec || rec.redeemedBy) return null;
+    rec.redeemedBy = email; return rec.runs;
+  }
+  const r = await p.query(
+    `UPDATE app_codes SET redeemed_by = $2, redeemed_at = NOW()
+     WHERE code = $1 AND redeemed_by IS NULL RETURNING runs`,
+    [c, email]
+  );
+  return r.rows.length ? r.rows[0].runs : null;
+}
+
+async function codesSummary() {
+  const p = pool();
+  if (!p) { const all = [...memCodes.values()]; return { total: all.length, redeemed: all.filter(x => x.redeemedBy).length }; }
+  const r = await p.query(`SELECT COUNT(*)::int total, COUNT(redeemed_by)::int redeemed FROM app_codes`);
+  return r.rows[0] || { total: 0, redeemed: 0 };
+}
+
+// Verify a license key with the configured provider. Returns { ok, error? }. No webhook.
+async function verifyLicense(key) {
+  try {
+    if (LICENSE_PROVIDER === 'gumroad') {
+      if (!GUMROAD_PRODUCT_ID) return { ok: false, error: 'Codes are not set up yet.' };
+      const body = new URLSearchParams({ product_id: GUMROAD_PRODUCT_ID, license_key: key, increment_uses_count: 'false' });
+      const r = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.success) return { ok: false, error: 'Invalid code.' };
+      const p = d.purchase || {};
+      if (p.refunded || p.chargebacked || p.disputed) return { ok: false, error: 'That purchase was refunded or disputed.' };
+      return { ok: true };
+    }
+    if (LICENSE_PROVIDER === 'lemonsqueezy') {
+      const body = new URLSearchParams({ license_key: key });
+      const r = await fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
+        method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.valid) return { ok: false, error: 'Invalid code.' };
+      if (LS_PRODUCT_ID && String(d.meta?.product_id) !== String(LS_PRODUCT_ID)) return { ok: false, error: 'Invalid code.' };
+      return { ok: true };
+    }
+    return { ok: false, error: 'Invalid code.' };
+  } catch (e) {
+    console.error('[auth] verifyLicense error:', e.message);
+    return { ok: false, error: 'Could not verify the code. Try again.' };
+  }
+}
+
+// Top-level redeem: free promo code (per-user) OR purchased license key (global one-time).
+async function redeemCode(email, codeRaw) {
+  const raw = String(codeRaw || '').trim();
+  if (!raw) return { ok: false, error: 'Enter a code.' };
+  if (raw.toLowerCase() === DISCOUNT_CODE) return redeemFreeCode(email);
+
+  // Prepaid code (DRIX-XXXX-XXXX) minted by the admin and sold via PayPal/etc.
+  if (/^DRIX-/i.test(raw)) {
+    const granted = await claimPrepaidCode(raw, email);
+    if (!granted) return { ok: false, error: 'Invalid or already-used code.' };
+    await grantRuns(email, granted);
+    return { ok: true, granted };
+  }
+
+  // Otherwise treat it as a purchased license key (Gumroad/LS), if configured.
+  if (!licenseConfigured()) return { ok: false, error: 'Invalid code.' };
+  const v = await verifyLicense(raw);
+  if (!v.ok) return { ok: false, error: v.error || 'Invalid code.' };
+  const claimed = await claimGlobalCode(raw, email, RUNS_PER_PURCHASE, LICENSE_PROVIDER);
+  if (!claimed) return { ok: false, error: 'This code has already been redeemed.' };
+  await grantRuns(email, RUNS_PER_PURCHASE);
+  return { ok: true, granted: RUNS_PER_PURCHASE };
 }
 
 // ─── SESSION (HMAC-signed cookie, no dependency) ─────────────────────────────
@@ -205,6 +365,8 @@ function sessionEmail(req) { return verifyToken(parseCookies(req).drix_session);
 function validateBusinessEmail(emailRaw) {
   const email = String(emailRaw || '').trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Enter a valid email address.' };
+  // The admin email is always allowed, even if it's a personal provider.
+  if (ADMIN_EMAIL && email === ADMIN_EMAIL) return { ok: true, email };
   const domain = email.split('@')[1];
   if (FREE_EMAIL_DOMAINS.has(domain)) {
     return { ok: false, error: 'Please use your business email address (personal Gmail/Yahoo/Outlook etc. are not accepted).' };
@@ -287,6 +449,65 @@ function verifyStripeSig(rawBody, sigHeader) {
   } catch { return false; }
 }
 
+// ─── PAYPAL (Orders API v2, redirect + capture, no webhook) ──────────────────
+function paypalEnabled() { return !!PAYPAL_CLIENT_ID && !!PAYPAL_SECRET; }
+
+async function paypalToken() {
+  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64');
+  const r = await fetch(`${PAYPAL_BASE}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials',
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error_description || 'PayPal auth failed');
+  return d.access_token;
+}
+
+// Create an order tagged with the buyer's email; returns { id, approveUrl }.
+async function paypalCreateOrder(email, baseUrl) {
+  const token = await paypalToken();
+  const body = {
+    intent: 'CAPTURE',
+    purchase_units: [{
+      custom_id: email,
+      description: `DRiX Ready Leads — ${RUNS_PER_PURCHASE} runs`,
+      amount: { currency_code: 'USD', value: (PURCHASE_PRICE_CENTS / 100).toFixed(2) },
+    }],
+    application_context: {
+      brand_name: 'DRiX Ready Leads',
+      user_action: 'PAY_NOW',
+      shipping_preference: 'NO_SHIPPING',
+      return_url: `${baseUrl}/api/pay/paypal/capture`,
+      cancel_url: `${baseUrl}/account?canceled=1`,
+    },
+  };
+  const r = await fetch(`${PAYPAL_BASE}/v2/checkout/orders`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json();
+  if (!r.ok) { console.error('[auth] PayPal create order failed:', JSON.stringify(d).slice(0, 300)); throw new Error('Could not start checkout.'); }
+  const approve = (d.links || []).find(l => l.rel === 'approve');
+  return { id: d.id, approveUrl: approve && approve.href };
+}
+
+// Capture an approved order. Returns { ok, email, runs, captureId } on success.
+async function paypalCapture(orderId) {
+  const token = await paypalToken();
+  const r = await fetch(`${PAYPAL_BASE}/v2/checkout/orders/${orderId}/capture`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+  });
+  const d = await r.json();
+  if (!r.ok || d.status !== 'COMPLETED') { console.error('[auth] PayPal capture not completed:', JSON.stringify(d).slice(0, 300)); return { ok: false }; }
+  const pu = (d.purchase_units || [])[0] || {};
+  const cap = (pu.payments && pu.payments.captures && pu.payments.captures[0]) || {};
+  const email = (pu.custom_id || '').toLowerCase();
+  return { ok: true, email, runs: RUNS_PER_PURCHASE, captureId: cap.id || d.id };
+}
+
 // ─── INSTALL ─────────────────────────────────────────────────────────────────
 function install(app, deps = {}) {
   _db = deps.db || null;
@@ -356,6 +577,8 @@ function install(app, deps = {}) {
       email, free: FREE_RUNS, runs_used: u.runs_used, runs_granted: u.runs_granted,
       remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used),
       redeemed: u.redeemed, stripe_enabled: stripeEnabled(),
+      license_enabled: licenseConfigured(), buy_url: BUY_URL, runs_per_purchase: RUNS_PER_PURCHASE,
+      is_admin: isAdmin(email), paypal_enabled: paypalEnabled(),
     });
   });
 
@@ -383,11 +606,66 @@ function install(app, deps = {}) {
     } catch (e) { res.status(502).json({ error: e.message || 'Could not start checkout.' }); }
   });
 
+  // ── PayPal: fully automated buy → auto-credit (no webhook) ──
+  app.post('/api/auth/checkout-paypal', async (req, res) => {
+    const email = sessionEmail(req);
+    if (!email) return res.status(401).json({ error: 'Not signed in' });
+    if (!paypalEnabled()) return res.status(503).json({ error: 'PayPal is not configured yet. Set PAYPAL_CLIENT_ID and PAYPAL_SECRET in Railway.' });
+    try {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const order = await paypalCreateOrder(email, baseUrl);
+      if (!order.approveUrl) throw new Error('No approval URL from PayPal.');
+      res.json({ ok: true, url: order.approveUrl });
+    } catch (e) { res.status(502).json({ error: e.message || 'Could not start checkout.' }); }
+  });
+
+  // Buyer is redirected back here from PayPal after approving. Capture + credit.
+  app.get('/api/pay/paypal/capture', async (req, res) => {
+    const orderId = req.query.token; // PayPal returns ?token=<orderId>
+    if (!orderId) return res.redirect('/account?error=payment');
+    try {
+      const cap = await paypalCapture(String(orderId));
+      if (!cap.ok || !cap.email) return res.redirect('/account?error=payment');
+      // Idempotent credit: only grant once per capture id.
+      const claimed = await claimGlobalCode(`paypal:${cap.captureId}`, cap.email, cap.runs, 'paypal');
+      if (claimed) {
+        await ensureUser(cap.email);
+        await grantRuns(cap.email, cap.runs);
+        console.log(`[auth] PayPal: +${cap.runs} runs for ${cap.email} (capture ${cap.captureId})`);
+      }
+      return res.redirect('/account?paid=1');
+    } catch (e) { console.error('[auth] PayPal capture error:', e.message); return res.redirect('/account?error=payment'); }
+  });
+
+  // ── Admin: mint prepaid codes ──
+  function adminOK(req) {
+    const email = sessionEmail(req);
+    if (isAdmin(email)) return true;
+    if (ADMIN_TOKEN && req.headers['x-admin-token'] === ADMIN_TOKEN) return true;
+    return false;
+  }
+  app.post('/api/admin/generate-codes', async (req, res) => {
+    if (!adminOK(req)) return res.status(403).json({ error: 'Admin only.' });
+    const codes = await generateCodes(req.body?.count, req.body?.runs);
+    res.json({ ok: true, count: codes.length, runs_each: req.body?.runs || RUNS_PER_PURCHASE, codes });
+  });
+  app.get('/api/admin/codes-summary', async (req, res) => {
+    if (!adminOK(req)) return res.status(403).json({ error: 'Admin only.' });
+    res.json(await codesSummary());
+  });
+
+  // Account / redeem / buy page (signed-in users; otherwise the login wall).
+  app.get('/account', (req, res) => {
+    const email = sessionEmail(req);
+    const file = email ? 'account.html' : 'login.html';
+    res.sendFile(require('path').join(__dirname, 'public', file));
+  });
+
   // ── THE GATE ──
   app.use((req, res, next) => {
     const p = req.path;
     // Always-open paths
-    if (p.startsWith('/api/auth/') || p === '/api/stripe/webhook' || p === '/healthz') return next();
+    if (p.startsWith('/api/auth/') || p.startsWith('/api/pay/') || p === '/api/stripe/webhook' || p === '/healthz') return next();
 
     const email = sessionEmail(req);
 
