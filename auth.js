@@ -29,7 +29,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET
   || crypto.createHash('sha256').update('drix-session::' + (process.env.OPENROUTER_API_KEY || 'fallback')).digest('hex');
 
 const RESEND_API_KEY   = process.env.RESEND_API_KEY || '';
-const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || 'info@NYNImpact.com';
+const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || 'steve.winfield@wintechpartners.com';
 const APP_URL          = (process.env.APP_URL || '').replace(/\/+$/, '');
 
 const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY || '';

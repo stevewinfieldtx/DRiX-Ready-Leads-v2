@@ -52,7 +52,7 @@ const LEADHYDRATION_URL   = (process.env.LEADHYDRATION_URL || '').replace(/\/+$/
 const LEADHYDRATION_API_KEY = process.env.LEADHYDRATION_API_KEY || '';
 const CLEARSIGNALS_URL    = (process.env.CLEARSIGNALS_URL || '').replace(/\/+$/, '');
 const RESEND_API_KEY      = process.env.RESEND_API_KEY || '';
-const REPORT_FROM_EMAIL   = process.env.REPORT_FROM_EMAIL || 'info@NYNImpact.com';
+const REPORT_FROM_EMAIL   = process.env.REPORT_FROM_EMAIL || 'steve.winfield@wintechpartners.com';
 const TDE_BASE_URL        = (process.env.TDE_BASE_URL || 'https://targeteddecomposition-production.up.railway.app').replace(/\/+$/, '');
 const TDE_API_KEY         = process.env.TDE_API_KEY || '';
 // Minimum atoms in a TDE collection to treat it as a real cache hit. Below this
