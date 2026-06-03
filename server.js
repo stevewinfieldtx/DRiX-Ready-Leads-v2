@@ -21,10 +21,22 @@ const app = express();
 // Default to 3001 so we don't collide with LeadHydration (which defaults to 3000).
 const PORT = process.env.PORT || 3001;
 
-app.use(express.json({ limit: '2mb' }));
-// Serve the React build (from client/build → dist/) first, then legacy public/
-app.use(express.static(path.join(__dirname, 'dist')));
-app.use(express.static(path.join(__dirname, 'public')));
+// Parse JSON globally — but SKIP the Stripe webhook, which needs the raw body
+// for signature verification (handled inside auth.install via express.raw).
+app.use((req, res, next) =>
+  req.path === '/api/stripe/webhook' ? next() : express.json({ limit: '2mb' })(req, res, next)
+);
+// Serve the React build (from client/build → dist/) first, then legacy public/.
+// index:false so the gate (below) decides whether to serve the app or the login wall.
+app.use(express.static(path.join(__dirname, 'dist'), { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+// ─── AUTH WALL + METERING + DISCOUNT CODES + STRIPE ──────────────────────────
+// Installs: business-email OTP login, signed-cookie sessions, the gate that
+// blocks every /api/* route for anonymous users (stops unauthenticated abuse),
+// 3 free runs per user, the "steveisawesome" code (+10 runs, once per user),
+// and Stripe checkout (10 runs / $10, live once STRIPE_SECRET_KEY is set).
+require('./auth').install(app, { db });
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // Hard-fail if a required env var is missing — no silent fallbacks.
@@ -256,6 +268,68 @@ OUTPUT (JSON only):
   ],
   "top_pick_id": "<s1..s5>",
   "top_pick_reasoning": "<one sentence>"
+}`;
+
+// ─── AI OPPS variant ──────────────────────────────────────────────────────
+// Used only when /api/demo-flow receives flow_mode: 'ai-opps'. Same input/output
+// shape as STRATEGIES_PROMPT so /api/hydrate works unchanged. Strategies mix
+// three lenses: (a) SELL AI INTO this customer, (b) BUILD AI FOR this market,
+// (c) AI-ENABLE the user's own offering for this customer.
+const STRATEGIES_PROMPT_AI_OPPS = `You are the AI-integration opportunity generator of TDE.
+
+INPUT: same as the standard strategy prompt — sender atoms, solution atoms, customer atoms (or industry archetype), optional individual intelligence, recipient role.
+
+CONTEXT — what's different about this flow:
+- The "sender" and "solution" entities are BOTH the user's own company. The user is asking: "Where could AI integration land here?"
+- The "customer" is either a real target company OR an industry archetype.
+- Your job is to identify 5-10 concrete AI integration opportunities, NOT generic sales angles.
+
+EACH STRATEGY MUST BE ANCHORED ON A LENS (mix across the 5-10):
+1. lens="sell_into"     — User sells AI capabilities INTO this customer. Strategy = which AI offering (LLM agent / RAG / forecasting / vision / automation) maps to which named customer pain.
+2. lens="build_for"     — User builds a NEW AI product targeting this customer/market segment. Strategy = product wedge + first-customer pattern.
+3. lens="ai_enable_own" — User adds AI features INTO their existing offering to better serve this customer. Strategy = which AI layer (copilot, summarization, anomaly detection, agentic workflow) plugs into the user's existing product to unlock this customer.
+
+THE CORE RULES:
+- Produce 5-10 strategies. Spread the lenses — don't put 9 in one bucket. Pick the lens each strategy fits best.
+- Each strategy MUST be anchored on a distinct (Persona, Pain) PAIR drawn from customer atoms. No two strategies share the same pair.
+- pain_anchor is a 2-5 word label — real, grounded pain. NOT "AI transformation" or "digital modernization" generics.
+- Each strategy names a SPECIFIC AI pattern. Forbidden generics: "use AI", "AI-powered", "leverage AI", "implement an AI solution". Required specificity: "LLM-based contract triage", "vector-search over support tickets", "agentic workflow that handles N→M emails", "forecasting model on time-series X", "computer-vision QA on production line".
+- Persona is from this exact list: Executive/C-Suite, CFO/Finance, CISO/Security, CTO/IT, VP Sales, VP Marketing, Operations, Practitioner, End User, General.
+
+ECONOMIC FRAMING:
+- Each strategy must speak to the customer's pain in dollars, hours, or risk. AI-for-its-own-sake is not a strategy.
+- strategy_force: "economic_pull" if the strategy unlocks ROI/growth, "counter_inertia" if it removes a friction/risk that's blocking action, "balanced" if both.
+
+CRITICAL ANTI-FABRICATION RULES (this is where AI tools lose credibility):
+- If the customer is an ARCHETYPE (input.customer.is_archetype === true), NO SPECIFIC PAST EVENTS EXIST. No "your 2023 outage", no "the $4M you lost on the failed migration". Use segment-level framing: "manufacturers at your scale typically see X" / "regional banks commonly face Y".
+- If the customer is REAL, specifics are allowed ONLY when present in the provided customer atoms. You do not have access to internal financials, headcounts, or unlisted incidents. If it's not in the atoms, you don't know it.
+- AI tooling/vendor specifics: do NOT name specific competitors, do NOT cite specific benchmarks, do NOT invent ROI percentages. If you reference a capability, describe it as a pattern (e.g. "an LLM-based document classifier") rather than a branded product the customer hasn't said they use.
+- first_step must be a low-cash, low-risk discovery move the customer can say yes to in 30 days. "30-day pilot on one workflow", "data audit + readiness scorecard", "shadow-mode trial on Q3 tickets" — concrete, scoped, reversible.
+
+OUTPUT (JSON only, same shape as the standard strategy generator — /api/hydrate consumes this unchanged):
+{
+  "customer_label": "<short label for the customer — company name or archetype>",
+  "solution_label": "<short label for the AI play — e.g. 'AI Integration Opportunities'>",
+  "sender_label":   "<short label for the user company>",
+  "strategies": [
+    {
+      "id": "s1",
+      "title": "<4-8 words; lead with the AI pattern, not 'AI for…'>",
+      "target_persona": "<one persona from the list>",
+      "pain_anchor": "<2-5 word real pain>",
+      "lens": "sell_into" | "build_for" | "ai_enable_own",
+      "strategy_force": "economic_pull" | "counter_inertia" | "balanced",
+      "explanation": "<2-4 sentences; reference customer pain + the specific AI pattern>",
+      "customer_pain": "<1 sentence, grounded in atoms>",
+      "sender_contribution": "<what the user company brings — their existing assets, data, customer base, distribution>",
+      "solution_contribution": "<what the AI pattern delivers — the actual capability, in plain language>",
+      "first_step": "<30-day low-cash proposal>",
+      "confidence": 0-100
+    }
+    // ... 5-10 total, each with a DIFFERENT (target_persona, pain_anchor) pair, lens mixed across the set
+  ],
+  "top_pick_id": "<s1..sN>",
+  "top_pick_reasoning": "<one sentence — why this one wins given lens balance + confidence + first-step ease>"
 }`;
 
 const PAIN_PROMPT = `Pain-surfacing phase of TDE. Be concise — short sentences only.
@@ -1365,7 +1439,10 @@ app.post('/api/demo-flow', async (req, res) => {
     docs_sender,
     docs_solution,
     docs_customer,
-    docs_individual
+    docs_individual,
+    // Optional flow-mode flag. 'ai-opps' switches to STRATEGIES_PROMPT_AI_OPPS.
+    // Anything else (or undefined) keeps the existing behavior — full back-compat.
+    flow_mode
   } = req.body || {};
   // Demo mode removed — always full production intelligence (100-200 atoms per entity)
 
@@ -1630,7 +1707,10 @@ app.post('/api/demo-flow', async (req, res) => {
       sender_atoms: sender.atoms,
       solution_atoms: solution.atoms,
       customer_atoms: customer.atoms,
-      recipient_role: recipient_role || 'Senior executive'
+      recipient_role: recipient_role || 'Senior executive',
+      // flow_mode is part of the cache key so AI-Opps strategies don't collide
+      // with standard sales strategies that share the same sender/solution/customer atoms.
+      flow_mode: flow_mode || 'default'
     });
     let strategies;
     const hasValidStrategies = (obj) => Array.isArray(obj?.strategies) && obj.strategies.length > 0;
@@ -1670,10 +1750,14 @@ app.post('/api/demo-flow', async (req, res) => {
         { maxTokens: 6000, retries: 1, modelOverride: 'anthropic/claude-sonnet-4', label: 'fallback-claude' }
       ];
 
+      // Select prompt based on flow_mode. Defaults to STRATEGIES_PROMPT (full back-compat).
+      const stratPromptToUse = flow_mode === 'ai-opps' ? STRATEGIES_PROMPT_AI_OPPS : STRATEGIES_PROMPT;
+      if (flow_mode === 'ai-opps') console.log(`[strategy] flow_mode=ai-opps → using STRATEGIES_PROMPT_AI_OPPS`);
+
       for (const attemptConfig of attempts) {
         try {
           console.log(`[strategy] Trying ${attemptConfig.label} (maxTokens=${attemptConfig.maxTokens}, model=${attemptConfig.modelOverride || OPENROUTER_MODEL_ID})`);
-          const result = await callLLM(STRATEGIES_PROMPT, stratInput, {
+          const result = await callLLM(stratPromptToUse, stratInput, {
             maxTokens: attemptConfig.maxTokens,
             retries: attemptConfig.retries,
             ...(attemptConfig.modelOverride ? { modelOverride: attemptConfig.modelOverride } : {})
@@ -3659,6 +3743,10 @@ registerMentorMatch(app, { callLLM });
 // No existing functionality is modified. See cross-sell-routes.js for details.
 require('./cross-sell-routes')(app, { fetchAndStrip });
 
+// ─── AI Opps add-on (AI integration strategies → /api/demo-flow ai-opps mode) ──
+// Strictly additive. New routes only: GET /ai-opps, POST /api/ai-prepare.
+require('./ai-opps-routes')(app, { fetchAndStrip });
+
 // ─── NAICS TAXONOMY (subset — 2-digit sector → 3-digit subsectors) ───────────
 const NAICS_TAXONOMY = [
   { code: '11', name: 'Agriculture, Forestry, Fishing & Hunting', sub: [
@@ -4911,3 +4999,4 @@ app.listen(PORT, async () => {
   console.log(`   voice-coach: ${ELEVENLABS_API_KEY ? 'enabled' : '(not configured — set ELEVENLABS_API_KEY)'}`);
   if (db.isConfigured()) await db.initSchema();
 });
+// auth wall + metering + discount + stripe wired via ./auth (install above)
