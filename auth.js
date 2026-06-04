@@ -32,6 +32,25 @@ const RESEND_API_KEY   = process.env.RESEND_API_KEY || '';
 const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || 'steve.winfield@wintechpartners.com';
 const APP_URL          = (process.env.APP_URL || '').replace(/\/+$/, '');
 
+// ── Cross-site login (auth lives on the DRiX marketing site) ─────────────────
+// COOKIE_DOMAIN   — scope the session cookie to the parent domain so it's valid
+//                   on BOTH getthedrix.com and readyleads.getthedrix.com.
+//                   e.g. ".getthedrix.com"  (leave blank for old host-only behavior)
+// LOGIN_URL       — where to bounce un-authed visitors. e.g. "https://www.getthedrix.com"
+// AUTH_ALLOWED_ORIGINS — origins allowed to call /api/auth/* with credentials
+//                   (the marketing site). Comma-separated, no trailing slash.
+const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || '').trim();
+const LOGIN_URL     = (process.env.LOGIN_URL || '').replace(/\/+$/, '');
+const AUTH_ALLOWED_ORIGINS = new Set(
+  (process.env.AUTH_ALLOWED_ORIGINS || '')
+    .split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean)
+);
+// Optional invite-only switch. When this is non-empty, ONLY these emails can sign
+// in (and they bypass the business-domain rule). Leave blank for open self-serve.
+const ALLOWLIST_EMAILS = new Set(
+  (process.env.ALLOWLIST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+);
+
 const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
@@ -354,10 +373,15 @@ function setSessionCookie(res, token) {
     `drix_session=${token}`, 'Path=/', 'HttpOnly', 'SameSite=Lax',
     `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`, 'Secure',
   ];
+  // Scope to the parent domain so the cookie is shared across getthedrix.com
+  // and readyleads.getthedrix.com (same-site, so SameSite=Lax still applies).
+  if (COOKIE_DOMAIN) attrs.push(`Domain=${COOKIE_DOMAIN}`);
   res.append('Set-Cookie', attrs.join('; '));
 }
 function clearSessionCookie(res) {
-  res.append('Set-Cookie', 'drix_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Secure');
+  const attrs = ['drix_session=', 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', 'Secure'];
+  if (COOKIE_DOMAIN) attrs.push(`Domain=${COOKIE_DOMAIN}`);
+  res.append('Set-Cookie', attrs.join('; '));
 }
 function sessionEmail(req) { return verifyToken(parseCookies(req).drix_session); }
 
@@ -367,6 +391,14 @@ function validateBusinessEmail(emailRaw) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Enter a valid email address.' };
   // The admin email is always allowed, even if it's a personal provider.
   if (ADMIN_EMAIL && email === ADMIN_EMAIL) return { ok: true, email };
+  // Invite-only mode: if an allowlist is configured, only those emails get in
+  // (and they skip the business-domain rule).
+  if (ALLOWLIST_EMAILS.size > 0) {
+    if (!ALLOWLIST_EMAILS.has(email)) {
+      return { ok: false, error: "This email isn't on the DRiX access list yet. Contact us to request access." };
+    }
+    return { ok: true, email };
+  }
   const domain = email.split('@')[1];
   if (FREE_EMAIL_DOMAINS.has(domain)) {
     return { ok: false, error: 'Please use your business email address (personal Gmail/Yahoo/Outlook etc. are not accepted).' };
@@ -515,6 +547,23 @@ function install(app, deps = {}) {
   // (needed for Secure cookies and correct Stripe redirect URLs).
   try { app.set('trust proxy', true); } catch (_) {}
   initSchema().catch(() => {});
+
+  // ── CORS for the auth API ──
+  // Lets the DRiX marketing site (getthedrix.com) call /api/auth/* with the
+  // session cookie. Only echoes back origins on the allowlist; handles the
+  // preflight OPTIONS that a JSON POST triggers.
+  app.use('/api/auth', (req, res, next) => {
+    const origin = (req.headers.origin || '').replace(/\/+$/, '');
+    if (origin && AUTH_ALLOWED_ORIGINS.has(origin)) {
+      res.set('Access-Control-Allow-Origin', origin);
+      res.set('Access-Control-Allow-Credentials', 'true');
+      res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type');
+      res.append('Vary', 'Origin');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
 
   // Stripe webhook needs the RAW body — register BEFORE the JSON gate matters.
   // (server.js mounts express.json globally; we capture raw just for this path.)
@@ -686,10 +735,17 @@ function install(app, deps = {}) {
       return next();
     }
 
-    // Non-API navigation: signed-in users get the app; everyone else gets the login wall.
+    // Non-API navigation: signed-in users get the app; everyone else is sent to
+    // the login. If LOGIN_URL is set (the marketing site now hosts sign-in), we
+    // bounce there and remember where they were headed via ?next=. Otherwise we
+    // fall back to the app's built-in login wall.
     if (email) return next();
     const accept = req.headers.accept || '';
     if (req.method === 'GET' && accept.includes('text/html')) {
+      if (LOGIN_URL) {
+        const dest = encodeURIComponent(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
+        return res.redirect(302, `${LOGIN_URL}/?signin=1&next=${dest}`);
+      }
       return res.status(200).sendFile(require('path').join(__dirname, 'public', 'login.html'));
     }
     return next();
@@ -697,3 +753,4 @@ function install(app, deps = {}) {
 }
 
 module.exports = { install };
+// end of auth.js
