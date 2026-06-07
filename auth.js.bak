@@ -1,22 +1,22 @@
-﻿// auth.js â€” DRiX Ready Leads authentication, metering, discount codes, Stripe
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// auth.js — DRiX Ready Leads authentication, metering, discount codes, Stripe
+// ─────────────────────────────────────────────────────────────────────────────
 // Self-contained. No new npm dependencies (uses Node crypto + global fetch).
 //
 // What this does:
-//   1. AUTH WALL  â€” every /api/* route (except /api/auth/*) requires a logged-in
+//   1. AUTH WALL  — every /api/* route (except /api/auth/*) requires a logged-in
 //      user with a verified BUSINESS email. Login = email one-time passcode (OTP)
 //      delivered via the existing Resend account. Session = HMAC-signed cookie.
-//   2. METERING   â€” each "run" (an expensive API endpoint) consumes 1 credit.
+//   2. METERING   — each "run" (an expensive API endpoint) consumes 1 credit.
 //      Every user gets 3 FREE runs. After that they must buy more or redeem a code.
-//   3. DISCOUNT   â€” code "steveisawesome" (exact, lowercase) grants 10 runs at no
+//   3. DISCOUNT   — code "steveisawesome" (exact, lowercase) grants 10 runs at no
 //      cost, redeemable ONCE per user.
-//   4. STRIPE     â€” Checkout for a 10-run pack at $10. Activates automatically once
+//   4. STRIPE     — Checkout for a 10-run pack at $10. Activates automatically once
 //      STRIPE_SECRET_KEY is set in Railway env. Webhook credits the runs on payment.
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 const crypto = require('crypto');
 
-// â”€â”€â”€ CONFIG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
 const FREE_RUNS         = 3;                 // free runs every user gets
 const RUNS_PER_PURCHASE = 10;                // 10 runs per $10 pack
 const PURCHASE_PRICE_CENTS = 1000;           // $10.00
@@ -32,12 +32,12 @@ const RESEND_API_KEY   = process.env.RESEND_API_KEY || '';
 const REPORT_FROM_EMAIL = process.env.REPORT_FROM_EMAIL || 'steve.winfield@wintechpartners.com';
 const APP_URL          = (process.env.APP_URL || '').replace(/\/+$/, '');
 
-// â”€â”€ Cross-site login (auth lives on the DRiX marketing site) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// COOKIE_DOMAIN   â€” scope the session cookie to the parent domain so it's valid
+// ── Cross-site login (auth lives on the DRiX marketing site) ─────────────────
+// COOKIE_DOMAIN   — scope the session cookie to the parent domain so it's valid
 //                   on BOTH getthedrix.com and readyleads.getthedrix.com.
 //                   e.g. ".getthedrix.com"  (leave blank for old host-only behavior)
-// LOGIN_URL       â€” where to bounce un-authed visitors. e.g. "https://www.getthedrix.com"
-// AUTH_ALLOWED_ORIGINS â€” origins allowed to call /api/auth/* with credentials
+// LOGIN_URL       — where to bounce un-authed visitors. e.g. "https://www.getthedrix.com"
+// AUTH_ALLOWED_ORIGINS — origins allowed to call /api/auth/* with credentials
 //                   (the marketing site). Comma-separated, no trailing slash.
 const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || '').trim();
 const LOGIN_URL     = (process.env.LOGIN_URL || '').replace(/\/+$/, '');
@@ -45,9 +45,8 @@ const AUTH_ALLOWED_ORIGINS = new Set(
   (process.env.AUTH_ALLOWED_ORIGINS || '')
     .split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean)
 );
-// Always-allow list (additive). Emails listed here can ALWAYS sign in, bypassing
-// the business-domain rule. Normal business-email self-serve still works for
-// everyone else. Comma-separated. Leave blank to use only the business-domain rule.
+// Optional invite-only switch. When this is non-empty, ONLY these emails can sign
+// in (and they bypass the business-domain rule). Leave blank for open self-serve.
 const ALLOWLIST_EMAILS = new Set(
   (process.env.ALLOWLIST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 );
@@ -55,9 +54,9 @@ const ALLOWLIST_EMAILS = new Set(
 const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
-// â”€â”€ License-key payments (Gumroad / Lemon Squeezy) â€” NO WEBHOOK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Buyer purchases on Gumroad/LS â†’ receives a license key â†’ pastes it in the app's
-// redeem box â†’ server verifies the key with one API call and grants 10 runs.
+// ── License-key payments (Gumroad / Lemon Squeezy) — NO WEBHOOK ──────────────
+// Buyer purchases on Gumroad/LS → receives a license key → pastes it in the app's
+// redeem box → server verifies the key with one API call and grants 10 runs.
 // Each key is one-time across all users (enforced in app_redemptions).
 const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || '';
 const LS_PRODUCT_ID      = process.env.LEMONSQUEEZY_PRODUCT_ID || ''; // optional product lock
@@ -65,14 +64,14 @@ const BUY_URL            = process.env.BUY_URL || '';                 // your Gu
 const LICENSE_PROVIDER   = (process.env.LICENSE_PROVIDER
   || (GUMROAD_PRODUCT_ID ? 'gumroad' : (process.env.LEMONSQUEEZY ? 'lemonsqueezy' : ''))).toLowerCase();
 
-// â”€â”€ Prepaid codes (processor-proof: PayPal/Venmo/etc. just collect money) â”€â”€â”€â”€
+// ── Prepaid codes (processor-proof: PayPal/Venmo/etc. just collect money) ────
 // Admin mints one-time "10-run" codes and hands them to buyers after payment.
 // ADMIN_EMAIL can always sign in (bypasses the business-email rule) and gets the
 // "generate codes" power. ADMIN_TOKEN is an optional no-login backup for the API.
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
-// â”€â”€ PayPal (fully automated: create order â†’ buyer pays â†’ return â†’ auto-credit) â”€
+// ── PayPal (fully automated: create order → buyer pays → return → auto-credit) ─
 // No webhook: we capture on return and read the buyer's email from the order's
 // custom_id, so the right account is credited even if the session is lost.
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
@@ -80,7 +79,7 @@ const PAYPAL_SECRET    = process.env.PAYPAL_SECRET || '';
 const PAYPAL_ENV       = (process.env.PAYPAL_ENV || 'live').toLowerCase();
 const PAYPAL_BASE      = PAYPAL_ENV === 'sandbox' ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
 
-// Free / consumer email providers are NOT business emails â€” block them.
+// Free / consumer email providers are NOT business emails — block them.
 const FREE_EMAIL_DOMAINS = new Set([
   'gmail.com','googlemail.com','yahoo.com','ymail.com','rocketmail.com','hotmail.com',
   'hotmail.co.uk','outlook.com','live.com','msn.com','aol.com','icloud.com','me.com',
@@ -103,7 +102,7 @@ const METERED_ROUTES = new Set([
   'POST /api/mentor/brief',
 ]);
 
-// â”€â”€â”€ STORE (Postgres, with in-memory fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── STORE (Postgres, with in-memory fallback) ───────────────────────────────
 // app_users: email PK, runs_used, runs_granted (purchased+redeemed), redeemed jsonb.
 let _db = null;
 const memUsers = new Map();   // email -> { runs_used, runs_granted, redeemed:Set }
@@ -113,7 +112,7 @@ function pool() { try { return _db && _db.getPool && _db.getPool(); } catch { re
 
 async function initSchema() {
   const p = pool();
-  if (!p) { console.warn('[auth] No DATABASE_URL â€” using in-memory user store (resets on deploy).'); return; }
+  if (!p) { console.warn('[auth] No DATABASE_URL — using in-memory user store (resets on deploy).'); return; }
   try {
     await p.query(`
       CREATE TABLE IF NOT EXISTS app_users (
@@ -236,7 +235,7 @@ function licenseConfigured() {
   return LICENSE_PROVIDER === 'gumroad' ? !!GUMROAD_PRODUCT_ID : LICENSE_PROVIDER === 'lemonsqueezy';
 }
 
-// â”€â”€ Prepaid codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Prepaid codes ────────────────────────────────────────────────────────────
 const memCodes = new Map(); // code -> { runs, redeemedBy }
 function isAdmin(email) { return !!ADMIN_EMAIL && email === ADMIN_EMAIL; }
 
@@ -340,7 +339,7 @@ async function redeemCode(email, codeRaw) {
   return { ok: true, granted: RUNS_PER_PURCHASE };
 }
 
-// â”€â”€â”€ SESSION (HMAC-signed cookie, no dependency) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SESSION (HMAC-signed cookie, no dependency) ─────────────────────────────
 function sign(payloadB64) {
   return crypto.createHmac('sha256', SESSION_SECRET).update(payloadB64).digest('base64url');
 }
@@ -386,15 +385,20 @@ function clearSessionCookie(res) {
 }
 function sessionEmail(req) { return verifyToken(parseCookies(req).drix_session); }
 
-// â”€â”€â”€ EMAIL VALIDATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── EMAIL VALIDATION ────────────────────────────────────────────────────────
 function validateBusinessEmail(emailRaw) {
   const email = String(emailRaw || '').trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Enter a valid email address.' };
   // The admin email is always allowed, even if it's a personal provider.
   if (ADMIN_EMAIL && email === ADMIN_EMAIL) return { ok: true, email };
-  // Always-allow list: these emails ALWAYS get in, bypassing the business-domain
-  // rule (additive — normal business-email self-serve still works for everyone else).
-  if (ALLOWLIST_EMAILS.has(email)) return { ok: true, email };
+  // Invite-only mode: if an allowlist is configured, only those emails get in
+  // (and they skip the business-domain rule).
+  if (ALLOWLIST_EMAILS.size > 0) {
+    if (!ALLOWLIST_EMAILS.has(email)) {
+      return { ok: false, error: "This email isn't on the DRiX access list yet. Contact us to request access." };
+    }
+    return { ok: true, email };
+  }
   const domain = email.split('@')[1];
   if (FREE_EMAIL_DOMAINS.has(domain)) {
     return { ok: false, error: 'Please use your business email address (personal Gmail/Yahoo/Outlook etc. are not accepted).' };
@@ -402,10 +406,10 @@ function validateBusinessEmail(emailRaw) {
   return { ok: true, email };
 }
 
-// â”€â”€â”€ OTP DELIVERY (Resend) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── OTP DELIVERY (Resend) ───────────────────────────────────────────────────
 async function sendOtpEmail(email, code) {
   if (!RESEND_API_KEY) {
-    console.warn(`[auth] RESEND_API_KEY not set â€” OTP for ${email} is ${code} (logged, not emailed).`);
+    console.warn(`[auth] RESEND_API_KEY not set — OTP for ${email} is ${code} (logged, not emailed).`);
     return { ok: true, devCode: code };
   }
   try {
@@ -432,7 +436,7 @@ async function sendOtpEmail(email, code) {
 function newCode() { return String(crypto.randomInt(0, 1000000)).padStart(6, '0'); }
 function hashCode(email, code) { return crypto.createHmac('sha256', SESSION_SECRET).update(`${email}:${code}`).digest('hex'); }
 
-// â”€â”€â”€ STRIPE (REST, no dependency; activates when STRIPE_SECRET_KEY set) â”€â”€â”€â”€â”€â”€â”€
+// ─── STRIPE (REST, no dependency; activates when STRIPE_SECRET_KEY set) ───────
 function stripeEnabled() { return !!STRIPE_SECRET_KEY; }
 function form(obj, prefix, out = []) {
   for (const [k, v] of Object.entries(obj)) {
@@ -455,7 +459,7 @@ async function stripeCreateCheckout(email, baseUrl) {
       'price_data': {
         currency: 'usd',
         'unit_amount': PURCHASE_PRICE_CENTS,
-        'product_data': { name: `DRiX Ready Leads â€” ${RUNS_PER_PURCHASE} runs` },
+        'product_data': { name: `DRiX Ready Leads — ${RUNS_PER_PURCHASE} runs` },
       },
     }],
   };
@@ -477,7 +481,7 @@ function verifyStripeSig(rawBody, sigHeader) {
   } catch { return false; }
 }
 
-// â”€â”€â”€ PAYPAL (Orders API v2, redirect + capture, no webhook) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PAYPAL (Orders API v2, redirect + capture, no webhook) ──────────────────
 function paypalEnabled() { return !!PAYPAL_CLIENT_ID && !!PAYPAL_SECRET; }
 
 async function paypalToken() {
@@ -499,7 +503,7 @@ async function paypalCreateOrder(email, baseUrl) {
     intent: 'CAPTURE',
     purchase_units: [{
       custom_id: email,
-      description: `DRiX Ready Leads â€” ${RUNS_PER_PURCHASE} runs`,
+      description: `DRiX Ready Leads — ${RUNS_PER_PURCHASE} runs`,
       amount: { currency_code: 'USD', value: (PURCHASE_PRICE_CENTS / 100).toFixed(2) },
     }],
     application_context: {
@@ -536,7 +540,7 @@ async function paypalCapture(orderId) {
   return { ok: true, email, runs: RUNS_PER_PURCHASE, captureId: cap.id || d.id };
 }
 
-// â”€â”€â”€ INSTALL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── INSTALL ─────────────────────────────────────────────────────────────────
 function install(app, deps = {}) {
   _db = deps.db || null;
   // Behind Railway's proxy: trust X-Forwarded-Proto so req.protocol is https
@@ -544,7 +548,7 @@ function install(app, deps = {}) {
   try { app.set('trust proxy', true); } catch (_) {}
   initSchema().catch(() => {});
 
-  // â”€â”€ CORS for the auth API â”€â”€
+  // ── CORS for the auth API ──
   // Lets the DRiX marketing site (getthedrix.com) call /api/auth/* with the
   // session cookie. Only echoes back origins on the allowlist; handles the
   // preflight OPTIONS that a JSON POST triggers.
@@ -561,7 +565,7 @@ function install(app, deps = {}) {
     next();
   });
 
-  // Stripe webhook needs the RAW body â€” register BEFORE the JSON gate matters.
+  // Stripe webhook needs the RAW body — register BEFORE the JSON gate matters.
   // (server.js mounts express.json globally; we capture raw just for this path.)
   const express = require('express');
   app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) => {
@@ -586,7 +590,7 @@ function install(app, deps = {}) {
     res.json({ received: true });
   });
 
-  // â”€â”€ Auth API â”€â”€
+  // ── Auth API ──
   app.post('/api/auth/request-code', async (req, res) => {
     const v = validateBusinessEmail(req.body?.email);
     if (!v.ok) return res.status(400).json({ error: v.error });
@@ -651,7 +655,7 @@ function install(app, deps = {}) {
     } catch (e) { res.status(502).json({ error: e.message || 'Could not start checkout.' }); }
   });
 
-  // â”€â”€ PayPal: fully automated buy â†’ auto-credit (no webhook) â”€â”€
+  // ── PayPal: fully automated buy → auto-credit (no webhook) ──
   app.post('/api/auth/checkout-paypal', async (req, res) => {
     const email = sessionEmail(req);
     if (!email) return res.status(401).json({ error: 'Not signed in' });
@@ -682,7 +686,7 @@ function install(app, deps = {}) {
     } catch (e) { console.error('[auth] PayPal capture error:', e.message); return res.redirect('/account?error=payment'); }
   });
 
-  // â”€â”€ Admin: mint prepaid codes â”€â”€
+  // ── Admin: mint prepaid codes ──
   function adminOK(req) {
     const email = sessionEmail(req);
     if (isAdmin(email)) return true;
@@ -706,7 +710,7 @@ function install(app, deps = {}) {
     res.sendFile(require('path').join(__dirname, 'public', file));
   });
 
-  // â”€â”€ THE GATE â”€â”€
+  // ── THE GATE ──
   app.use((req, res, next) => {
     const p = req.path;
     // Always-open paths
