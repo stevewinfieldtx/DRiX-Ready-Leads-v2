@@ -52,6 +52,21 @@ const ALLOWLIST_EMAILS = new Set(
   (process.env.ALLOWLIST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 );
 
+// ── Owner bypass (skip the emailed OTP, but only with a secret passphrase) ────
+// Set BOTH to enable. The bypass email signs in by typing BYPASS_SECRET in place
+// of the code. Disabled unless both are set. Keep BYPASS_SECRET long + private.
+const BYPASS_EMAIL  = (process.env.BYPASS_EMAIL || '').trim().toLowerCase();
+const BYPASS_SECRET = process.env.BYPASS_SECRET || '';
+function bypassEnabled() { return !!BYPASS_EMAIL && BYPASS_SECRET.length >= 8; }
+// Constant-time string compare (avoids leaking the secret via timing).
+function safeEqual(a, b) {
+  const ba = Buffer.from(String(a)), bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  try { return crypto.timingSafeEqual(ba, bb); } catch { return false; }
+}
+// Simple brute-force guard for the bypass passphrase: lock 15 min after 5 misses.
+const bypassFails = new Map(); // email -> { count, until }
+
 const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
@@ -588,6 +603,11 @@ function install(app, deps = {}) {
 
   // â”€â”€ Auth API â”€â”€
   app.post('/api/auth/request-code', async (req, res) => {
+    // Owner bypass: don't email a code — the UI will ask for the master passphrase.
+    const rawEmail = String(req.body?.email || '').trim().toLowerCase();
+    if (bypassEnabled() && rawEmail === BYPASS_EMAIL) {
+      return res.json({ ok: true, bypass: true });
+    }
     const v = validateBusinessEmail(req.body?.email);
     if (!v.ok) return res.status(400).json({ error: v.error });
     const code = newCode();
@@ -600,6 +620,28 @@ function install(app, deps = {}) {
   app.post('/api/auth/verify', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const code = String(req.body?.code || '').trim();
+
+    // ── Owner bypass: sign in with the master passphrase instead of an OTP ──
+    if (bypassEnabled() && email === BYPASS_EMAIL) {
+      const lock = bypassFails.get(email);
+      if (lock && lock.until > Date.now()) {
+        return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+      }
+      if (safeEqual(code, BYPASS_SECRET)) {
+        bypassFails.delete(email);
+        await ensureUser(email);
+        setSessionCookie(res, makeToken(email));
+        const u = await getUser(email);
+        console.log(`[auth] Owner bypass sign-in: ${email}`);
+        return res.json({ ok: true, email, remaining: FREE_RUNS + u.runs_granted - u.runs_used });
+      }
+      const f = bypassFails.get(email) || { count: 0, until: 0 };
+      f.count += 1;
+      if (f.count >= 5) { f.until = Date.now() + 15 * 60 * 1000; f.count = 0; }
+      bypassFails.set(email, f);
+      return res.status(400).json({ error: 'Incorrect passphrase.' });
+    }
+
     const rec = otpStore.get(email);
     if (!rec || Date.now() > rec.exp) return res.status(400).json({ error: 'Code expired. Request a new one.' });
     if (rec.tries >= 5) { otpStore.delete(email); return res.status(429).json({ error: 'Too many attempts. Request a new code.' }); }
