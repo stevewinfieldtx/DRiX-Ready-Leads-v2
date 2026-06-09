@@ -32,9 +32,9 @@ app.use(express.static(path.join(__dirname, 'dist'), { index: false }));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // ─── AUTH WALL + METERING + DISCOUNT CODES + STRIPE ──────────────────────────
-// Installs: business-email OTP login, signed-cookie sessions, the gate that
-// blocks every /api/* route for anonymous users (stops unauthenticated abuse),
-// 3 free runs per user, the "steveisawesome" code (+10 runs, once per user),
+// Installs: business-email + password login (instant signup, no email wait),
+// signed-cookie sessions, the gate that blocks every /api/* route for anonymous
+// users, 10 free trial runs per user, the "steveisawesome" code (+10 runs, once per user),
 // and Stripe checkout (10 runs / $10, live once STRIPE_SECRET_KEY is set).
 require('./auth').install(app, { db });
 
@@ -101,6 +101,8 @@ const runStore = new Map(); // run_id → { sender, solution, customer, industry
 // server process lifetime. TDE cache is the cross-session persistence layer;
 // this is the instant in-session layer that actually makes repeats feel fast.
 const ingestCache = new Map(); // normalized_url → { target, summary, atoms, ... }
+const brain = require('drix-brain'); // shared generators: painIntel, strategyIntel, discoveryIntel
+
 const painCache = new Map();   // hash(atoms+industry+subindustry) → pain_groups
 const strategyCache = new Map(); // hash(atoms+role) → strategies
 const INGEST_CACHE_MAX = 100; // max entries before we start evicting oldest
@@ -203,177 +205,16 @@ DISCIPLINE:
 - Model both economic pull (ROI, speed, cost-out, quality, growth, risk-reduction) AND status-quo pressure (sunk cost, change fatigue, risk aversion, political cost, procedural gravity).
 - Be industry- and region-specific in patterns, not in invented specifics.`;
 
-const STRATEGIES_PROMPT = `You are the sales-strategy generator of TDE.
-
-INPUT: customer atoms, sender (seller) atoms, solution atoms, region context, and optionally INDIVIDUAL atoms (behavioral intelligence about the specific person being pitched to). Each set is 9D-tagged.
-
-TASK: produce EXACTLY 5 distinct Discovery-stage sales strategies for how the sender could win this customer with this solution. These are first-touch strategies — the buyer is cold / newly hydrated.
-
-INDIVIDUAL INTELLIGENCE (when provided):
-If the input includes an "individual" object, it contains OSINT-discovered digital footprint data about the specific person you're pitching to — their social media accounts, community memberships, content they've published, conference talks, and other behavioral signals. This is SEPARATE from the customer (company) data. Use it to:
-- Personalize conversation openers ("I saw your talk at..." or "Your GitHub activity suggests...")
-- Infer their personal priorities and communication preferences
-- Identify which strategy angles will resonate with THIS person specifically
-- Reference their public activity to demonstrate research depth
-The individual's data should influence strategy selection and especially the first_step field.
-
-THE CORE RULE — (Persona × Pain) ANCHORING:
-- Each strategy MUST be anchored on a distinct (Persona, Pain) PAIR drawn from the customer's atoms.
-- No two of the 5 strategies may share the same pair. If two strategies target "CTO × Integration Cost," drop the weaker one and find a different pair.
-- The persona comes from this exact list: Executive/C-Suite, CFO/Finance, CISO/Security, CTO/IT, VP Sales, VP Marketing, Operations, Practitioner, End User, General.
-- The pain_anchor is a SHORT 2-5 word label (e.g. "Integration Cost", "Change Fatigue", "Compliance Review Backlog") — this is what will render as a chip on the strategy card.
-- pain_anchor should correspond to real atoms tagged with weakness / mission_gap / buying_trigger, OR to a d_status_quo_pressure signal.
-
-EACH STRATEGY MUST:
-1. Have a crisp title (4-8 words).
-2. Have a clear explanation (2-4 sentences) a non-technical exec understands.
-3. Explicitly reference atoms from all three sources (customer pain, sender capability, solution capability).
-4. Name the first concrete step requiring minimal customer commitment.
-5. Include a confidence score (0-100).
-6. Emit both target_persona (from the list above) and pain_anchor (short label).
-7. Note whether it's optimized for positive economic pull, for neutralizing status-quo inertia, or balanced — via the strategy_force field.
-
-DISCIPLINE:
-- Five DIFFERENT (Persona × Pain) angles. Spread the personas — don't put all 5 at the CTO.
-- No generic "digital transformation" waffle.
-- All strategies are Discovery-stage. Do not write close-the-deal strategies here.
-
-CRITICAL ANTI-FABRICATION RULES (this is where sales tools lose trust):
-- If the customer is an ARCHETYPE (input.customer.is_archetype === true), NO SPECIFIC PAST EVENTS EXIST. You have no real company to reference. Therefore you must NEVER reference a specific historical incident, a specific dollar figure, a specific project name, a specific dated outage, a specific failed implementation, or a specific past vendor. Pain is framed at the segment level: "firms in this segment commonly face X" rather than "you experienced X in 2023." A made-up specific is worse than a real generic — it poisons the whole output.
-- If the customer is a REAL URL (is_archetype is falsy), specifics are allowed ONLY when the exact fact is present in the customer atoms provided. You do not have access to the company's internal history, financials, or unlisted incidents. If it's not in the atoms, you do not know it. Do not invent.
-- Forbidden patterns UNLESS the exact thing is in the provided atoms: "your 2023 [X]", "last quarter's [Y]", "the $[N]M you lost on [Z]", "after your failed [vendor] migration", "the [N] hours of downtime you had". All of these are lies by default. Only use them when the atoms literally contain the fact.
-- When you want to reference pain but don't have a specific grounded fact, use segment-level phrasing: "manufacturers at your scale typically see...", "regional banks in this region commonly...", "the pain point most acute for companies matching your profile is...". Honest genericity beats dishonest specificity every time.
-- customer_pain, explanation, and first_step are the three fields where fabrication is most tempting. Police yourself hardest there.
-
-OUTPUT (JSON only):
-{
-  "customer_label": "<short label for the customer — company name or archetype>",
-  "solution_label": "<short label for the solution>",
-  "sender_label": "<short label for the sender company>",
-  "strategies": [
-    {
-      "id": "s1",
-      "title": "<4-8 words>",
-      "target_persona": "<one persona>",
-      "pain_anchor": "<2-5 word pain label>",
-      "strategy_force": "economic_pull" | "counter_inertia" | "balanced",
-      "explanation": "<2-4 sentences>",
-      "customer_pain": "<specific pain from customer atoms, 1 sentence>",
-      "sender_contribution": "<what the sender brings>",
-      "solution_contribution": "<what the solution delivers>",
-      "first_step": "<concrete 30-day low-cash proposal>",
-      "confidence": 0-100
-    }
-    // ... 5 total, s1..s5, each with a DIFFERENT (target_persona, pain_anchor) pair
-  ],
-  "top_pick_id": "<s1..s5>",
-  "top_pick_reasoning": "<one sentence>"
-}`;
+// STRATEGIES_PROMPT — moved to drix-brain (single source of truth).
 
 // ─── AI OPPS variant ──────────────────────────────────────────────────────
 // Used only when /api/demo-flow receives flow_mode: 'ai-opps'. Same input/output
 // shape as STRATEGIES_PROMPT so /api/hydrate works unchanged. Strategies mix
 // three lenses: (a) SELL AI INTO this customer, (b) BUILD AI FOR this market,
 // (c) AI-ENABLE the user's own offering for this customer.
-const STRATEGIES_PROMPT_AI_OPPS = `You are the AI-integration opportunity generator of TDE.
+// STRATEGIES_PROMPT_AI_OPPS — moved to drix-brain (single source of truth).
 
-INPUT: same as the standard strategy prompt — sender atoms, solution atoms, customer atoms (or industry archetype), optional individual intelligence, recipient role.
-
-CONTEXT — what's different about this flow:
-- The "sender" and "solution" entities are BOTH the user's own company. The user is asking: "Where could AI integration land here?"
-- The "customer" is either a real target company OR an industry archetype.
-- Your job is to identify 5-10 concrete AI integration opportunities, NOT generic sales angles.
-
-EACH STRATEGY MUST BE ANCHORED ON A LENS (mix across the 5-10):
-1. lens="sell_into"     — User sells AI capabilities INTO this customer. Strategy = which AI offering (LLM agent / RAG / forecasting / vision / automation) maps to which named customer pain.
-2. lens="build_for"     — User builds a NEW AI product targeting this customer/market segment. Strategy = product wedge + first-customer pattern.
-3. lens="ai_enable_own" — User adds AI features INTO their existing offering to better serve this customer. Strategy = which AI layer (copilot, summarization, anomaly detection, agentic workflow) plugs into the user's existing product to unlock this customer.
-
-THE CORE RULES:
-- Produce 5-10 strategies. Spread the lenses — don't put 9 in one bucket. Pick the lens each strategy fits best.
-- Each strategy MUST be anchored on a distinct (Persona, Pain) PAIR drawn from customer atoms. No two strategies share the same pair.
-- pain_anchor is a 2-5 word label — real, grounded pain. NOT "AI transformation" or "digital modernization" generics.
-- Each strategy names a SPECIFIC AI pattern. Forbidden generics: "use AI", "AI-powered", "leverage AI", "implement an AI solution". Required specificity: "LLM-based contract triage", "vector-search over support tickets", "agentic workflow that handles N→M emails", "forecasting model on time-series X", "computer-vision QA on production line".
-- Persona is from this exact list: Executive/C-Suite, CFO/Finance, CISO/Security, CTO/IT, VP Sales, VP Marketing, Operations, Practitioner, End User, General.
-
-ECONOMIC FRAMING:
-- Each strategy must speak to the customer's pain in dollars, hours, or risk. AI-for-its-own-sake is not a strategy.
-- strategy_force: "economic_pull" if the strategy unlocks ROI/growth, "counter_inertia" if it removes a friction/risk that's blocking action, "balanced" if both.
-
-CRITICAL ANTI-FABRICATION RULES (this is where AI tools lose credibility):
-- If the customer is an ARCHETYPE (input.customer.is_archetype === true), NO SPECIFIC PAST EVENTS EXIST. No "your 2023 outage", no "the $4M you lost on the failed migration". Use segment-level framing: "manufacturers at your scale typically see X" / "regional banks commonly face Y".
-- If the customer is REAL, specifics are allowed ONLY when present in the provided customer atoms. You do not have access to internal financials, headcounts, or unlisted incidents. If it's not in the atoms, you don't know it.
-- AI tooling/vendor specifics: do NOT name specific competitors, do NOT cite specific benchmarks, do NOT invent ROI percentages. If you reference a capability, describe it as a pattern (e.g. "an LLM-based document classifier") rather than a branded product the customer hasn't said they use.
-- first_step must be a low-cash, low-risk discovery move the customer can say yes to in 30 days. "30-day pilot on one workflow", "data audit + readiness scorecard", "shadow-mode trial on Q3 tickets" — concrete, scoped, reversible.
-
-OUTPUT (JSON only, same shape as the standard strategy generator — /api/hydrate consumes this unchanged):
-{
-  "customer_label": "<short label for the customer — company name or archetype>",
-  "solution_label": "<short label for the AI play — e.g. 'AI Integration Opportunities'>",
-  "sender_label":   "<short label for the user company>",
-  "strategies": [
-    {
-      "id": "s1",
-      "title": "<4-8 words; lead with the AI pattern, not 'AI for…'>",
-      "target_persona": "<one persona from the list>",
-      "pain_anchor": "<2-5 word real pain>",
-      "lens": "sell_into" | "build_for" | "ai_enable_own",
-      "strategy_force": "economic_pull" | "counter_inertia" | "balanced",
-      "explanation": "<2-4 sentences; reference customer pain + the specific AI pattern>",
-      "customer_pain": "<1 sentence, grounded in atoms>",
-      "sender_contribution": "<what the user company brings — their existing assets, data, customer base, distribution>",
-      "solution_contribution": "<what the AI pattern delivers — the actual capability, in plain language>",
-      "first_step": "<30-day low-cash proposal>",
-      "confidence": 0-100
-    }
-    // ... 5-10 total, each with a DIFFERENT (target_persona, pain_anchor) pair, lens mixed across the set
-  ],
-  "top_pick_id": "<s1..sN>",
-  "top_pick_reasoning": "<one sentence — why this one wins given lens balance + confidence + first-step ease>"
-}`;
-
-const PAIN_PROMPT = `Pain-surfacing phase of TDE. Be concise — short sentences only.
-
-INPUT: customer atoms, optional industry/sub-industry/region, optional target_title (the role the rep is pitching), is_archetype flag.
-
-Produce 2-4 pain points at each of three levels:
-  1) company_pain — specific to THIS customer (empty array if is_archetype=true)
-  2) subindustry_pain — patterns typical of the sub-industry/segment
-  3) industry_pain — broader forces affecting the whole industry
-
-If target_title is provided, weight pain points toward what that role personally owns and bias persona_primary.title to match target_title where the atom supports it. Interpret target_title through whatever context is also supplied (industry / subindustry / customer atoms) — a CFO at a regional bank has different pain than a CFO at a SaaS startup. If target_title is null, treat persona selection as open and pick what the atoms most clearly point to.
-
-Persona titles must be one of: Executive/C-Suite | CFO/Finance | CISO/Security | CTO/IT | VP Sales | VP Marketing | Operations | Practitioner | End User | General
-Urgency: "high" | "medium" | "low"
-Economic levers: ROI | Cost-Out | Speed | Quality | Growth | Risk-Reduction
-Inertia forces: Sunk Cost | Change Fatigue | Risk Aversion | Political Cost | Procedural Gravity | No Forcing Function | Market Dynamics
-
-Each pain point:
-{
-  "id": "<kebab-id>",
-  "level": "company|subindustry|industry",
-  "title": "<3-6 word label>",
-  "description": "<1 sentence>",
-  "evidence": "<1 sentence — cite atom if company-level, else segment observation>",
-  "persona_primary": {
-    "title": "<role>",
-    "rationale": "<1 sentence — why they own this>",
-    "perspective": "<1 sentence — their inner voice>",
-    "urgency": "<level>", "economic_lever": "<lever>", "inertia_force": "<force>"
-  },
-  "persona_secondary": {
-    "title": "<different role>",
-    "rationale": "<1 sentence — why they're affected>",
-    "perspective": "<1 sentence — their inner voice>",
-    "urgency": "<level>", "economic_lever": "<lever>", "inertia_force": "<force>"
-  }
-}
-
-Every pain MUST have two distinct personas with different roles. Each persona gets their own urgency/lever/inertia.
-Company-level: only cite facts from provided atoms — do NOT invent. Sub-industry/industry: use segment-typical patterns, no invented incidents.
-If is_archetype=true, company_pain must be [].
-
-JSON only, no markdown: { "company_pain": [...], "subindustry_pain": [...], "industry_pain": [...] }`;
+// PAIN_PROMPT — moved to drix-brain (single source of truth).
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 async function callLLM(systemPrompt, userContent, { maxTokens = 4500, temperature = 0.3, retries = 1, modelOverride = null } = {}) {
@@ -1047,7 +888,11 @@ async function extractPainPoints(customerEntry, { industry, subindustry, recipie
       atoms: customerEntry.atoms
     }
   });
-  const parsed = await callLLM(PAIN_PROMPT, userContent, { maxTokens: 4000 });
+  // Pain generation now lives in the brain (pain-intel) — single source of truth.
+  const parsed = await brain.painIntel.extractPainPoints(
+    { name: customerEntry.target?.name, summary: customerEntry.summary, atoms: customerEntry.atoms, is_archetype: isArchetype },
+    { industry: ind, subindustry: subInd, targetTitle }
+  );
   const result = {
     company_pain:     Array.isArray(parsed.company_pain)     ? parsed.company_pain     : [],
     subindustry_pain: Array.isArray(parsed.subindustry_pain) ? parsed.subindustry_pain : [],
@@ -1743,44 +1588,16 @@ app.post('/api/demo-flow', async (req, res) => {
       if (forceFresh) console.log(`[strategy] force_fresh — bypassing cache (${sk})`);
       else console.log(`[strategy] Cache miss or invalid — calling LLM (${sk})`);
 
-      // Try with primary model first, then with increased tokens, then fallback model
-      const attempts = [
-        { maxTokens: 6000, retries: 2, label: 'primary' },
-        { maxTokens: 8000, retries: 1, label: 'primary-large' },
-        { maxTokens: 6000, retries: 1, modelOverride: 'anthropic/claude-sonnet-4', label: 'fallback-claude' }
-      ];
-
-      // Select prompt based on flow_mode. Defaults to STRATEGIES_PROMPT (full back-compat).
-      const stratPromptToUse = flow_mode === 'ai-opps' ? STRATEGIES_PROMPT_AI_OPPS : STRATEGIES_PROMPT;
-      if (flow_mode === 'ai-opps') console.log(`[strategy] flow_mode=ai-opps → using STRATEGIES_PROMPT_AI_OPPS`);
-
-      for (const attemptConfig of attempts) {
-        try {
-          console.log(`[strategy] Trying ${attemptConfig.label} (maxTokens=${attemptConfig.maxTokens}, model=${attemptConfig.modelOverride || OPENROUTER_MODEL_ID})`);
-          const result = await callLLM(stratPromptToUse, stratInput, {
-            maxTokens: attemptConfig.maxTokens,
-            retries: attemptConfig.retries,
-            ...(attemptConfig.modelOverride ? { modelOverride: attemptConfig.modelOverride } : {})
-          });
-
-          // Validate the response shape
-          if (hasValidStrategies(result)) {
-            strategies = result;
-            console.log(`[strategy] Success via ${attemptConfig.label}: ${result.strategies.length} strategies`);
-            break;
-          } else {
-            console.warn(`[strategy] ${attemptConfig.label} returned invalid shape:`, JSON.stringify(result).slice(0, 300));
-            // If response has strategies-like data under a different key, try to repair
-            const repaired = repairStrategyResponse(result);
-            if (hasValidStrategies(repaired)) {
-              strategies = repaired;
-              console.log(`[strategy] Repaired response from ${attemptConfig.label}: ${repaired.strategies.length} strategies`);
-              break;
-            }
-          }
-        } catch (err) {
-          console.error(`[strategy] ${attemptConfig.label} failed: ${err.message}`);
+      // Strategy generation now lives in the brain (strategy-intel) — same cascade
+      // (primary / primary-large / claude fallback) + repair, centralized.
+      try {
+        const result = await brain.strategyIntel.generateStrategies(stratInput, { flowMode: flow_mode });
+        if (brain.strategyIntel.hasValidStrategies(result)) {
+          strategies = result;
+          console.log(`[strategy] Success via brain.strategyIntel: ${result.strategies.length} strategies`);
         }
+      } catch (err) {
+        console.error(`[strategy] brain.strategyIntel failed: ${err.message}`);
       }
 
       // Cache only valid results
@@ -1902,85 +1719,12 @@ function synthesizeSolutionFromAtoms(solutionEntry, painGroups) {
 // call: no network hop, no cold-start 502s, and it anchors on the chosen
 // persona×pain instead of flattening atoms into a generic solution object.
 // Output shape matches exactly what the client's renderHydration() consumes.
-const DISCOVERY_INTEL_PROMPT = `You are an elite B2B sales strategist and coach.
-Given a target company, the solution being sold, the pains already surfaced, and a CHOSEN sales angle (a specific persona × pain pair), generate highly specific, research-backed sales intelligence for a first meeting.
+// DISCOVERY_INTEL_PROMPT — moved to drix-brain (single source of truth).
 
-ANCHOR EVERYTHING on the chosen angle: the questions, pain chips, and emails must all serve winning over the named persona on the named pain. Do not drift to other personas.
-
-CRITICAL QUALITY RULES FOR QUESTIONS:
-- Every question must be specific enough that the prospect thinks "this person researched my company."
-- Every response scenario must be a realistic QUOTE — how a real person in this role/industry would actually say it.
-- Every next_step and pivot must contain the ACTUAL WORDS the rep should say — not instructions like "redirect" or "probe deeper."
-- Purpose teaches strategy — the psychological or competitive reason behind the question, not the obvious.
-- tone_guidance coaches delivery — when to pause, when to empathize, when to challenge.
-- The 3 questions flow as one conversation: OPENING reveals the pain, DEEPENING quantifies it, ADVANCEMENT gets the prospect to envision the solution.
-- NEVER use generic business jargon. Write like a human talks.
-
-ANTI-FABRICATION: Only state specific facts about the company that appear in the provided atoms/evidence. If you lack a grounded fact, phrase it as a segment pattern ("companies like yours typically…") — never invent specific incidents, figures, dates, or systems.
-
-Return ONLY valid JSON (no markdown) in this exact shape:
-{
-  "score": <integer 1-100 fit score>,
-  "whoIsThis": "<2-3 sentence narrative: what they do, market position, why relevant>",
-  "primaryLead": { "title": "<the persona/role to target>", "topic": "<the core conversation topic>" },
-  "painIndicators": [ { "label": "<2-4 word pain chip>", "explanation": "<1-2 sentences: why it's their pain and how the solution addresses it>" } ],
-  "questions": [
-    {
-      "stage": "OPENING — Discovery",
-      "question": "<specific, provocative opener referencing their context>",
-      "purpose": "<2-3 sentences coaching the strategy behind it>",
-      "pain_it_targets": "<the real problem it surfaces, not a category>",
-      "tone_guidance": "<how to deliver it>",
-      "positive_responses": [ { "response": "<realistic prospect quote>", "next_step": "<exact words the rep says next>" }, { "response": "<2nd>", "next_step": "<2nd>" } ],
-      "neutral_negative_responses": [ { "response": "<realistic pushback quote>", "pivot": "<exact pivot words + why it works>" }, { "response": "<2nd>", "pivot": "<2nd>" } ]
-    },
-    { "stage": "DEEPENING — Pain Exploration", "question": "...", "purpose": "...", "pain_it_targets": "...", "tone_guidance": "...", "positive_responses": [ {"response":"...","next_step":"..."}, {"response":"...","next_step":"..."} ], "neutral_negative_responses": [ {"response":"...","pivot":"..."}, {"response":"...","pivot":"..."} ] },
-    { "stage": "ADVANCEMENT — Next Step", "question": "<vision question that gets them to sell themselves>", "purpose": "...", "pain_it_targets": "...", "tone_guidance": "...", "positive_responses": [ {"response":"...","next_step":"<the specific close: demo/pilot/follow-up with exact words>"}, {"response":"...","next_step":"..."} ], "neutral_negative_responses": [ {"response":"...","pivot":"<graceful door-open with specific words>"}, {"response":"...","pivot":"..."} ] }
-  ],
-  "emailCampaign": [
-    { "step": 1, "label": "Initial Outreach",      "sendDay": "Day 1",  "subject": "<subject>", "body": "<3-4 short paragraphs, references their specific pain, soft CTA>" },
-    { "step": 2, "label": "Value-Add Follow-Up",   "sendDay": "Day 4",  "subject": "<subject>", "body": "<shorter; shares a relevant insight/stat, no pressure>" },
-    { "step": 3, "label": "Pain-Point Trigger",    "sendDay": "Day 8",  "subject": "<subject>", "body": "<zeroes in on one specific pain indicator; personal and timely>" },
-    { "step": 4, "label": "Social Proof & Nudge",  "sendDay": "Day 14", "subject": "<subject>", "body": "<references peers who solved this; gentle nudge>" },
-    { "step": 5, "label": "Breakup",               "sendDay": "Day 21", "subject": "<subject>", "body": "<short, friendly breakup; leaves door open>" }
-  ]
-}
-
-DISCIPLINE: exactly 4 painIndicators, exactly 3 questions (the three stages above), exactly 5 emailCampaign steps. Each question needs 2 positive_responses and 2 neutral_negative_responses.`;
-
-async function generateDiscoveryIntel({ customer, solutionIntel, painGroups, chosenStrategy, customerName, customerWebsite, industryName }) {
-  const atoms = customer?.atoms || [];
-  // Bound the payload: prioritize the most decision-relevant atom types.
-  const keyTypes = ['weakness', 'mission_gap', 'buying_trigger', 'differentiator', 'icp', 'proof_point', 'product'];
-  const relevantAtoms = atoms
-    .filter(a => keyTypes.includes(a.type))
-    .slice(0, 60)
-    .map(a => ({ type: a.type, claim: a.claim, persona: a.d_persona, pressure: a.d_status_quo_pressure }));
-
-  const pg = painGroups || {};
-  const surfacedPains = [...(pg.company_pain || []), ...(pg.subindustry_pain || []), ...(pg.industry_pain || [])]
-    .map(p => ({ title: p.title, description: p.description, persona: p.persona_primary?.title }))
-    .slice(0, 12);
-
-  const userContent = JSON.stringify({
-    company: { name: customerName, website: customerWebsite || null, industry: industryName || null, summary: customer?.summary || '' },
-    chosen_angle: {
-      persona: chosenStrategy?.target_persona || 'General',
-      pain: chosenStrategy?.pain_anchor || '',
-      strategy_title: chosenStrategy?.title || '',
-      strategy_explanation: chosenStrategy?.explanation || '',
-      customer_pain: chosenStrategy?.customer_pain || ''
-    },
-    solution: solutionIntel,
-    surfaced_pains: surfacedPains,
-    customer_atoms: relevantAtoms
-  });
-
-  const parsed = await callLLM(DISCOVERY_INTEL_PROMPT, userContent, { maxTokens: 16000, temperature: 0.5, retries: 1 });
-  if (!parsed || !Array.isArray(parsed.questions) || !parsed.questions.length) {
-    throw new Error('Discovery intel generation returned no questions');
-  }
-  return parsed;
+async function generateDiscoveryIntel(args) {
+  // Discovery / hydration generation now lives in the brain (discovery-intel) —
+  // identical prompt + payload prep, centralized as the single source of truth.
+  return brain.discoveryIntel.generateDiscoveryIntel(args);
 }
 
 // Hydration endpoint — called AFTER user picks a strategy.
@@ -2027,20 +1771,33 @@ app.post('/api/hydrate', async (req, res) => {
       }
     }
 
-    // Generate the discovery intel NATIVELY from the atoms + pain groups +
-    // chosen strategy DRiX already holds. callLLM does fence-strip + JSON
-    // salvage + retry internally, so no external service and no 502 relay.
-    console.log(`[hydrate] Generating native discovery intel for ${customerName} (angle: ${chosenStrategy.target_persona || 'General'} × ${chosenStrategy.pain_anchor || '—'})`);
-    const hydration = await generateDiscoveryIntel({
-      customer: run.customer,
-      solutionIntel,
-      painGroups: run.pain_groups,
-      chosenStrategy,
-      customerName,
-      customerWebsite,
-      industryName
+    // ── Cache 2 (hydration): reuse questions+emails per (inputs × chosen strategy) ──
+    // Keyed on the same atoms that drive Cache 1 PLUS the selected strategy, so
+    // re-selecting a strategy you already hydrated is instant instead of a fresh LLM call.
+    const hydKey = cacheKey({
+      sender_atoms: run.sender?.atoms,
+      solution_atoms: run.solution?.atoms,
+      customer_atoms: run.customer?.atoms,
+      recipient_role: run.recipient_role,
+      strategy_id: chosenStrategy.id || strategy_id || 'custom',
     });
-    if (!hydration) throw new Error('Discovery intel generation returned no data');
+    let hydration = await db.getCachedIngest(hydKey, 'hydration');
+    if (hydration) {
+      console.log(`[hydrate] hydration cache HIT (${hydKey})`);
+    } else {
+      console.log(`[hydrate] Generating native discovery intel for ${customerName} (angle: ${chosenStrategy.target_persona || 'General'} × ${chosenStrategy.pain_anchor || '—'})`);
+      hydration = await generateDiscoveryIntel({
+        customer: run.customer,
+        solutionIntel,
+        painGroups: run.pain_groups,
+        chosenStrategy,
+        customerName,
+        customerWebsite,
+        industryName
+      });
+      if (!hydration) throw new Error('Discovery intel generation returned no data');
+      db.setCachedIngest(hydKey, 'hydration', hydration);
+    }
 
     // ── Unify score: carry the strategy's confidence as the hydration fit score ──
     // The strategy confidence (0-100) is the user-facing "Fit Score" everywhere.

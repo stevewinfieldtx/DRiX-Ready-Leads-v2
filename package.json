@@ -1,7 +1,7 @@
 {
   "name": "tde-demo",
   "version": "1.0.0",
-  "description": "TDE demo — ingest and reconstruct for AIAIVN meeting",
+  "description": "TDE demo \u2014 ingest and reconstruct for AIAIVN meeting",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -20,6 +20,7 @@
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.15.2",
     "pg": "^8.20.0",
-    "unzipper": "^0.12.3"
+    "unzipper": "^0.12.3",
+    "drix-brain": "file:../DRiX-Brain"
   }
 }
