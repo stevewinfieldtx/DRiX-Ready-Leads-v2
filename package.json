@@ -21,6 +21,6 @@
     "pdfkit": "^0.15.2",
     "pg": "^8.20.0",
     "unzipper": "^0.12.3",
-    "drix-brain": "file:../DRiX-Brain"
+    "drix-brain": "github:stevewinfieldtx/DRiX-Brain#v0.4.0"
   }
 }
