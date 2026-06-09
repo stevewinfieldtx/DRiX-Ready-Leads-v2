@@ -11,96 +11,192 @@
   .card { background:var(--card); width:100%; max-width:420px; border-radius:16px; padding:32px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
   h1 { font-size:22px; margin:0 0 4px; color:var(--ink); }
   p.sub { margin:0 0 22px; color:var(--muted); font-size:14px; }
-  label { display:block; font-size:13px; font-weight:600; color:var(--ink); margin:0 0 6px; }
+  label { display:block; font-size:13px; font-weight:600; color:var(--ink); margin:14px 0 6px; }
+  label:first-of-type { margin-top:0; }
   input { width:100%; padding:13px 14px; font-size:16px; border:1px solid var(--line); border-radius:10px; outline:none; }
   input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.15); }
-  button { width:100%; margin-top:16px; padding:13px; font-size:16px; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:10px; cursor:pointer; }
+  button.primary { width:100%; margin-top:18px; padding:13px; font-size:16px; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:10px; cursor:pointer; }
   button:disabled { opacity:.6; cursor:default; }
   .msg { margin-top:14px; font-size:14px; padding:10px 12px; border-radius:8px; display:none; }
   .msg.err { display:block; background:#fef2f2; color:#b91c1c; }
   .msg.ok  { display:block; background:#ecfdf5; color:#047857; }
   .hint { margin-top:18px; font-size:12px; color:var(--muted); line-height:1.5; }
-  .code-input { letter-spacing:8px; text-align:center; font-size:22px; }
-  .back { background:none; color:var(--muted); margin-top:8px; font-weight:500; }
   .badge { display:inline-block; font-size:11px; font-weight:700; color:#2563eb; background:#eff6ff; padding:4px 10px; border-radius:999px; margin-bottom:14px; }
+  .tabs { display:flex; gap:6px; background:#f1f5f9; border-radius:10px; padding:4px; margin-bottom:20px; }
+  .tabs button { flex:1; padding:9px 0; font-size:14px; font-weight:600; border:0; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; }
+  .tabs button.active { background:#fff; color:var(--ink); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+  .link { background:none; border:0; padding:0; margin-top:14px; font-size:13px; color:var(--accent); cursor:pointer; display:inline-block; }
+  .link.muted { color:var(--muted); }
 </style>
 </head>
 <body>
   <div class="card">
     <span class="badge">DRiX READY LEADS</span>
-    <h1 id="title">Sign in to continue</h1>
-    <p class="sub" id="subtitle">Use your <strong>business email</strong>. We'll send a one-time code.</p>
 
-    <!-- Step 1: email -->
-    <form id="emailForm">
-      <label for="email">Business email</label>
-      <input id="email" type="email" autocomplete="email" placeholder="you@yourcompany.com" required />
-      <button type="submit" id="emailBtn">Send me a code</button>
+    <!-- Tabs (hidden in forgot/reset views) -->
+    <div class="tabs" id="tabs">
+      <button id="tabSignin" class="active" type="button">Sign in</button>
+      <button id="tabSignup" type="button">Create account</button>
+    </div>
+
+    <h1 id="title">Welcome back</h1>
+    <p class="sub" id="subtitle">Sign in with your email and password.</p>
+
+    <!-- Sign in -->
+    <form id="signinForm">
+      <label for="siEmail">Business email</label>
+      <input id="siEmail" type="email" autocomplete="email" placeholder="you@yourcompany.com" required />
+      <label for="siPassword">Password</label>
+      <input id="siPassword" type="password" autocomplete="current-password" placeholder="Your password" required />
+      <button type="submit" class="primary" id="siBtn">Sign in &rarr;</button>
+      <button type="button" class="link muted" id="forgotLink">Forgot your password?</button>
     </form>
 
-    <!-- Step 2: code -->
-    <form id="codeForm" style="display:none">
-      <label for="code">Enter the 6-digit code</label>
-      <input id="code" class="code-input" inputmode="numeric" maxlength="6" placeholder="000000" required />
-      <button type="submit" id="codeBtn">Verify &amp; enter</button>
-      <button type="button" class="back" id="backBtn">Use a different email</button>
+    <!-- Create account -->
+    <form id="signupForm" style="display:none">
+      <label for="suEmail">Business email</label>
+      <input id="suEmail" type="email" autocomplete="email" placeholder="you@yourcompany.com" required />
+      <label for="suPassword">Choose a password</label>
+      <input id="suPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required />
+      <button type="submit" class="primary" id="suBtn">Create account &amp; start &rarr;</button>
+    </form>
+
+    <!-- Forgot password -->
+    <form id="forgotForm" style="display:none">
+      <label for="fpEmail">Business email</label>
+      <input id="fpEmail" type="email" autocomplete="email" placeholder="you@yourcompany.com" required />
+      <button type="submit" class="primary" id="fpBtn">Email me a reset link</button>
+      <button type="button" class="link muted" id="backToSignin">&larr; Back to sign in</button>
+    </form>
+
+    <!-- Reset password (arrived via emailed link) -->
+    <form id="resetForm" style="display:none">
+      <label for="rpPassword">New password</label>
+      <input id="rpPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required />
+      <button type="submit" class="primary" id="rpBtn">Set password &amp; sign in &rarr;</button>
     </form>
 
     <div class="msg" id="msg"></div>
-    <p class="hint">New here? You get <strong>3 free runs</strong>. After that it's $10 for 10 runs — or redeem a code inside the app. Personal Gmail / Yahoo / Outlook addresses aren't accepted; please use your work email.</p>
+    <p class="hint" id="hint">New here? Create an account and try DRiX with <strong>10 free runs</strong> — no payment, no waiting. After that it's $10 for 10 runs. Please use your work email (personal Gmail / Yahoo / Outlook addresses aren't accepted).</p>
   </div>
 
 <script>
-  var emailForm = document.getElementById('emailForm');
-  var codeForm  = document.getElementById('codeForm');
+  var views = {
+    signin: document.getElementById('signinForm'),
+    signup: document.getElementById('signupForm'),
+    forgot: document.getElementById('forgotForm'),
+    reset:  document.getElementById('resetForm'),
+  };
+  var tabs = document.getElementById('tabs');
+  var tabSignin = document.getElementById('tabSignin');
+  var tabSignup = document.getElementById('tabSignup');
+  var title = document.getElementById('title');
+  var subtitle = document.getElementById('subtitle');
   var msg = document.getElementById('msg');
-  var currentEmail = '';
 
   function show(type, text){ msg.className = 'msg ' + type; msg.textContent = text; }
   function clearMsg(){ msg.className = 'msg'; msg.textContent = ''; }
 
-  emailForm.addEventListener('submit', async function(e){
-    e.preventDefault(); clearMsg();
-    var btn = document.getElementById('emailBtn');
-    currentEmail = document.getElementById('email').value.trim();
-    btn.disabled = true; btn.textContent = 'Sending…';
-    try {
-      var r = await fetch('/api/auth/request-code', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email: currentEmail })
-      });
-      var d = await r.json();
-      if (!r.ok) { show('err', d.error || 'Something went wrong.'); btn.disabled=false; btn.textContent='Send me a code'; return; }
-      emailForm.style.display='none'; codeForm.style.display='block';
-      document.getElementById('title').textContent='Check your email';
-      document.getElementById('subtitle').innerHTML='We sent a 6-digit code to <strong>'+currentEmail+'</strong>.';
-      show('ok','Code sent. It expires in 10 minutes.');
-      document.getElementById('code').focus();
-      if (d.devCode) show('ok','Dev mode — your code is '+d.devCode);
-    } catch(err){ show('err','Network error. Try again.'); btn.disabled=false; btn.textContent='Send me a code'; }
-  });
+  function setView(name){
+    clearMsg();
+    for (var k in views) views[k].style.display = (k === name) ? 'block' : 'none';
+    tabs.style.display = (name === 'signin' || name === 'signup') ? 'flex' : 'none';
+    tabSignin.className = (name === 'signin') ? 'active' : '';
+    tabSignup.className = (name === 'signup') ? 'active' : '';
+    if (name === 'signin') { title.textContent = 'Welcome back'; subtitle.textContent = 'Sign in with your email and password.'; }
+    if (name === 'signup') { title.textContent = 'Try DRiX free'; subtitle.textContent = 'Create your account and start instantly — 10 free runs included.'; }
+    if (name === 'forgot') { title.textContent = 'Reset your password'; subtitle.textContent = 'We’ll email you a link to choose a new one.'; }
+    if (name === 'reset')  { title.textContent = 'Choose a new password'; subtitle.textContent = 'Enter a new password for your account.'; }
+  }
 
-  codeForm.addEventListener('submit', async function(e){
+  tabSignin.addEventListener('click', function(){ setView('signin'); });
+  tabSignup.addEventListener('click', function(){ setView('signup'); });
+  document.getElementById('forgotLink').addEventListener('click', function(){ setView('forgot'); });
+  document.getElementById('backToSignin').addEventListener('click', function(){ setView('signin'); });
+
+  async function post(url, body){
+    var r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    var d = {}; try { d = await r.json(); } catch(e){}
+    return { ok: r.ok, d: d };
+  }
+  function busy(btn, on, label){ btn.disabled = on; btn.textContent = on ? 'Working…' : label; }
+
+  // ── Sign in ──
+  views.signin.addEventListener('submit', async function(e){
     e.preventDefault(); clearMsg();
-    var btn = document.getElementById('codeBtn');
-    btn.disabled = true; btn.textContent = 'Verifying…';
+    var btn = document.getElementById('siBtn');
+    busy(btn, true, 'Sign in →');
     try {
-      var r = await fetch('/api/auth/verify', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email: currentEmail, code: document.getElementById('code').value.trim() })
+      var res = await post('/api/auth/login', {
+        email: document.getElementById('siEmail').value.trim(),
+        password: document.getElementById('siPassword').value,
       });
-      var d = await r.json();
-      if (!r.ok) { show('err', d.error || 'Invalid code.'); btn.disabled=false; btn.textContent='Verify & enter'; return; }
-      show('ok','Signed in. Loading…');
+      if (!res.ok) {
+        show('err', res.d.error || 'Sign-in failed.');
+        if (res.d.code === 'NO_PASSWORD_SET') {
+          document.getElementById('suEmail').value = document.getElementById('siEmail').value.trim();
+          setTimeout(function(){ setView('signup'); show('ok','Set a password below — your existing runs are saved.'); }, 1800);
+        }
+        busy(btn, false, 'Sign in →'); return;
+      }
+      show('ok', 'Signed in. Loading…');
       window.location.href = '/';
-    } catch(err){ show('err','Network error. Try again.'); btn.disabled=false; btn.textContent='Verify & enter'; }
+    } catch(err){ show('err','Network error. Try again.'); busy(btn, false, 'Sign in →'); }
   });
 
-  document.getElementById('backBtn').addEventListener('click', function(){
-    codeForm.style.display='none'; emailForm.style.display='block'; clearMsg();
-    document.getElementById('title').textContent='Sign in to continue';
-    document.getElementById('subtitle').innerHTML='Use your <strong>business email</strong>. We\'ll send a one-time code.';
+  // ── Create account ──
+  views.signup.addEventListener('submit', async function(e){
+    e.preventDefault(); clearMsg();
+    var btn = document.getElementById('suBtn');
+    busy(btn, true, 'Create account & start →');
+    try {
+      var res = await post('/api/auth/signup', {
+        email: document.getElementById('suEmail').value.trim(),
+        password: document.getElementById('suPassword').value,
+      });
+      if (!res.ok) {
+        show('err', res.d.error || 'Could not create your account.');
+        if (res.d.code === 'ACCOUNT_EXISTS') {
+          document.getElementById('siEmail').value = document.getElementById('suEmail').value.trim();
+          setTimeout(function(){ setView('signin'); }, 1800);
+        }
+        busy(btn, false, 'Create account & start →'); return;
+      }
+      show('ok', 'Account created — you’re in. Loading…');
+      window.location.href = '/';
+    } catch(err){ show('err','Network error. Try again.'); busy(btn, false, 'Create account & start →'); }
   });
+
+  // ── Forgot password ──
+  views.forgot.addEventListener('submit', async function(e){
+    e.preventDefault(); clearMsg();
+    var btn = document.getElementById('fpBtn');
+    busy(btn, true, 'Email me a reset link');
+    try {
+      var res = await post('/api/auth/forgot-password', { email: document.getElementById('fpEmail').value.trim() });
+      if (!res.ok) { show('err', res.d.error || 'Something went wrong.'); busy(btn, false, 'Email me a reset link'); return; }
+      if (res.d.devLink) { show('ok', 'Dev mode — reset link: ' + res.d.devLink); }
+      else { show('ok', 'If an account exists for that email, a reset link is on its way. Check your inbox.'); }
+      busy(btn, false, 'Email me a reset link');
+    } catch(err){ show('err','Network error. Try again.'); busy(btn, false, 'Email me a reset link'); }
+  });
+
+  // ── Reset password (token in URL) ──
+  var resetToken = new URLSearchParams(window.location.search).get('reset');
+  views.reset.addEventListener('submit', async function(e){
+    e.preventDefault(); clearMsg();
+    var btn = document.getElementById('rpBtn');
+    busy(btn, true, 'Set password & sign in →');
+    try {
+      var res = await post('/api/auth/reset-password', { token: resetToken, password: document.getElementById('rpPassword').value });
+      if (!res.ok) { show('err', res.d.error || 'Could not reset your password.'); busy(btn, false, 'Set password & sign in →'); return; }
+      show('ok', 'Password updated. Loading…');
+      window.location.href = '/';
+    } catch(err){ show('err','Network error. Try again.'); busy(btn, false, 'Set password & sign in →'); }
+  });
+
+  // Initial view
+  setView(resetToken ? 'reset' : 'signin');
 </script>
 </body>
 </html>

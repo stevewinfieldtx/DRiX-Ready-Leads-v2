@@ -3,11 +3,12 @@
 // Self-contained. No new npm dependencies (uses Node crypto + global fetch).
 //
 // What this does:
-//   1. AUTH WALL  â€” every /api/* route (except /api/auth/*) requires a logged-in
-//      user with a verified BUSINESS email. Login = email one-time passcode (OTP)
-//      delivered via the existing Resend account. Session = HMAC-signed cookie.
-//   2. METERING   â€” each "run" (an expensive API endpoint) consumes 1 credit.
-//      Every user gets 3 FREE runs. After that they must buy more or redeem a code.
+//   1. AUTH WALL  — every /api/* route (except /api/auth/*) requires a logged-in
+//      user with a BUSINESS email. Login = email + password (instant, no email
+//      round-trip). New users sign up and are in immediately. Password reset is
+//      the ONLY flow that emails (via Resend). Session = HMAC-signed cookie.
+//   2. METERING   — each "run" (an expensive API endpoint) consumes 1 credit.
+//      Every user gets 10 FREE runs. After that they must buy more or redeem a code.
 //   3. DISCOUNT   â€” code "steveisawesome" (exact, lowercase) grants 10 runs at no
 //      cost, redeemable ONCE per user.
 //   4. STRIPE     â€” Checkout for a 10-run pack at $10. Activates automatically once
@@ -17,13 +18,14 @@
 const crypto = require('crypto');
 
 // â”€â”€â”€ CONFIG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const FREE_RUNS         = 3;                 // free runs every user gets
+const FREE_RUNS         = 10;                // free trial runs every user gets
 const RUNS_PER_PURCHASE = 10;                // 10 runs per $10 pack
 const PURCHASE_PRICE_CENTS = 1000;           // $10.00
 const DISCOUNT_CODE     = 'steveisawesome';  // exact, lowercase
 const DISCOUNT_RUNS     = 10;                 // runs the code grants
-const OTP_TTL_MS        = 10 * 60 * 1000;    // passcode valid 10 minutes
+const RESET_TTL_MS      = 30 * 60 * 1000;    // password-reset link valid 30 minutes
 const SESSION_TTL_MS    = 30 * 24 * 60 * 60 * 1000; // 30 days
+const MIN_PASSWORD_LEN  = 8;
 
 const SESSION_SECRET = process.env.SESSION_SECRET
   || crypto.createHash('sha256').update('drix-session::' + (process.env.OPENROUTER_API_KEY || 'fallback')).digest('hex');
@@ -52,9 +54,9 @@ const ALLOWLIST_EMAILS = new Set(
   (process.env.ALLOWLIST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 );
 
-// ── Owner bypass (skip the emailed OTP, but only with a secret passphrase) ────
-// Set BOTH to enable. The bypass email signs in by typing BYPASS_SECRET in place
-// of the code. Disabled unless both are set. Keep BYPASS_SECRET long + private.
+// ── Owner bypass ──────────────────────────────────────────────────────────────
+// Set BOTH to enable. The bypass email signs in with BYPASS_SECRET as the
+// password (no account/password setup needed). Keep BYPASS_SECRET long + private.
 const BYPASS_EMAIL  = (process.env.BYPASS_EMAIL || '').trim().toLowerCase();
 const BYPASS_SECRET = process.env.BYPASS_SECRET || '';
 function bypassEnabled() { return !!BYPASS_EMAIL && BYPASS_SECRET.length >= 8; }
@@ -64,8 +66,6 @@ function safeEqual(a, b) {
   if (ba.length !== bb.length) return false;
   try { return crypto.timingSafeEqual(ba, bb); } catch { return false; }
 }
-// Simple brute-force guard for the bypass passphrase: lock 15 min after 5 misses.
-const bypassFails = new Map(); // email -> { count, until }
 
 const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
@@ -121,8 +121,7 @@ const METERED_ROUTES = new Set([
 // â”€â”€â”€ STORE (Postgres, with in-memory fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // app_users: email PK, runs_used, runs_granted (purchased+redeemed), redeemed jsonb.
 let _db = null;
-const memUsers = new Map();   // email -> { runs_used, runs_granted, redeemed:Set }
-const otpStore = new Map();   // email -> { hash, exp, tries }
+const memUsers = new Map();   // email -> { runs_used, runs_granted, redeemed:Set, password_hash }
 
 function pool() { try { return _db && _db.getPool && _db.getPool(); } catch { return null; } }
 
@@ -136,9 +135,12 @@ async function initSchema() {
         runs_used     INTEGER NOT NULL DEFAULT 0,
         runs_granted  INTEGER NOT NULL DEFAULT 0,
         redeemed      JSONB   NOT NULL DEFAULT '[]'::jsonb,
+        password_hash TEXT,
         created_at    TIMESTAMPTZ DEFAULT NOW(),
         last_seen     TIMESTAMPTZ DEFAULT NOW()
       );
+      -- Migration for tables created before password auth existed.
+      ALTER TABLE app_users ADD COLUMN IF NOT EXISTS password_hash TEXT;
       CREATE TABLE IF NOT EXISTS app_payments (
         id          TEXT PRIMARY KEY,
         email       TEXT,
@@ -187,6 +189,60 @@ async function getUser(email) {
   const row = r.rows[0];
   return { email, runs_used: row.runs_used, runs_granted: row.runs_granted, redeemed: row.redeemed || [] };
 }
+
+// ─── PASSWORDS (scrypt, no dependency) ────────────────────────────────────────
+// Stored format: scrypt$<saltB64>$<hashB64>
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(String(password), salt, 64);
+  return `scrypt$${salt.toString('base64url')}$${hash.toString('base64url')}`;
+}
+function verifyPassword(password, stored) {
+  try {
+    const [scheme, saltB64, hashB64] = String(stored || '').split('$');
+    if (scheme !== 'scrypt' || !saltB64 || !hashB64) return false;
+    const salt = Buffer.from(saltB64, 'base64url');
+    const expected = Buffer.from(hashB64, 'base64url');
+    const actual = crypto.scryptSync(String(password), salt, expected.length);
+    return crypto.timingSafeEqual(actual, expected);
+  } catch { return false; }
+}
+
+// Fetch just the stored password hash (null if user missing or never set one).
+async function getPasswordHash(email) {
+  const p = pool();
+  if (!p) { const u = memUsers.get(email); return (u && u.password_hash) || null; }
+  const r = await p.query(`SELECT password_hash FROM app_users WHERE email = $1`, [email]);
+  return r.rows.length ? (r.rows[0].password_hash || null) : null;
+}
+async function userExists(email) {
+  const p = pool();
+  if (!p) return memUsers.has(email);
+  const r = await p.query(`SELECT 1 FROM app_users WHERE email = $1`, [email]);
+  return r.rows.length > 0;
+}
+async function setPassword(email, passwordHash) {
+  const p = pool();
+  if (!p) {
+    const u = memUsers.get(email) || { runs_used: 0, runs_granted: 0, redeemed: new Set() };
+    u.password_hash = passwordHash; memUsers.set(email, u); return;
+  }
+  await p.query(`UPDATE app_users SET password_hash = $2, last_seen = NOW() WHERE email = $1`, [email, passwordHash]);
+}
+
+// Brute-force guard for password login: lock 15 min after 5 misses per email.
+const loginFails = new Map(); // email -> { count, until }
+function loginLocked(email) {
+  const f = loginFails.get(email);
+  return !!(f && f.until > Date.now());
+}
+function recordLoginFail(email) {
+  const f = loginFails.get(email) || { count: 0, until: 0 };
+  f.count += 1;
+  if (f.count >= 5) { f.until = Date.now() + 15 * 60 * 1000; f.count = 0; }
+  loginFails.set(email, f);
+}
+function clearLoginFails(email) { loginFails.delete(email); }
 
 // Atomically consume 1 run if allowance remains. Returns the updated user, or null if exhausted.
 async function consumeRun(email) {
@@ -417,11 +473,32 @@ function validateBusinessEmail(emailRaw) {
   return { ok: true, email };
 }
 
-// â”€â”€â”€ OTP DELIVERY (Resend) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-async function sendOtpEmail(email, code) {
+// ─── PASSWORD RESET (the only flow that emails — sign-in/up never wait on email) ──
+// Token = HMAC-signed { email, exp, pw } where pw is a fragment of the CURRENT
+// password hash. Changing the password invalidates outstanding reset links.
+function makeResetToken(email, currentHash) {
+  const pw = crypto.createHash('sha256').update(String(currentHash || 'none')).digest('hex').slice(0, 16);
+  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + RESET_TTL_MS, pw })).toString('base64url');
+  return `${payload}.${sign(payload)}`;
+}
+async function verifyResetToken(token) {
+  if (!token || token.indexOf('.') < 0) return null;
+  const [payload, sig] = String(token).split('.');
+  if (sig !== sign(payload)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!data.email || !data.exp || Date.now() > data.exp) return null;
+    const currentHash = await getPasswordHash(data.email);
+    const pw = crypto.createHash('sha256').update(String(currentHash || 'none')).digest('hex').slice(0, 16);
+    if (pw !== data.pw) return null; // password changed since the link was issued
+    return data.email;
+  } catch { return null; }
+}
+
+async function sendResetEmail(email, resetUrl) {
   if (!RESEND_API_KEY) {
-    console.warn(`[auth] RESEND_API_KEY not set â€” OTP for ${email} is ${code} (logged, not emailed).`);
-    return { ok: true, devCode: code };
+    console.warn(`[auth] RESEND_API_KEY not set — reset link for ${email}: ${resetUrl}`);
+    return { ok: true, devLink: resetUrl };
   }
   try {
     const resp = await fetch('https://api.resend.com/emails', {
@@ -430,22 +507,22 @@ async function sendOtpEmail(email, code) {
       body: JSON.stringify({
         from: REPORT_FROM_EMAIL,
         to: email,
-        subject: `Your DRiX sign-in code: ${code}`,
+        subject: 'Reset your DRiX Ready Leads password',
         html: `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:480px;margin:auto">
-          <h2 style="margin:0 0 8px">Sign in to DRiX Ready Leads</h2>
-          <p style="color:#444">Enter this code to continue. It expires in 10 minutes.</p>
-          <div style="font-size:34px;font-weight:700;letter-spacing:8px;background:#0f172a;color:#fff;padding:16px 0;text-align:center;border-radius:10px">${code}</div>
-          <p style="color:#888;font-size:12px;margin-top:16px">If you didn't request this, ignore this email.</p>
+          <h2 style="margin:0 0 8px">Reset your password</h2>
+          <p style="color:#444">Click the button below to choose a new password. This link expires in 30 minutes.</p>
+          <p style="text-align:center;margin:24px 0">
+            <a href="${resetUrl}" style="display:inline-block;background:#2563eb;color:#fff;font-weight:700;padding:14px 28px;border-radius:10px;text-decoration:none">Choose a new password</a>
+          </p>
+          <p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your browser:<br>${resetUrl}</p>
+          <p style="color:#888;font-size:12px;margin-top:16px">If you didn't request this, ignore this email — your password is unchanged.</p>
         </div>`,
       }),
     });
-    if (!resp.ok) { const t = await resp.text(); console.error('[auth] Resend failed:', resp.status, t.slice(0, 200)); return { ok: false, error: 'Could not send the code. Try again.' }; }
+    if (!resp.ok) { const t = await resp.text(); console.error('[auth] Resend failed:', resp.status, t.slice(0, 200)); return { ok: false, error: 'Could not send the reset email. Try again.' }; }
     return { ok: true };
-  } catch (e) { console.error('[auth] sendOtpEmail error:', e.message); return { ok: false, error: 'Could not send the code. Try again.' }; }
+  } catch (e) { console.error('[auth] sendResetEmail error:', e.message); return { ok: false, error: 'Could not send the reset email. Try again.' }; }
 }
-
-function newCode() { return String(crypto.randomInt(0, 1000000)).padStart(6, '0'); }
-function hashCode(email, code) { return crypto.createHmac('sha256', SESSION_SECRET).update(`${email}:${code}`).digest('hex'); }
 
 // â”€â”€â”€ STRIPE (REST, no dependency; activates when STRIPE_SECRET_KEY set) â”€â”€â”€â”€â”€â”€â”€
 function stripeEnabled() { return !!STRIPE_SECRET_KEY; }
@@ -601,57 +678,109 @@ function install(app, deps = {}) {
     res.json({ received: true });
   });
 
-  // â”€â”€ Auth API â”€â”€
-  app.post('/api/auth/request-code', async (req, res) => {
-    // Owner bypass: don't email a code — the UI will ask for the master passphrase.
-    const rawEmail = String(req.body?.email || '').trim().toLowerCase();
-    if (bypassEnabled() && rawEmail === BYPASS_EMAIL) {
-      return res.json({ ok: true, bypass: true });
-    }
+  // ── Auth API (email + password — instant access, no email round-trip) ──
+
+  // CREATE ACCOUNT: new users are in immediately with FREE_RUNS trial runs.
+  // Legacy accounts created under the old email-code system have no password;
+  // signing up with that email simply sets their password (runs are preserved).
+  app.post('/api/auth/signup', async (req, res) => {
     const v = validateBusinessEmail(req.body?.email);
     if (!v.ok) return res.status(400).json({ error: v.error });
-    const code = newCode();
-    otpStore.set(v.email, { hash: hashCode(v.email, code), exp: Date.now() + OTP_TTL_MS, tries: 0 });
-    const sent = await sendOtpEmail(v.email, code);
-    if (!sent.ok) return res.status(502).json({ error: sent.error });
-    res.json({ ok: true, ...(sent.devCode ? { devCode: sent.devCode } : {}) });
+    const password = String(req.body?.password || '');
+    if (password.length < MIN_PASSWORD_LEN) {
+      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LEN} characters.` });
+    }
+    try {
+      const existingHash = await getPasswordHash(v.email);
+      if (existingHash) {
+        return res.status(409).json({ error: 'An account with this email already exists. Sign in instead.', code: 'ACCOUNT_EXISTS' });
+      }
+      await ensureUser(v.email);
+      await setPassword(v.email, hashPassword(password));
+      setSessionCookie(res, makeToken(v.email));
+      const u = await getUser(v.email);
+      console.log(`[auth] Signup: ${v.email}`);
+      res.json({ ok: true, email: v.email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
+    } catch (e) { console.error('[auth] signup error:', e.message); res.status(500).json({ error: 'Could not create your account. Try again.' }); }
   });
 
-  app.post('/api/auth/verify', async (req, res) => {
+  // SIGN IN: email + password. Locks 15 minutes after 5 bad attempts.
+  app.post('/api/auth/login', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
-    const code = String(req.body?.code || '').trim();
+    const password = String(req.body?.password || '');
+    if (!email || !password) return res.status(400).json({ error: 'Enter your email and password.' });
 
-    // ── Owner bypass: sign in with the master passphrase instead of an OTP ──
-    if (bypassEnabled() && email === BYPASS_EMAIL) {
-      const lock = bypassFails.get(email);
-      if (lock && lock.until > Date.now()) {
-        return res.status(429).json({ error: 'Too many attempts. Try again later.' });
-      }
-      if (safeEqual(code, BYPASS_SECRET)) {
-        bypassFails.delete(email);
-        await ensureUser(email);
-        setSessionCookie(res, makeToken(email));
-        const u = await getUser(email);
-        console.log(`[auth] Owner bypass sign-in: ${email}`);
-        return res.json({ ok: true, email, remaining: FREE_RUNS + u.runs_granted - u.runs_used });
-      }
-      const f = bypassFails.get(email) || { count: 0, until: 0 };
-      f.count += 1;
-      if (f.count >= 5) { f.until = Date.now() + 15 * 60 * 1000; f.count = 0; }
-      bypassFails.set(email, f);
-      return res.status(400).json({ error: 'Incorrect passphrase.' });
+    if (loginLocked(email)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+
+    // Owner bypass: BYPASS_EMAIL signs in with BYPASS_SECRET as the password.
+    if (bypassEnabled() && email === BYPASS_EMAIL && safeEqual(password, BYPASS_SECRET)) {
+      clearLoginFails(email);
+      await ensureUser(email);
+      setSessionCookie(res, makeToken(email));
+      const u = await getUser(email);
+      console.log(`[auth] Owner bypass sign-in: ${email}`);
+      return res.json({ ok: true, email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
     }
 
-    const rec = otpStore.get(email);
-    if (!rec || Date.now() > rec.exp) return res.status(400).json({ error: 'Code expired. Request a new one.' });
-    if (rec.tries >= 5) { otpStore.delete(email); return res.status(429).json({ error: 'Too many attempts. Request a new code.' }); }
-    rec.tries += 1;
-    if (hashCode(email, code) !== rec.hash) return res.status(400).json({ error: 'Incorrect code.' });
-    otpStore.delete(email);
-    await ensureUser(email);
-    setSessionCookie(res, makeToken(email));
-    const u = await getUser(email);
-    res.json({ ok: true, email, remaining: FREE_RUNS + u.runs_granted - u.runs_used });
+    try {
+      const exists = await userExists(email);
+      const hash = exists ? await getPasswordHash(email) : null;
+      if (exists && !hash) {
+        // Legacy email-code account that never set a password.
+        return res.status(400).json({
+          error: 'This account predates passwords. Use "Create account" with this email to set yours — your runs are saved.',
+          code: 'NO_PASSWORD_SET',
+        });
+      }
+      if (!hash || !verifyPassword(password, hash)) {
+        recordLoginFail(email);
+        return res.status(400).json({ error: 'Incorrect email or password.' });
+      }
+      clearLoginFails(email);
+      await ensureUser(email); // bumps last_seen
+      setSessionCookie(res, makeToken(email));
+      const u = await getUser(email);
+      res.json({ ok: true, email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
+    } catch (e) { console.error('[auth] login error:', e.message); res.status(500).json({ error: 'Sign-in failed. Try again.' }); }
+  });
+
+  // FORGOT PASSWORD: emails a reset link (the one place email speed doesn't gate access).
+  // Always responds ok so the endpoint can't be used to probe which emails have accounts.
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+    try {
+      const exists = await userExists(email);
+      if (exists) {
+        const currentHash = await getPasswordHash(email);
+        const token = makeResetToken(email, currentHash);
+        const reqBase = `${req.protocol}://${req.get('host')}`;
+        const baseUrl = (APP_URL && !/localhost|127\.0\.0\.1/.test(APP_URL)) ? APP_URL : reqBase;
+        const resetUrl = `${baseUrl}/account?reset=${encodeURIComponent(token)}`;
+        const sent = await sendResetEmail(email, resetUrl);
+        if (sent.devLink) return res.json({ ok: true, devLink: sent.devLink });
+      }
+      res.json({ ok: true });
+    } catch (e) { console.error('[auth] forgot-password error:', e.message); res.json({ ok: true }); }
+  });
+
+  // RESET PASSWORD: token from the email link + new password. Signs the user in.
+  app.post('/api/auth/reset-password', async (req, res) => {
+    const password = String(req.body?.password || '');
+    if (password.length < MIN_PASSWORD_LEN) {
+      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LEN} characters.` });
+    }
+    try {
+      const email = await verifyResetToken(req.body?.token);
+      if (!email) return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' });
+      await ensureUser(email);
+      await setPassword(email, hashPassword(password));
+      clearLoginFails(email);
+      setSessionCookie(res, makeToken(email));
+      const u = await getUser(email);
+      console.log(`[auth] Password reset: ${email}`);
+      res.json({ ok: true, email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
+    } catch (e) { console.error('[auth] reset-password error:', e.message); res.status(500).json({ error: 'Could not reset your password. Try again.' }); }
   });
 
   app.post('/api/auth/logout', (req, res) => { clearSessionCookie(res); res.json({ ok: true }); });
@@ -742,9 +871,10 @@ function install(app, deps = {}) {
   });
 
   // Account / redeem / buy page (signed-in users; otherwise the login wall).
+  // A ?reset= token always gets the login page so the reset form can render.
   app.get('/account', (req, res) => {
     const email = sessionEmail(req);
-    const file = email ? 'account.html' : 'login.html';
+    const file = (email && !req.query.reset) ? 'account.html' : 'login.html';
     res.sendFile(require('path').join(__dirname, 'public', file));
   });
 
